@@ -16,12 +16,12 @@ router.get('/overview', async (req, res) => {
   }
   try {
     const [loads, money, bids] = await Promise.all([
-      db.query(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status='open')::int AS open FROM shipment_postings`),
-      db.query(`SELECT COALESCE(SUM(shipper_charge),0) AS gross,
+      db.query(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status='open_for_bids')::int AS open FROM shipment_postings`),
+      db.query(`SELECT COALESCE(SUM(gross_shipper_paid),0) AS gross,
                        COALESCE(SUM(carrier_payout),0) AS payouts,
-                       COALESCE(SUM(platform_profit),0) AS net
+                       COALESCE(SUM(platform_fee),0) AS net
                   FROM marketplace_transactions`),
-      db.query('SELECT COUNT(*)::int AS total FROM bids'),
+      db.query('SELECT COUNT(*)::int AS total FROM carrier_bids'),
     ]);
     return res.json({
       total_loads: loads.rows[0].total,

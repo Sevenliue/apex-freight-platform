@@ -28,31 +28,33 @@ router.post('/submit', async (req, res) => {
 
   const load = store.loads.get(shipment_posting_id);
   if (!load) return res.status(404).json({ error: 'Shipment posting not found' });
-  if (load.status !== 'open') {
+  if (load.status !== 'open_for_bids') {
     return res.status(409).json({ error: `Posting is ${load.status}; no longer open for bids` });
   }
 
+  const carrierId = db.isEnabled() ? await db.ensureUser(carrier_id, 'carrier') : carrier_id;
+
   // Upsert on (posting, carrier): a carrier gets one live bid per posting.
   let bid = [...store.bids.values()].find(
-    (x) => x.shipment_posting_id === shipment_posting_id && x.carrier_id === carrier_id
+    (x) => x.shipment_posting_id === shipment_posting_id && x.carrier_id === carrierId
   );
   let created = false;
   if (bid) {
     bid.bid_amount = round2(amount);
     if (estimated_transit_days != null) bid.estimated_transit_days = Number(estimated_transit_days);
     if (notes !== undefined) bid.notes = notes;
-    bid.status = 'open';
+    bid.status = 'submitted';
     bid.updated_at = now();
   } else {
     created = true;
     bid = {
-      id: id('bid'),
+      id: db.newId('bid'),
       shipment_posting_id,
-      carrier_id,
+      carrier_id: carrierId,
       bid_amount: round2(amount),
       estimated_transit_days: estimated_transit_days != null ? Number(estimated_transit_days) : null,
       notes: notes || null,
-      status: 'open',
+      status: 'submitted',
       created_at: now(),
       updated_at: now(),
     };
@@ -62,13 +64,13 @@ router.post('/submit', async (req, res) => {
   if (db.isEnabled()) {
     try {
       await db.query(
-        `INSERT INTO bids (id, shipment_posting_id, carrier_id, bid_amount, estimated_transit_days, notes, status)
+        `INSERT INTO carrier_bids (id, shipment_posting_id, carrier_id, bid_amount, estimated_transit_days, notes, status)
          VALUES ($1,$2,$3,$4,$5,$6,$7)
          ON CONFLICT (shipment_posting_id, carrier_id)
          DO UPDATE SET bid_amount = EXCLUDED.bid_amount,
                        estimated_transit_days = EXCLUDED.estimated_transit_days,
                        notes = EXCLUDED.notes,
-                       status = 'open', updated_at = now()`,
+                       status = 'submitted'`,
         [bid.id, bid.shipment_posting_id, bid.carrier_id, bid.bid_amount,
          bid.estimated_transit_days, bid.notes, bid.status]
       );
@@ -86,8 +88,8 @@ router.post('/accept', async (req, res) => {
 
   const bid = store.bids.get(bid_id);
   if (!bid) return res.status(404).json({ error: 'Bid not found' });
-  if (bid.status !== 'open') {
-    return res.status(409).json({ error: `Bid is ${bid.status}; only open bids can be accepted` });
+  if (bid.status !== 'submitted') {
+    return res.status(409).json({ error: `Bid is ${bid.status}; only submitted bids can be accepted` });
   }
 
   const load = store.loads.get(bid.shipment_posting_id);
@@ -120,12 +122,12 @@ router.post('/accept', async (req, res) => {
     }
   }
 
-  // Flip statuses: accepted bid wins, other open bids are outbid, posting awarded.
+  // Flip statuses: accepted bid wins, other submitted bids are rejected, posting awarded.
   bid.status = 'accepted';
   bid.updated_at = now();
   for (const other of store.bids.values()) {
-    if (other.shipment_posting_id === bid.shipment_posting_id && other.id !== bid.id && other.status === 'open') {
-      other.status = 'outbid';
+    if (other.shipment_posting_id === bid.shipment_posting_id && other.id !== bid.id && other.status === 'submitted') {
+      other.status = 'rejected';
       other.updated_at = now();
     }
   }
@@ -151,21 +153,22 @@ router.post('/accept', async (req, res) => {
 
   if (db.isEnabled()) {
     try {
+      const txnShipperId = await db.ensureUser(shipper_id || (load && load.shipper_id), 'shipper');
       await db.query(
         `INSERT INTO marketplace_transactions
-           (bid_id, posting_id, shipper_id, carrier_id, carrier_payout, shipper_charge,
-            platform_profit, payment_status, stripe_payment_intent_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        [txn.bid_id, txn.posting_id, txn.shipper_id, txn.carrier_id, txn.carrier_payout,
-         txn.shipper_charge, txn.platform_profit, txn.payment_status, txn.stripe_payment_intent_id]
+           (bid_id, shipment_id, shipper_id, carrier_id, gross_shipper_paid,
+            carrier_payout, stripe_charge_id, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [bid.id, bid.shipment_posting_id, txnShipperId, bid.carrier_id, shipperPrice,
+         carrierBid, stripe_payment_intent_id, payment_status]
       );
-      await db.query(`UPDATE bids SET status='accepted', updated_at=now() WHERE id=$1`, [bid.id]);
+      await db.query(`UPDATE carrier_bids SET status='accepted' WHERE id=$1`, [bid.id]);
       await db.query(
-        `UPDATE bids SET status='outbid', updated_at=now()
-          WHERE shipment_posting_id=$1 AND id<>$2 AND status='open'`,
+        `UPDATE carrier_bids SET status='rejected'
+          WHERE shipment_posting_id=$1 AND id<>$2 AND status='submitted'`,
         [bid.shipment_posting_id, bid.id]
       );
-      await db.query(`UPDATE shipment_postings SET status='awarded', updated_at=now() WHERE id=$1`, [bid.shipment_posting_id]);
+      await db.query(`UPDATE shipment_postings SET status='awarded' WHERE id=$1`, [bid.shipment_posting_id]);
     } catch (err) {
       console.error('[bids/accept] DB write failed (non-fatal):', err.message);
     }

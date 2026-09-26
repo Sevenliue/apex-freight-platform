@@ -36,13 +36,13 @@ router.post('/upload', async (req, res) => {
         await db.query(
           `INSERT INTO carrier_matrix_rates
              (carrier_id, carrier_label, fsc_percent, origin_city, origin_prov,
-              dest_city, dest_prov, min_charge_cad, breaks, updated_at)
+              dest_city, dest_prov, min_charge_cad, breaks_json, updated_at)
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,now())
            ON CONFLICT (carrier_id, origin_city, origin_prov, dest_city, dest_prov)
            DO UPDATE SET carrier_label = COALESCE(EXCLUDED.carrier_label, carrier_matrix_rates.carrier_label),
                          fsc_percent = COALESCE(EXCLUDED.fsc_percent, carrier_matrix_rates.fsc_percent),
                          min_charge_cad = EXCLUDED.min_charge_cad,
-                         breaks = EXCLUDED.breaks,
+                         breaks_json = EXCLUDED.breaks_json,
                          updated_at = now()`,
           [carrier_id, carrier_label || null, fsc_percent != null ? Number(fsc_percent) : null,
            String(lane.origin_city || '').trim(), String(lane.origin_prov || '').trim(),

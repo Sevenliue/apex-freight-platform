@@ -7,7 +7,7 @@
 
 const express = require('express');
 const db = require('../db');
-const { store, id } = require('../lib/store');
+const { store } = require('../lib/store');
 const { round2 } = require('../lib/money');
 
 const router = express.Router();
@@ -31,20 +31,22 @@ router.post('/create', async (req, res) => {
     return res.status(400).json({ error: `Missing/invalid fields: ${missing.join(', ')}` });
   }
 
+  const shipperId = db.isEnabled() ? await db.ensureUser(b.shipper_id, 'shipper') : b.shipper_id;
+
   const load = {
-    id: id('load'),
-    shipper_id: b.shipper_id,
+    id: db.newId('load'),
+    shipper_id: shipperId,
     shipper_order_number: b.shipper_order_number || null,
     origin: place(b.origin),
     destination: place(b.destination),
     pickup_date: b.pickup_date,
     delivery_date: b.delivery_date,
     weight_lbs: weightLbs,
-    freight_type: b.freight_type || null,
+    freight_type: b.freight_type || 'LTL',
     equipment_needed: b.equipment_needed || null,
     max_budget: b.max_budget != null ? round2(b.max_budget) : null,
     description: b.description || null,
-    status: 'open',
+    status: 'open_for_bids',
     carrier_probill_number: null,
     created_at: now(),
     updated_at: now(),
@@ -55,12 +57,15 @@ router.post('/create', async (req, res) => {
     try {
       await db.query(
         `INSERT INTO shipment_postings
-           (id, shipper_id, shipper_order_number, origin, destination, pickup_date, delivery_date,
+           (id, shipper_id, shipper_order_number, origin_city, origin_state, origin_zip,
+            dest_city, dest_state, dest_zip, pickup_date, delivery_date,
             weight_lbs, freight_type, equipment_needed, max_budget, description, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
          ON CONFLICT (id) DO NOTHING`,
-        [load.id, load.shipper_id, load.shipper_order_number, JSON.stringify(load.origin),
-         JSON.stringify(load.destination), load.pickup_date, load.delivery_date, load.weight_lbs,
+        [load.id, load.shipper_id, load.shipper_order_number,
+         b.origin.city, b.origin.state, b.origin.zip || null,
+         b.destination.city, b.destination.state, b.destination.zip || null,
+         load.pickup_date, load.delivery_date, load.weight_lbs,
          load.freight_type, load.equipment_needed, load.max_budget, load.description, load.status]
       );
     } catch (err) {
@@ -73,7 +78,7 @@ router.post('/create', async (req, res) => {
 
 function withBidStats(load) {
   const bids = [...store.bids.values()].filter(
-    (x) => x.shipment_posting_id === load.id && x.status !== 'declined'
+    (x) => x.shipment_posting_id === load.id && x.status !== 'rejected'
   );
   return {
     ...load,
@@ -90,9 +95,9 @@ router.get('/open', async (req, res) => {
                 COUNT(b.id)::int AS total_bids,
                 MIN(b.bid_amount) AS lowest_bid
            FROM shipment_postings p
-           LEFT JOIN bids b
-             ON b.shipment_posting_id = p.id AND b.status <> 'declined'
-          WHERE p.status = 'open'
+           LEFT JOIN carrier_bids b
+             ON b.shipment_posting_id = p.id AND b.status <> 'rejected'
+          WHERE p.status = 'open_for_bids'
           GROUP BY p.id
           ORDER BY p.created_at DESC`
       );
@@ -107,7 +112,7 @@ router.get('/open', async (req, res) => {
     }
   }
   const loads = [...store.loads.values()]
-    .filter((l) => l.status === 'open')
+    .filter((l) => l.status === 'open_for_bids')
     .map(withBidStats)
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
   return res.json({ loads });
@@ -126,7 +131,7 @@ router.post('/:id/probill', async (req, res) => {
   if (db.isEnabled()) {
     try {
       await db.query(
-        'UPDATE shipment_postings SET carrier_probill_number = $1, updated_at = now() WHERE id = $2',
+        'UPDATE shipment_postings SET carrier_probill_number = $1 WHERE id = $2',
         [carrier_probill_number, load.id]
       );
     } catch (err) {
