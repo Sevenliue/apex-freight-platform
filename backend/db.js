@@ -41,18 +41,26 @@ function newId(prefix) {
 }
 
 // ensureUser(userId, role): shipment/bid FKs need a users row. Accepts a uuid
-// (uses it as-is) or any label (mints a uuid and stores the label as
-// full_name). Returns the uuid to use in FK columns.
+// (uses it as-is) or any label (reuses the uuid minted for that label, or
+// mints one and stores the label as full_name). Returns the uuid to use in
+// FK columns — so the same label always resolves to the same user.
 async function ensureUser(userId, role) {
   if (!pool) return userId;
   const raw = String(userId || '');
-  const isUuid = UUID_RE.test(raw);
-  const uuid = isUuid ? raw : randomUUID();
+  const roleName = role === 'carrier' ? 'carrier' : 'shipper';
+  if (UUID_RE.test(raw)) {
+    await query(
+      `INSERT INTO users (id, email, role) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
+      [raw, `${raw}@apex.local`, roleName]
+    );
+    return raw;
+  }
+  const existing = await query('SELECT id FROM users WHERE full_name = $1 LIMIT 1', [raw]);
+  if (existing.rows.length) return existing.rows[0].id;
+  const uuid = randomUUID();
   await query(
-    `INSERT INTO users (id, email, full_name, role)
-     VALUES ($1, $2, $3, $4)
-     ON CONFLICT (id) DO NOTHING`,
-    [uuid, `${uuid}@apex.local`, isUuid ? null : raw || null, role === 'carrier' ? 'carrier' : 'shipper']
+    `INSERT INTO users (id, email, full_name, role) VALUES ($1, $2, $3, $4)`,
+    [uuid, `${uuid}@apex.local`, raw || null, roleName]
   );
   return uuid;
 }
