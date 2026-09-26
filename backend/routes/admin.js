@@ -39,4 +39,20 @@ router.get('/overview', async (req, res) => {
   }
 });
 
+// DELETE /api/admin/loads/:id — remove a posting and its bids/transactions.
+router.delete('/loads/:id', async (req, res) => {
+  if (!db.isEnabled()) {
+    return res.status(501).json({ error: 'Deleting loads requires a database. Set DATABASE_URL to enable it.' });
+  }
+  try {
+    const { id } = req.params;
+    await db.query('DELETE FROM marketplace_transactions WHERE shipment_id = $1', [id]);
+    const b = await db.query('DELETE FROM carrier_bids WHERE shipment_posting_id = $1', [id]);
+    const p = await db.query('DELETE FROM shipment_postings WHERE id = $1', [id]);
+    return res.json({ deleted_loads: p.rowCount, deleted_bids: b.rowCount });
+  } catch (err) {
+    return res.status(502).json({ error: 'Delete failed', detail: err.message });
+  }
+});
+
 module.exports = router;
