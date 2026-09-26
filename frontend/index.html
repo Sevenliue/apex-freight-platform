@@ -283,7 +283,33 @@
       const box = $('#quote-results');
       const rates = (data && data.rates) || [];
       if (!rates.length) {
-        box.innerHTML = '<div class="card empty">No rates returned for this lane.</div>';
+        const sugs = (data && data.suggestions) || [];
+        let html = '<div class="card empty">No rates returned for this lane.';
+        if (sugs.length) {
+          html +=
+            ' Did you mean ' +
+            sugs
+              .map((s, i) => `<button type="button" class="linklike" data-sug="${i}">${esc(s.suggestion)}</button>`)
+              .join(' or ') +
+            '?';
+        }
+        html += '</div>';
+        box.innerHTML = html;
+        box.querySelectorAll('[data-sug]').forEach((btn) =>
+          btn.addEventListener('click', () => {
+            const s = sugs[Number(btn.dataset.sug)];
+            const parts = s.suggestion.split(',');
+            const city = (parts[0] || '').trim();
+            const prov = (parts[1] || '').trim();
+            const cityField = s.field === 'origin' ? 'o_city' : 'd_city';
+            const provField = s.field === 'origin' ? 'o_state' : 'd_state';
+            const cityInput = document.querySelector(`[name="${cityField}"]`);
+            const provInput = document.querySelector(`[name="${provField}"]`);
+            if (cityInput && city) cityInput.value = city;
+            if (provInput && prov) provInput.value = prov;
+            document.querySelector('#quote-form').requestSubmit();
+          })
+        );
         return;
       }
       const rows = rates

@@ -127,12 +127,16 @@ router.post('/', async (req, res) => {
   let db_quote_id = null;
   if (db.isEnabled()) {
     try {
+      const userUuid = user_id ? await db.ensureUser(user_id, 'shipper') : null;
       const r = await db.query(
-        `INSERT INTO quotes (shipment_id, user_id, origin, destination, weight_lbs, rates)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         ON CONFLICT (shipment_id) DO UPDATE SET rates = EXCLUDED.rates
+        `INSERT INTO quotes (user_id, origin_city, origin_state, origin_zip,
+                             dest_city, dest_state, dest_zip,
+                             parcel_weight, parcel_length, parcel_width, parcel_height)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
          RETURNING id`,
-        [shipment_id, user_id, JSON.stringify(origin), JSON.stringify(destination), weightLbs, JSON.stringify(rates)]
+        [userUuid, origin.city, origin.state, origin.zip || null,
+         destination.city, destination.state, destination.zip || null,
+         weightLbs, parcel.length || null, parcel.width || null, parcel.height || null]
       );
       db_quote_id = r.rows[0] && r.rows[0].id;
     } catch (err) {
@@ -140,9 +144,19 @@ router.post('/', async (req, res) => {
     }
   }
 
+  // Typo help: when nothing matched, suggest the closest known city spelling.
+  const suggestions = [];
+  if (!rates.length && typeof matrix.suggestCity === 'function') {
+    for (const [field, place] of [['origin', origin], ['destination', destination]]) {
+      const s = matrix.suggestCity(place.city, place.state);
+      if (s) suggestions.push({ field, suggestion: s });
+    }
+  }
+
   const body = { shipment_id, rates };
   if (db_quote_id != null) body.db_quote_id = db_quote_id;
   if (warnings.length) body.warnings = warnings;
+  if (suggestions.length) body.suggestions = suggestions;
   return res.json(body);
 });
 

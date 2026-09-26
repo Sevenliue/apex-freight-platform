@@ -11,7 +11,7 @@
 
 const path = require('path');
 
-const REQUIRED = ['quoteMatrix', 'listCarriers', 'getAccessorials', 'upsertCarrierRows'];
+const REQUIRED = ['quoteMatrix', 'listCarriers', 'getAccessorials', 'upsertCarrierRows', 'suggestCity'];
 
 function shapeOk(mod) {
   return mod && REQUIRED.every((fn) => typeof mod[fn] === 'function');

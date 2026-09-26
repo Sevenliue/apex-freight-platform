@@ -61,6 +61,60 @@ function placeMatches(laneCity, laneProv, qCity, qProv) {
   return laneProv === qProv || laneProv === '' || qProv === '';
 }
 
+// Levenshtein distance for typo-tolerant city suggestions.
+function levenshtein(a, b) {
+  const m = a.length;
+  const n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+
+const titleCase = (s) => String(s).toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+
+// suggestCity(inputCity, inputProv): when a city has no exact match anywhere
+// in the lane data, return the closest known "City, PROV" within a small typo
+// tolerance (same province preferred), or null.
+function suggestCity(inputCity, inputProv) {
+  const st = ensureLoaded();
+  const qCity = norm(inputCity);
+  const qProv = norm(inputProv);
+  if (!qCity) return null;
+  const seen = new Set();
+  let best = null;
+  let bestDist = Infinity;
+  let bestSameProv = false;
+  let exactFound = false;
+  const consider = (city, prov) => {
+    const key = city + '|' + prov;
+    if (!city || seen.has(key)) return;
+    seen.add(key);
+    if (city === qCity) { exactFound = true; return; }
+    const d = levenshtein(qCity, city);
+    const tol = city.length >= 8 ? 3 : 2;
+    if (d > tol || d >= bestDist) return;
+    const sameProv = !!qProv && prov === qProv;
+    if (best && bestSameProv && !sameProv) return;
+    best = { city, prov };
+    bestDist = d;
+    bestSameProv = sameProv;
+  };
+  for (const lane of st.data.lanes) {
+    consider(lane.origin_city, lane.origin_prov);
+    consider(lane.dest_city, lane.dest_prov);
+  }
+  if (exactFound || !best) return null;
+  return `${titleCase(best.city)}, ${best.prov}`;
+}
+
 // Rate one shipment across every matching lane; cheapest first.
 // Rating math: first break with weightLbs <= max_lb; base = max(min_charge, weightLbs/100 * rate_cwt);
 // fsc = base * fsc%/100; total = base + fsc. Money rounded to 2 decimals.
@@ -177,4 +231,4 @@ function upsertCarrierRows(carrierId, rows) {
   return count;
 }
 
-module.exports = { loadMatrix, quoteMatrix, listCarriers, getAccessorials, upsertCarrierRows };
+module.exports = { loadMatrix, quoteMatrix, listCarriers, getAccessorials, upsertCarrierRows, suggestCity };
