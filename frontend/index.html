@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Apex Freight &amp; Shipping Canada</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <div class="brand">
+        <span class="brand-mark">AF</span>
+        <span class="brand-name">Apex Freight &amp; Shipping Canada</span>
+      </div>
+      <nav class="tabs" role="tablist" aria-label="Sections">
+        <button class="tab active" data-tab="quote" role="tab" aria-selected="true">Quote</button>
+        <button class="tab" data-tab="tracking" role="tab" aria-selected="false">Tracking</button>
+        <button class="tab" data-tab="loads" role="tab" aria-selected="false">Load Board</button>
+        <button class="tab" data-tab="reports" role="tab" aria-selected="false">Reports</button>
+        <button class="tab" data-tab="admin" role="tab" aria-selected="false">Admin</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div id="alert" class="alert hidden" role="alert"></div>
+
+    <!-- QUOTE -->
+    <section id="tab-quote" class="panel active" role="tabpanel">
+      <h1>Get a rate</h1>
+      <p class="lede">Compare carrier rates instantly. All amounts in CAD.</p>
+      <form id="quote-form" class="card form-grid">
+        <fieldset>
+          <legend>Origin</legend>
+          <label>Street <input name="o_street" type="text" required placeholder="123 Industrial Ave"></label>
+          <label>City <input name="o_city" type="text" required placeholder="Edmonton"></label>
+          <div class="row-2">
+            <label>Province <input name="o_state" type="text" required placeholder="AB" maxlength="2"></label>
+            <label>Postal code <input name="o_zip" type="text" required placeholder="T5S 1A1"></label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Destination</legend>
+          <label>Street <input name="d_street" type="text" required placeholder="456 Warehouse Rd"></label>
+          <label>City <input name="d_city" type="text" required placeholder="Calgary"></label>
+          <div class="row-2">
+            <label>Province <input name="d_state" type="text" required placeholder="AB" maxlength="2"></label>
+            <label>Postal code <input name="d_zip" type="text" required placeholder="T2P 3G8"></label>
+          </div>
+        </fieldset>
+        <fieldset class="span-2">
+          <legend>Shipment</legend>
+          <div class="row-4">
+            <label>Weight (lbs) <input name="weight" type="number" min="0.1" step="0.1" required placeholder="500"></label>
+            <label>Length (in) <input name="length" type="number" min="0" step="0.1" placeholder="48"></label>
+            <label>Width (in) <input name="width" type="number" min="0" step="0.1" placeholder="40"></label>
+            <label>Height (in) <input name="height" type="number" min="0" step="0.1" placeholder="36"></label>
+          </div>
+          <label class="inline">User ID (optional)
+            <input name="user_id" type="text" placeholder="paste your user UUID (auth coming later)">
+          </label>
+        </fieldset>
+        <div class="span-2 actions">
+          <button type="submit" class="btn primary" id="quote-btn">Get rates</button>
+        </div>
+      </form>
+      <p class="note">Instant rates come from uploaded carrier tariffs; live rates need carrier API keys.</p>
+      <div id="quote-results"></div>
+    </section>
+
+    <!-- TRACKING -->
+    <section id="tab-tracking" class="panel" role="tabpanel">
+      <h1>Track a shipment</h1>
+      <p class="lede">Enter the tracking code from your booking confirmation.</p>
+      <form id="track-form" class="card form-inline">
+        <label>Tracking code
+          <input name="code" type="text" required placeholder="e.g. PRO123456" class="wide">
+        </label>
+        <label>Carrier (optional)
+          <input name="carrier" type="text" placeholder="Carrier name">
+        </label>
+        <div class="actions">
+          <button type="submit" class="btn primary">Track</button>
+        </div>
+      </form>
+      <div id="track-results"></div>
+    </section>
+
+    <!-- LOAD BOARD -->
+    <section id="tab-loads" class="panel" role="tabpanel">
+      <h1>Load board</h1>
+      <p class="lede">Post freight, place bids, and award loads — one marketplace.</p>
+      <div class="two-col">
+        <div>
+          <h2>Post a load</h2>
+          <form id="load-form" class="card form-grid single">
+            <label>Shipper ID
+              <input name="shipper_id" type="text" required placeholder="paste your user UUID (auth coming later)">
+            </label>
+            <label>PO# / order # (optional)
+              <input name="shipper_order_number" type="text" placeholder="PO-1001">
+            </label>
+            <div class="row-3">
+              <label>Origin city <input name="o_city" type="text" required placeholder="Edmonton"></label>
+              <label>Prov <input name="o_state" type="text" required placeholder="AB" maxlength="2"></label>
+              <label>Postal <input name="o_zip" type="text" required placeholder="T5S 1A1"></label>
+            </div>
+            <div class="row-3">
+              <label>Dest city <input name="d_city" type="text" required placeholder="Winnipeg"></label>
+              <label>Prov <input name="d_state" type="text" required placeholder="MB" maxlength="2"></label>
+              <label>Postal <input name="d_zip" type="text" required placeholder="R3C 1A1"></label>
+            </div>
+            <div class="row-2">
+              <label>Pickup date <input name="pickup_date" type="date" required></label>
+              <label>Delivery date <input name="delivery_date" type="date" required></label>
+            </div>
+            <div class="row-2">
+              <label>Weight (lbs) <input name="weight_lbs" type="number" min="1" step="1" required placeholder="10000"></label>
+              <label>Max budget (CAD, optional) <input name="max_budget" type="number" min="0" step="0.01" placeholder="1500.00"></label>
+            </div>
+            <label>Freight type
+              <select name="freight_type">
+                <option value="">— select —</option>
+                <option>Palletized</option>
+                <option>Loose / floor loaded</option>
+                <option>Partial / LTL</option>
+                <option>Full truckload</option>
+                <option>Refrigerated</option>
+                <option>Flatbed</option>
+                <option>Other</option>
+              </select>
+            </label>
+            <label>Equipment needed (optional)
+              <input name="equipment_needed" type="text" placeholder="53 ft dry van">
+            </label>
+            <label>Description (optional)
+              <textarea name="description" rows="3" placeholder="Commodity, pallet count, special handling…"></textarea>
+            </label>
+            <div class="actions">
+              <button type="submit" class="btn primary">Post load</button>
+              <button type="button" class="btn" id="reload-loads">Refresh board</button>
+            </div>
+          </form>
+        </div>
+        <div>
+          <h2>Open loads <span id="loads-count" class="count"></span></h2>
+          <div id="loads-list" class="loads"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- REPORTS -->
+    <section id="tab-reports" class="panel" role="tabpanel">
+      <h1>Reports</h1>
+      <p class="lede">Billing and payout history for your shipments.</p>
+      <form id="report-form" class="card form-inline">
+        <div class="segmented" role="radiogroup" aria-label="Role">
+          <label class="seg active"><input type="radio" name="role" value="shipper" checked> Shipper</label>
+          <label class="seg"><input type="radio" name="role" value="carrier"> Carrier</label>
+        </div>
+        <label>User ID
+          <input name="user_id" type="text" required placeholder="paste your user UUID (auth coming later)" class="wide">
+        </label>
+        <label>From <input name="start_date" type="date"></label>
+        <label>To <input name="end_date" type="date"></label>
+        <label>Search PO# / PRO#
+          <input name="q" type="text" placeholder="PO-1001">
+        </label>
+        <div class="actions">
+          <button type="submit" class="btn primary">Run report</button>
+        </div>
+      </form>
+      <div id="report-summary" class="cards"></div>
+      <div id="report-results"></div>
+    </section>
+
+    <!-- ADMIN -->
+    <section id="tab-admin" class="panel" role="tabpanel">
+      <h1>Admin overview</h1>
+      <p class="lede">Platform activity at a glance.</p>
+      <div class="actions">
+        <button type="button" class="btn primary" id="admin-refresh">Refresh</button>
+      </div>
+      <div id="admin-cards" class="cards"></div>
+      <div id="admin-note"></div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <span>Apex Freight &amp; Shipping Canada — Edmonton, AB · All rates in CAD</span>
+    </div>
+  </footer>
+
+  <script type="module">
+    import * as api from './api.js';
+
+    const $ = (sel, el = document) => el.querySelector(sel);
+    const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
+
+    const alertBox = $('#alert');
+    function showAlert(msg) {
+      alertBox.textContent = msg;
+      alertBox.classList.remove('hidden');
+      alertBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      clearTimeout(showAlert._t);
+      showAlert._t = setTimeout(() => alertBox.classList.add('hidden'), 8000);
+    }
+
+    const cad = (n) =>
+      n === null || n === undefined || n === ''
+        ? '—'
+        : '$' + Number(n).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const esc = (s) =>
+      String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+    const dateStr = (d) => (d ? new Date(d).toLocaleDateString('en-CA') : '—');
+
+    /* ---------- tabs ---------- */
+    $$('.tab').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        $$('.tab').forEach((b) => {
+          b.classList.toggle('active', b === btn);
+          b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
+        });
+        $$('.panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + btn.dataset.tab));
+        if (btn.dataset.tab === 'loads') loadOpenLoads();
+        if (btn.dataset.tab === 'admin') loadAdmin();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    });
+
+    /* ---------- QUOTE ---------- */
+    $('#quote-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const btn = $('#quote-btn');
+      btn.disabled = true;
+      btn.textContent = 'Getting rates…';
+      $('#quote-results').innerHTML = '';
+      try {
+        const data = await api.getRates({
+          origin: {
+            street1: f.get('o_street').trim(),
+            city: f.get('o_city').trim(),
+            state: f.get('o_state').trim(),
+            zip: f.get('o_zip').trim(),
+            country: 'CA',
+          },
+          destination: {
+            street1: f.get('d_street').trim(),
+            city: f.get('d_city').trim(),
+            state: f.get('d_state').trim(),
+            zip: f.get('d_zip').trim(),
+            country: 'CA',
+          },
+          parcel: {
+            length: Number(f.get('length')) || undefined,
+            width: Number(f.get('width')) || undefined,
+            height: Number(f.get('height')) || undefined,
+            weight: Number(f.get('weight')),
+          },
+          user_id: f.get('user_id').trim() || undefined,
+        });
+        renderRates(data);
+      } catch (err) {
+        showAlert('Could not get rates: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Get rates';
+      }
+    });
+
+    function sourceBadge(source) {
+      return source === 'easypost'
+        ? '<span class="badge live">Live</span>'
+        : '<span class="badge instant">Instant</span>';
+    }
+
+    function renderRates(data) {
+      const box = $('#quote-results');
+      const rates = (data && data.rates) || [];
+      if (!rates.length) {
+        box.innerHTML = '<div class="card empty">No rates returned for this lane.</div>';
+        return;
+      }
+      const rows = rates
+        .map(
+          (r) => `<tr>
+            <td>${esc(r.carrier)}</td>
+            <td>${esc(r.service)}</td>
+            <td class="num">${cad(r.cost_cad)}</td>
+            <td class="num">${r.fsc_percent != null ? esc(String(r.fsc_percent)) + '%' : '—'}</td>
+            <td class="num">${cad(r.cost_cad)}</td>
+            <td class="num">${cad(r.retail_cad)}</td>
+            <td>${sourceBadge(r.source)}</td>
+            <td class="num">${r.delivery_days != null ? esc(String(r.delivery_days)) : '—'}</td>
+            <td><button class="btn small" data-buy="${esc(r.rate_id)}" data-shipment="${esc(data.shipment_id)}">Buy</button></td>
+          </tr>`
+        )
+        .join('');
+      box.innerHTML = `
+        <h2>Available rates</h2>
+        <div class="table-wrap"><table class="data">
+          <thead><tr>
+            <th>Carrier</th><th>Service</th><th>Base $</th><th>FSC %</th>
+            <th>Total $</th><th>Your price $</th><th>Source</th><th>Days</th><th></th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>`;
+      $$('#quote-results [data-buy]').forEach((b) =>
+        b.addEventListener('click', () => buyRate(b.dataset.buy, b.dataset.shipment, b))
+      );
+    }
+
+    async function buyRate(rateId, shipmentId, btn) {
+      btn.disabled = true;
+      const orig = btn.textContent;
+      btn.textContent = 'Buying…';
+      try {
+        const res = await api.buyLabel(rateId, shipmentId);
+        showAlert('Label purchased. ' + (res.message || JSON.stringify(res)));
+      } catch (err) {
+        showAlert('Purchase failed: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = orig;
+      }
+    }
+
+    /* ---------- TRACKING ---------- */
+    $('#track-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const box = $('#track-results');
+      box.innerHTML = '<div class="card empty">Loading…</div>';
+      try {
+        const t = await api.trackShipment(f.get('code').trim(), f.get('carrier').trim() || undefined);
+        renderTracking(box, t);
+      } catch (err) {
+        box.innerHTML = '';
+        showAlert('Tracking failed: ' + err.message);
+      }
+    });
+
+    function renderTracking(box, t) {
+      const ev = t.events || t.timeline || t.history || [];
+      const items = ev
+        .map(
+          (x) => `<li>
+            <span class="tl-dot"></span>
+            <div><strong>${esc(x.status || x.description || 'Update')}</strong>
+            <div class="muted">${esc(x.location || '')} · ${esc(x.timestamp || x.date || '')}</div></div>
+          </li>`
+        )
+        .join('');
+      box.innerHTML = `
+        <div class="card">
+          <h2>${esc(t.status || t.current_status || 'Shipment status')}</h2>
+          <p class="muted">${esc(t.carrier || '')} ${t.tracking_code ? '· ' + esc(t.tracking_code) : ''}</p>
+          ${t.estimated_delivery ? `<p>Estimated delivery: <strong>${esc(dateStr(t.estimated_delivery))}</strong></p>` : ''}
+        </div>
+        ${items ? `<h2>Timeline</h2><ol class="timeline">${items}</ol>` : '<p class="muted">No timeline events available.</p>'}`;
+    }
+
+    /* ---------- LOAD BOARD ---------- */
+    $('#load-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const btn = e.target.querySelector('[type="submit"]');
+      btn.disabled = true;
+      try {
+        await api.createLoad({
+          shipper_id: f.get('shipper_id').trim(),
+          shipper_order_number: f.get('shipper_order_number').trim() || undefined,
+          origin: {
+            city: f.get('o_city').trim(),
+            state: f.get('o_state').trim(),
+            zip: f.get('o_zip').trim(),
+          },
+          destination: {
+            city: f.get('d_city').trim(),
+            state: f.get('d_state').trim(),
+            zip: f.get('d_zip').trim(),
+          },
+          pickup_date: f.get('pickup_date'),
+          delivery_date: f.get('delivery_date'),
+          weight_lbs: Number(f.get('weight_lbs')),
+          freight_type: f.get('freight_type') || undefined,
+          equipment_needed: f.get('equipment_needed').trim() || undefined,
+          max_budget: f.get('max_budget') ? Number(f.get('max_budget')) : undefined,
+          description: f.get('description').trim() || undefined,
+        });
+        showAlert('Load posted.');
+        e.target.reset();
+        loadOpenLoads();
+      } catch (err) {
+        showAlert('Could not post load: ' + err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    $('#reload-loads').addEventListener('click', loadOpenLoads);
+
+    async function loadOpenLoads() {
+      const list = $('#loads-list');
+      list.innerHTML = '<div class="card empty">Loading open loads…</div>';
+      try {
+        const data = await api.listOpenLoads();
+        const loads = data.loads || data.open_loads || data || [];
+        renderLoads(Array.isArray(loads) ? loads : []);
+      } catch (err) {
+        list.innerHTML = '';
+        showAlert('Could not load open loads: ' + err.message);
+      }
+    }
+
+    function routeOf(l) {
+      const o = l.origin || {};
+      const d = l.destination || {};
+      const fmt = (x) => [x.city, x.state].filter(Boolean).join(', ');
+      return esc(fmt(o)) + ' → ' + esc(fmt(d));
+    }
+
+    function renderLoads(loads) {
+      const list = $('#loads-list');
+      $('#loads-count').textContent = loads.length ? `(${loads.length})` : '';
+      if (!loads.length) {
+        list.innerHTML = '<div class="card empty">No open loads right now.</div>';
+        return;
+      }
+      list.innerHTML = loads
+        .map((l) => {
+          const id = l.id || l.shipment_posting_id || l.load_id;
+          const bids = l.bids || [];
+          const amounts = bids.map((b) => Number(b.bid_amount)).filter((n) => !isNaN(n));
+          const lowest = amounts.length ? Math.min(...amounts) : null;
+          const bidRows = bids
+            .map(
+              (b) => `<li class="bid">
+                <span><strong>${cad(b.bid_amount)}</strong> <span class="muted">by ${esc(b.carrier_id || '')}${b.estimated_transit_days ? ` · ${esc(String(b.estimated_transit_days))} days` : ''}</span></span>
+                <button class="btn small" data-accept-bid="${esc(b.bid_id || b.id)}" data-load="${esc(String(id))}">Accept</button>
+              </li>`
+            )
+            .join('');
+          return `<article class="card load" data-load-id="${esc(String(id))}">
+            <header>
+              <h3>${routeOf(l)}</h3>
+              ${l.shipper_order_number ? `<span class="po">PO ${esc(l.shipper_order_number)}</span>` : ''}
+            </header>
+            <dl class="meta">
+              <div><dt>Weight</dt><dd>${l.weight_lbs != null ? esc(String(l.weight_lbs)) + ' lbs' : '—'}</dd></div>
+              <div><dt>Pickup</dt><dd>${esc(dateStr(l.pickup_date))}</dd></div>
+              <div><dt>Delivery</dt><dd>${esc(dateStr(l.delivery_date))}</dd></div>
+              <div><dt>Bids</dt><dd>${bids.length}</dd></div>
+              <div><dt>Lowest bid</dt><dd>${lowest != null ? cad(lowest) : '—'}</dd></div>
+              ${l.max_budget != null ? `<div><dt>Max budget</dt><dd>${cad(l.max_budget)}</dd></div>` : ''}
+            </dl>
+            ${l.description ? `<p class="muted">${esc(l.description)}</p>` : ''}
+            ${bidRows ? `<h4>Bids</h4><ul class="bids">${bidRows}</ul>` : '<p class="muted">No bids yet.</p>'}
+            <details class="bid-form">
+              <summary>Place a bid</summary>
+              <form data-bid-for="${esc(String(id))}">
+                <label>Carrier ID <input name="carrier_id" type="text" required placeholder="paste your user UUID (auth coming later)"></label>
+                <div class="row-2">
+                  <label>Bid amount (CAD) <input name="bid_amount" type="number" min="0.01" step="0.01" required placeholder="1200.00"></label>
+                  <label>Transit days <input name="estimated_transit_days" type="number" min="1" step="1" placeholder="3"></label>
+                </div>
+                <label>Notes (optional) <input name="notes" type="text" placeholder="Equipment, timing…"></label>
+                <button type="submit" class="btn small primary">Submit bid</button>
+              </form>
+            </details>
+            <details class="probill-form">
+              <summary>Attach carrier PRO bill #</summary>
+              <form data-probill-for="${esc(String(id))}">
+                <label>PRO bill # <input name="carrier_probill_number" type="text" required placeholder="PRO-123456"></label>
+                <button type="submit" class="btn small">Attach</button>
+              </form>
+            </details>
+          </article>`;
+        })
+        .join('');
+
+      $$('#loads-list [data-accept-bid]').forEach((btn) =>
+        btn.addEventListener('click', async () => {
+          const shipperId = prompt('Enter your shipper ID to accept this bid:');
+          if (!shipperId) return;
+          btn.disabled = true;
+          try {
+            const res = await api.acceptBid({ bid_id: btn.dataset.acceptBid, shipper_id: shipperId.trim() });
+            const p = res.your_platform_profit != null ? ` Platform profit ${cad(res.your_platform_profit)}.` : '';
+            showAlert(
+              `Bid accepted. Charged to shipper ${cad(res.charged_to_shipper)} · Carrier payout ${cad(res.carrier_payout)}.${p}`
+            );
+            loadOpenLoads();
+          } catch (err) {
+            showAlert('Could not accept bid: ' + err.message);
+            btn.disabled = false;
+          }
+        })
+      );
+
+      $$('#loads-list form[data-bid-for]').forEach((form) =>
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const f = new FormData(form);
+          const btn = form.querySelector('[type="submit"]');
+          btn.disabled = true;
+          try {
+            await api.submitBid({
+              shipment_posting_id: form.dataset.bidFor,
+              carrier_id: f.get('carrier_id').trim(),
+              bid_amount: Number(f.get('bid_amount')),
+              estimated_transit_days: f.get('estimated_transit_days') ? Number(f.get('estimated_transit_days')) : undefined,
+              notes: f.get('notes').trim() || undefined,
+            });
+            showAlert('Bid submitted.');
+            loadOpenLoads();
+          } catch (err) {
+            showAlert('Could not submit bid: ' + err.message);
+            btn.disabled = false;
+          }
+        })
+      );
+
+      $$('#loads-list form[data-probill-for]').forEach((form) =>
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const f = new FormData(form);
+          const btn = form.querySelector('[type="submit"]');
+          btn.disabled = true;
+          try {
+            await api.attachProbill(form.dataset.probillFor, f.get('carrier_probill_number').trim());
+            showAlert('PRO bill attached.');
+            loadOpenLoads();
+          } catch (err) {
+            showAlert('Could not attach PRO bill: ' + err.message);
+            btn.disabled = false;
+          }
+        })
+      );
+    }
+
+    /* ---------- REPORTS ---------- */
+    $$('input[name="role"]').forEach((r) =>
+      r.addEventListener('change', () => {
+        $$('#report-form .seg').forEach((s) =>
+          s.classList.toggle('active', s.querySelector('input').checked)
+        );
+      })
+    );
+
+    $('#report-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const role = f.get('role');
+      const opts = {
+        start_date: f.get('start_date') || undefined,
+        end_date: f.get('end_date') || undefined,
+        q: f.get('q').trim() || undefined,
+      };
+      const sumBox = $('#report-summary');
+      const resBox = $('#report-results');
+      sumBox.innerHTML = '';
+      resBox.innerHTML = '<div class="card empty">Loading…</div>';
+      try {
+        const data =
+          role === 'shipper'
+            ? await api.getShipperReport(f.get('user_id').trim(), opts)
+            : await api.getCarrierReport(f.get('user_id').trim(), opts);
+        renderReport(sumBox, resBox, data);
+      } catch (err) {
+        resBox.innerHTML = '';
+        showAlert('Report failed: ' + err.message);
+      }
+    });
+
+    function statCards(obj) {
+      return Object.entries(obj || {})
+        .map(
+          ([k, v]) => `<div class="stat">
+            <div class="stat-label">${esc(k.replace(/_/g, ' '))}</div>
+            <div class="stat-value">${typeof v === 'number' ? (k.match(/amount|revenue|profit|payout|cost|total|charged/i) ? cad(v) : v.toLocaleString('en-CA')) : esc(String(v ?? '—'))}</div>
+          </div>`
+        )
+        .join('');
+    }
+
+    function renderReport(sumBox, resBox, data) {
+      sumBox.innerHTML = statCards(data.summary);
+      const rows = data.shipments || data.loads || [];
+      if (!rows.length) {
+        resBox.innerHTML = '<div class="card empty">No records found.</div>';
+        return;
+      }
+      resBox.innerHTML = `
+        <div class="table-wrap"><table class="data">
+          <thead><tr>
+            <th>Date</th><th>PO #</th><th>PRO #</th><th>Route</th><th>Amounts</th>
+          </tr></thead>
+          <tbody>${rows
+            .map(
+              (r) => `<tr>
+                <td>${esc(dateStr(r.shipment_date))}</td>
+                <td>${esc(r.shipper_order_number || '—')}</td>
+                <td>${esc(r.carrier_probill_number || '—')}</td>
+                <td>${esc([r.origin, r.destination].filter(Boolean).join(' → ') || '—')}</td>
+                <td class="num">${cad(r.charged_to_shipper ?? r.bid_amount ?? r.total ?? r.amount)}</td>
+              </tr>`
+            )
+            .join('')}</tbody>
+        </table></div>`;
+    }
+
+    /* ---------- ADMIN ---------- */
+    $('#admin-refresh').addEventListener('click', loadAdmin);
+
+    async function loadAdmin() {
+      const cards = $('#admin-cards');
+      const note = $('#admin-note');
+      cards.innerHTML = '<div class="card empty">Loading…</div>';
+      note.innerHTML = '';
+      try {
+        const data = await api.getAdminOverview();
+        const o = data.overview || data;
+        cards.innerHTML = statCards({
+          'Total loads': o.total_loads ?? o.loads_total ?? '—',
+          'Gross revenue': o.gross_revenue ?? '—',
+          'Carrier payouts': o.carrier_payouts ?? '—',
+          'Net profit': o.net_profit ?? '—',
+          'Open loads': o.open_loads ?? '—',
+          'Total bids': o.total_bids ?? '—',
+        });
+      } catch (err) {
+        cards.innerHTML = '';
+        note.innerHTML =
+          '<div class="card empty">Admin overview is unavailable right now (' +
+          esc(err.message) +
+          ').</div>';
+      }
+    }
+  </script>
+</body>
+</html>

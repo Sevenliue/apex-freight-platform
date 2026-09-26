@@ -1,0 +1,81 @@
+// server.js — Apex Freight & Shipping Canada backend (Express).
+// Currency CAD. Boots with zero configuration: no API keys and no database
+// needed — matrix quoting and the load-board marketplace run in-memory, while
+// EasyPost/Stripe/DB-backed routes answer 501 with clear messages when their
+// credentials are absent.
+'use strict';
+
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
+
+const config = require('./config');
+const db = require('./db');
+const authStub = require('./middleware/auth');
+
+const app = express();
+
+app.use(cors());
+app.use(express.json({ limit: '1mb' }));
+
+// Minimal morgan-style request log.
+app.use((req, res, next) => {
+  const started = Date.now();
+  res.on('finish', () => {
+    console.log(
+      `${new Date().toISOString()} ${req.method} ${req.originalUrl} -> ${res.statusCode} ${Date.now() - started}ms`
+    );
+  });
+  next();
+});
+
+// Auth stub (disabled unless AUTH_TOKEN is set).
+app.use('/api', authStub);
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'online', timestamp: new Date().toISOString() });
+});
+
+app.use('/api/rates', require('./routes/rates'));
+app.use('/api/shipments', require('./routes/shipments'));
+app.use('/api/tracking', require('./routes/tracking'));
+app.use('/api/webhooks', require('./routes/webhooks'));
+app.use('/api/loads', require('./routes/loads'));
+app.use('/api/bids', require('./routes/bids'));
+app.use('/api/carrier-rates', require('./routes/carrier-rates'));
+app.use('/api/reports', require('./routes/reports'));
+app.use('/api/admin', require('./routes/admin'));
+
+// Serve the sibling-built static frontend (same origin as the API).
+const FRONTEND_DIR = path.join(__dirname, '..', 'frontend');
+app.use(express.static(FRONTEND_DIR));
+app.get('/', (req, res) => {
+  const index = path.join(FRONTEND_DIR, 'index.html');
+  if (fs.existsSync(index)) return res.sendFile(index);
+  return res.status(404).json({
+    error: 'Frontend not built yet — frontend/index.html is missing',
+    api: 'backend is running; try GET /api/health',
+  });
+});
+
+app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
+
+// Central error handler (keeps stack traces out of responses).
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error('[error]', err && err.message);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
+if (require.main === module) {
+  app.listen(config.port, () => {
+    console.log(
+      `Apex Freight backend listening on :${config.port} ` +
+        `(markup ${config.markupPercent}%, db ${db.isEnabled() ? 'enabled' : 'disabled — in-memory mode'}, ` +
+        `easypost ${config.easypostKey ? 'on' : 'off'}, stripe ${config.stripeKey ? 'on' : 'off'})`
+    );
+  });
+}
+
+module.exports = app;

@@ -1,0 +1,38 @@
+# Render blueprint for Apex Freight & Shipping Canada.
+# Deploy: push platform/ to a repo and point Render at render.yaml
+# ("New" -> "Blueprint" -> select the repo).
+#
+# IMPORTANT: after the first deploy, apply the database schema manually
+# from db/schema.sql (e.g. via the Render Postgres dashboard's query
+# console or a local psql pointed at DATABASE_URL):
+#   psql $DATABASE_URL -f db/schema.sql
+
+services:
+  - type: web
+    name: apex-freight-platform
+    runtime: node
+    # Single-origin hosting: the backend serves the static frontend from
+    # platform/frontend/, so no separate static site is needed.
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && node server.js
+    envVars:
+      - key: PORT
+        value: 5000
+      - key: MARKUP_PERCENT
+        value: 15
+      - key: EASYPOST_API_KEY
+        sync: false # set in the Render dashboard (EasyPost API key)
+      - key: STRIPE_SECRET_KEY
+        sync: false # set in the Render dashboard (Stripe secret key)
+      - key: STRIPE_PUBLISHABLE_KEY
+        sync: false # set in the Render dashboard (Stripe publishable key)
+      - key: FRONTEND_ORIGIN
+        sync: false # set in the Render dashboard (public URL, e.g. https://www.apexfreight.ca)
+      - key: DATABASE_URL
+        fromDatabase:
+          name: apex-freight-db
+          property: connectionString
+
+databases:
+  - name: apex-freight-db
+    plan: free
