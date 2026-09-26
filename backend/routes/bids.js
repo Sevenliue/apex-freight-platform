@@ -93,7 +93,10 @@ router.post('/accept', async (req, res) => {
   }
 
   const load = store.loads.get(bid.shipment_posting_id);
-  if (shipper_id && load && load.shipper_id !== shipper_id) {
+  // Normalize the caller's label to the stored uuid before the ownership check
+  // (ensureUser mints a stable uuid per label at load creation).
+  const acceptShipperId = shipper_id ? await db.ensureUser(shipper_id, 'shipper') : null;
+  if (acceptShipperId && load && load.shipper_id !== acceptShipperId) {
     return res.status(403).json({ error: 'Only the posting shipper can accept bids' });
   }
 
@@ -153,7 +156,7 @@ router.post('/accept', async (req, res) => {
 
   if (db.isEnabled()) {
     try {
-      const txnShipperId = await db.ensureUser(shipper_id || (load && load.shipper_id), 'shipper');
+      const txnShipperId = acceptShipperId || (load && load.shipper_id);
       await db.query(
         `INSERT INTO marketplace_transactions
            (bid_id, shipment_id, shipper_id, carrier_id, gross_shipper_paid,
