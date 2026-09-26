@@ -69,13 +69,27 @@ app.use((err, req, res, next) => {
 });
 
 if (require.main === module) {
-  app.listen(config.port, () => {
-    console.log(
-      `Apex Freight backend listening on :${config.port} ` +
-        `(markup ${config.markupPercent}%, db ${db.isEnabled() ? 'enabled' : 'disabled — in-memory mode'}, ` +
-        `easypost ${config.easypostKey ? 'on' : 'off'}, stripe ${config.stripeKey ? 'on' : 'off'})`
-    );
-  });
+  (async () => {
+    // Idempotent schema setup when a database is configured: db/schema.sql
+    // is safe to run more than once. A failure is logged and does not stop
+    // the server (DB-backed routes fall back to in-memory behavior).
+    if (db.isEnabled()) {
+      try {
+        const schemaPath = path.join(__dirname, '..', 'db', 'schema.sql');
+        await db.query(fs.readFileSync(schemaPath, 'utf8'));
+        console.log('[db] schema ensured');
+      } catch (err) {
+        console.error('[db] schema setup failed (continuing):', err.message);
+      }
+    }
+    app.listen(config.port, () => {
+      console.log(
+        `Apex Freight backend listening on :${config.port} ` +
+          `(markup ${config.markupPercent}%, db ${db.isEnabled() ? 'enabled' : 'disabled — in-memory mode'}, ` +
+          `easypost ${config.easypostKey ? 'on' : 'off'}, stripe ${config.stripeKey ? 'on' : 'off'})`
+      );
+    });
+  })();
 }
 
 module.exports = app;
