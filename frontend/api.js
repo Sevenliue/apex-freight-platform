@@ -27,6 +27,9 @@ export function setAuthToken(token) {
   }
 }
 
+// Requests time out instead of hanging forever: a stalled network used to
+// leave buttons like "Getting rates..." disabled with no error shown.
+const REQUEST_TIMEOUT_MS = 60000;
 async function request(method, path, body) {
   const opts = {
     method,
@@ -36,7 +39,20 @@ async function request(method, path, body) {
   if (token) opts.headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) opts.body = JSON.stringify(body);
 
-  const res = await fetch(API_BASE_URL + path, opts);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  opts.signal = ctrl.signal;
+  let res;
+  try {
+    res = await fetch(API_BASE_URL + path, opts);
+  } catch (err) {
+    if (err && err.name === 'AbortError') {
+      throw new Error('Request timed out — please check your connection and try again.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
   const ct = res.headers.get('content-type') || '';
   let data = null;
   if (ct.includes('application/json')) {
