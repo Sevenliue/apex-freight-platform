@@ -306,12 +306,12 @@
           </section>
         </div>
         <section class="qq-panel rate-panel">
-          <h3 class="qq-head">Best Available Freight Rates and Service Options for this shipment</h3>
+          <h3 class="qq-head">Carrier Rates and Service Options for This Shipment</h3>
           <div class="qq-body">
             <div class="qq-split">
               <div class="qq-split-left">
                 <p class="lede" id="total-weight-line">Total weight: <strong>0 lb</strong></p>
-                <button type="submit" class="btn fetch-btn fetch-btn-left" id="fetch-rates-btn">Fetch Carrier Results</button>
+                <button type="submit" class="btn fetch-btn fetch-btn-left" id="fetch-rates-btn">Get Carrier Rates</button>
                 <div class="rate-empty" id="rate-empty">
                   <p class="note">Fill in the shipment details, then fetch carrier results.</p>
                 </div>
@@ -1616,7 +1616,7 @@
       } finally {
         $('#rate-loading').classList.add('hidden');
         btn.disabled = false;
-        btn.textContent = 'Fetch Carrier Results';
+        btn.textContent = 'Get Carrier Rates';
       }
     });
 
