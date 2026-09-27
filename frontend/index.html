@@ -1083,8 +1083,9 @@
       const fW = pkgUnits === 'metric' ? 1 / LB_TO_KG : 1; // kg -> lb
       const fD = pkgUnits === 'metric' ? 1 / IN_TO_CM : 1; // cm -> in
       return [...$('#pkg-rows').rows].map((tr) => {
-        const v = (n) => tr.querySelector(`[name="${n}"]`).value;
-        const c = (n) => tr.querySelector(`[name="${n}"]`).checked;
+        const el = (n) => tr.querySelector(`[name="${n}"]`);
+        const v = (n) => { const e = el(n); return e ? e.value : ''; };
+        const c = (n) => { const e = el(n); return !!(e && e.checked); };
         const dim = (n) => (v(n) === '' ? null : round2(parseFloat(v(n)) * fD));
         return {
           qty: Math.max(1, parseInt(v('qty'), 10) || 1),
