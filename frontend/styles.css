@@ -1,9 +1,9 @@
 /* Apex Freight & Shipping Canada — professional logistics theme.
-   Palette: dark blue chrome, green primary buttons, orange highlights, light gray surfaces. */
+   Palette: charcoal chrome, green primary buttons, orange highlights, light gray surfaces. */
 
 :root {
-  --brand: #16324a;
-  --brand-dark: #0f2436;
+  --brand: #26303c;
+  --brand-dark: #161c24;
   --accent: #e8590c;
   --accent-dark: #c74a08;
   --bg: #f4f6f8;
@@ -17,7 +17,7 @@
   --blue-bg: #e8f1fa;
   --danger: #b3261e;
   --radius: 10px;
-  --shadow: 0 1px 3px rgba(15, 36, 54, 0.12);
+  --shadow: 0 1px 3px rgba(18, 24, 32, 0.14);
 }
 
 * { box-sizing: border-box; }
@@ -473,7 +473,7 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
   padding: 16px; cursor: pointer; font: inherit; color: #fff;
   transition: border-color .15s, box-shadow .15s, transform .1s;
 }
-.dash-card:hover { border-color: var(--accent); box-shadow: 0 4px 14px rgba(20,40,70,.25); transform: translateY(-1px); }
+.dash-card:hover { border-color: var(--accent); box-shadow: 0 4px 14px rgba(18,24,32,.28); transform: translateY(-1px); }
 .dash-ico { font-size: 26px; line-height: 1.2; }
 .dash-txt strong { display: block; font-size: 15.5px; margin-bottom: 4px; }
 .dash-txt small { color: #c3cfda; font-size: 13px; line-height: 1.45; display: block; }
