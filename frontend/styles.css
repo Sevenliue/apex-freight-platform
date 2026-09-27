@@ -32,42 +32,47 @@ body {
 
 .wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
 
-/* ---------- header / tabs ---------- */
-.site-header {
-  background: var(--navy);
-  color: #fff;
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+/* ---------- sidebar layout ---------- */
+.app { display: flex; min-height: 100vh; align-items: stretch; }
+.sidebar {
+  width: 252px; flex: 0 0 252px;
+  background: var(--navy); color: #fff;
+  position: sticky; top: 0; height: 100vh;
+  display: flex; flex-direction: column;
+  z-index: 60;
 }
-.header-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding-top: 10px;
-  padding-bottom: 10px;
-}
+.sidebar .brand { padding: 18px 20px 12px; }
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand-mark {
   display: inline-flex; align-items: center; justify-content: center;
   width: 38px; height: 38px; border-radius: 8px;
   background: var(--amber); color: var(--navy-dark);
-  font-weight: 800; font-size: 15px;
+  font-weight: 800; font-size: 15px; flex: 0 0 38px;
 }
-.brand-name { font-size: 18px; font-weight: 700; letter-spacing: 0.2px; }
-
-.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.brand-name { font-size: 17px; font-weight: 700; letter-spacing: 0.2px; }
+.side-nav {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 12px; flex: 1; overflow-y: auto;
+}
 .tab {
+  display: flex; align-items: center; gap: 12px;
   background: transparent; border: none; color: #cdd8e2;
-  padding: 9px 14px; border-radius: 8px 8px 0 0;
+  padding: 11px 12px; border-radius: 10px;
   font-size: 15px; font-weight: 600; cursor: pointer;
-  border-bottom: 3px solid transparent;
+  text-align: left; width: 100%;
 }
-.tab:hover { color: #fff; background: rgba(255, 255, 255, 0.06); }
-.tab.active { color: #fff; border-bottom-color: var(--amber); background: rgba(255, 255, 255, 0.06); }
+.tab svg { width: 20px; height: 20px; flex: 0 0 20px; opacity: 0.8; }
+.tab:hover { color: #fff; background: rgba(255, 255, 255, 0.07); }
+.tab.active { color: #fff; background: rgba(255, 255, 255, 0.12); }
+.tab.active svg { color: var(--amber); opacity: 1; }
+.side-account {
+  padding: 14px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  margin-left: 0; flex-wrap: wrap; row-gap: 10px;
+}
+.content { flex: 1; min-width: 0; }
+.topbar { display: none; }
+.side-overlay { display: none; }
 
 /* ---------- panels ---------- */
 main.wrap { padding-top: 28px; padding-bottom: 48px; }
@@ -102,6 +107,14 @@ h4 { font-size: 14px; margin: 14px 0 6px; color: var(--navy-dark); }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .form-grid.single { grid-template-columns: 1fr; }
 .form-grid .span-2 { grid-column: 1 / -1; }
+/* Ship-from / ship-to swap button between the address panels. */
+.form-grid.addr-swap { grid-template-columns: 1fr auto 1fr; align-items: center; }
+.addr-swap-btn { display: flex; justify-content: center; }
+.swap-btn {
+  width: 46px; height: 46px; border-radius: 50%;
+  font-size: 22px; line-height: 1; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
 fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin: 0; }
 legend { font-weight: 700; color: var(--navy); padding: 0 6px; }
 label { display: block; font-size: 13.5px; font-weight: 600; color: #33414d; margin-bottom: 10px; }
@@ -224,14 +237,38 @@ details form { margin-top: 10px; }
 /* ---------- responsive ---------- */
 @media (max-width: 960px) {
   .two-col { grid-template-columns: 1fr; }
+  .sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0;
+    width: 272px; flex-basis: 272px;
+    transform: translateX(-102%);
+    transition: transform 0.22s ease;
+    box-shadow: none;
+  }
+  .sidebar.open { transform: none; box-shadow: 0 0 48px rgba(0, 0, 0, 0.45); }
+  .side-overlay.show {
+    display: block; position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.45); z-index: 55;
+  }
+  .topbar {
+    display: flex; align-items: center; gap: 12px;
+    background: var(--navy); color: #fff;
+    padding: 10px 14px;
+    position: sticky; top: 0; z-index: 50;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  }
+  .hamburger {
+    background: transparent; border: none; color: #fff;
+    font-size: 22px; line-height: 1; cursor: pointer; padding: 6px 8px;
+  }
+  .topbar .brand-name { font-size: 15px; }
+  .topbar .brand-mark { width: 30px; height: 30px; font-size: 12px; flex-basis: 30px; }
 }
 @media (max-width: 640px) {
   .form-grid { grid-template-columns: 1fr; }
+  .form-grid.addr-swap { grid-template-columns: 1fr; }
+  .swap-btn { transform: rotate(90deg); }
   .row-4 { grid-template-columns: 1fr 1fr; }
   .row-3 { grid-template-columns: 1fr; }
-  .header-inner { flex-direction: column; align-items: flex-start; }
-  .tabs { width: 100%; overflow-x: auto; }
-  .tab { white-space: nowrap; }
   input.wide { min-width: 0; }
 }
 

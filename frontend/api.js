@@ -78,6 +78,10 @@ export function billingPortal() {
   return post('/api/billing/portal', {});
 }
 
+export function getPaymentHistory() {
+  return get('/api/billing/payments');
+}
+
 /* Health */
 export function getHealth() {
   return get('/api/health');

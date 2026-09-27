@@ -1,6 +1,7 @@
 // routes/billing.js — subscription billing for shipper accounts.
 //
 //   GET  /api/billing/status                      — plan + usage (auth)
+//   GET  /api/billing/payments                    — freight payment history (auth)
 //   POST /api/billing/checkout {tier, billing}    — Stripe Checkout (auth)
 //   POST /api/billing/portal                      — customer portal (auth)
 //
@@ -152,6 +153,48 @@ router.post('/portal', async (req, res) => {
   } catch (err) {
     console.error('[billing/portal]', err.message);
     return bad(res, 502, 'Could not open the billing portal: ' + err.message);
+  }
+});
+
+// GET /api/billing/payments — the signed-in shipper's freight payment history
+// (one row per scheduled load: date, PRO, route, amount, payment status).
+router.get('/payments', async (req, res) => {
+  if (needAuth(req, res)) return;
+  if (needDb(res)) return;
+  try {
+    const r = await db.query(
+      `SELECT o.created_at, o.tracking_code, o.shipper_order_no, o.receiver_po_no,
+              o.carrier, o.service_level, o.charged_amount, o.payment_status,
+              o.status, o.bol_json
+       FROM orders o
+       WHERE o.user_id = $1
+       ORDER BY o.created_at DESC LIMIT 200`,
+      [req.user.id]
+    );
+    const payments = r.rows.map((row) => {
+      let bol = {};
+      try { bol = JSON.parse(row.bol_json || '{}'); } catch { /* ignore */ }
+      const origin = [bol.shipper_city || bol.origin_city, bol.shipper_province || bol.origin_province]
+        .filter(Boolean).join(', ');
+      const dest = [bol.consignee_city || bol.destination_city, bol.consignee_province || bol.destination_province]
+        .filter(Boolean).join(', ');
+      return {
+        date: row.created_at ? new Date(row.created_at).toISOString().slice(0, 10) : '',
+        tracking_code: row.tracking_code || '',
+        shipper_order_no: row.shipper_order_no || '',
+        receiver_po_no: row.receiver_po_no || '',
+        carrier: row.carrier || '',
+        service: row.service_level || '',
+        route: [origin, dest].filter(Boolean).join(' → ') || '',
+        charged_amount: row.charged_amount == null ? null : Number(row.charged_amount),
+        payment_status: row.payment_status || '',
+        status: row.status || '',
+      };
+    });
+    return res.json({ payments });
+  } catch (err) {
+    console.error('[billing/payments]', err.message);
+    return bad(res, 500, 'Could not load payment history.');
   }
 });
 
