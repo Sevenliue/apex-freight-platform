@@ -305,29 +305,30 @@
             <div class="qq-body"><div class="check-grid" id="acc-delivery"><span class="note">Loading…</span></div></div>
           </section>
         </div>
-        <div class="qq-split">
-          <div class="qq-split-left">
-            <button type="submit" class="btn fetch-btn fetch-btn-left" id="fetch-rates-btn">Fetch Carrier Results</button>
-            <p class="note">Instant rates come from uploaded carrier tariffs; live rates need carrier API keys. Transit times are estimates, not guaranteed.</p>
-          </div>
-          <div class="qq-split-right">
-            <section class="qq-panel">
-              <h3 class="qq-head">Best Available Freight Rates and Service Options for this shipment</h3>
-              <div class="qq-body rate-empty" id="rate-empty">
-                <p class="note">Fill in the shipment details, then fetch carrier results.</p>
+        <section class="qq-panel rate-panel">
+          <h3 class="qq-head">Best Available Freight Rates and Service Options for this shipment</h3>
+          <div class="qq-body">
+            <div class="qq-split">
+              <div class="qq-split-left">
+                <p class="lede" id="total-weight-line">Total weight: <strong>0 lb</strong></p>
+                <button type="submit" class="btn fetch-btn fetch-btn-left" id="fetch-rates-btn">Fetch Carrier Results</button>
+                <div class="rate-empty" id="rate-empty">
+                  <p class="note">Fill in the shipment details, then fetch carrier results.</p>
+                </div>
+                <div id="quote-results"></div>
               </div>
-              <div id="quote-results"></div>
-              <div class="qq-body quote-actions">
-                <div class="actions">
+              <div class="qq-split-right">
+                <div class="card rate-actions-card">
                   <button type="button" class="btn" id="save-quote-btn" disabled>Save This Quote</button>
                   <button type="button" class="btn primary" id="complete-shipment-btn" disabled>Complete This Shipment</button>
+                  <div id="approval-note"></div>
+                  <div id="complete-result"></div>
                 </div>
-                <div id="approval-note"></div>
-                <div id="complete-result"></div>
               </div>
-            </section>
+            </div>
           </div>
-        </div>
+        </section>
+        <p class="note">Instant rates come from uploaded carrier tariffs; live rates need carrier API keys. Transit times are estimates, not guaranteed.</p>
       </form>
       <div id="complete-modal" class="modal-overlay hidden">
         <div class="modal-card wide" role="dialog" aria-modal="true" aria-label="Complete this shipment">
@@ -998,6 +999,7 @@
         pkgUnits = toMetric ? 'metric' : 'imperial';
         renderUnitHeaders();
         syncSegs();
+        syncTotalWeightLine();
       });
     });
 
@@ -1114,10 +1116,23 @@
         <td class="narrow"><input type="text" name="pkg_group" value="${esc(data.pkg_group || '')}" placeholder="II"></td>
         <td><button type="button" class="btn small danger pkg-del" title="Delete row">×</button></td>`;
       tr.querySelector('.pkg-del').addEventListener('click', () => {
-        if ($('#pkg-rows').rows.length > 1) { tr.remove(); }
+        if ($('#pkg-rows').rows.length > 1) { tr.remove(); syncTotalWeightLine(); }
         else showAlert('At least one package line is required.');
       });
       $('#pkg-rows').appendChild(tr);
+      syncTotalWeightLine();
+    }
+
+    /* Live "Total weight" line above the Fetch button (mirrors the reference board). */
+    function syncTotalWeightLine() {
+      const el = $('#total-weight-line');
+      if (!el) return;
+      let lbs = 0;
+      try {
+        lbs = collectPackages().reduce((s, p) => s + (p.qty || 0) * (p.weight_lb || 0), 0);
+      } catch { lbs = 0; }
+      const m = pkgUnits === 'metric';
+      el.innerHTML = 'Total weight: <strong>' + esc(m ? String(round1(lbs * LB_TO_KG)) + ' kg' : String(round2(lbs)) + ' lb') + '</strong>';
     }
 
     function collectPackages() {
@@ -1202,6 +1217,9 @@
     $('#pkg-rows').addEventListener('focusin', (e) => {
       if (e.target.tagName === 'SELECT') e.target.dataset.prev = e.target.value;
     });
+    // Keep the "Total weight" line above the Fetch button live.
+    $('#pkg-rows').addEventListener('input', syncTotalWeightLine);
+    $('#pkg-rows').addEventListener('change', syncTotalWeightLine);
 
     $('#pkg-rows').addEventListener('change', (e) => {
       const sel = e.target;
@@ -1696,7 +1714,6 @@
           <p>This shipment contains dangerous goods. Under Canada's <em>Transportation of Dangerous Goods Regulations</em> the shipper must provide a proper shipping document with the correct shipping name, UN number, class, and packing group, and the goods must be properly packaged, marked, and placarded. Only trained personnel may handle them.</p>
           <p>Rates above include the dangerous-goods surcharge, but <strong>the carrier can still refuse the load</strong>. Your shipment will be held for our review after you complete it — no payment is collected until we confirm acceptance.</p>
         </div>` : ''}
-        ${data.total_weight_lbs != null ? `<p class="lede">Total weight: <strong>${esc(pkgUnits === 'metric' ? String(round1(data.total_weight_lbs * LB_TO_KG)) + ' kg' : String(data.total_weight_lbs) + ' lb')}</strong>${accLine ? ' · Services: ' + accLine : ''}</p>` : ''}
         <div class="table-wrap"><table class="data">
           <thead><tr><th></th><th>Carrier</th><th>Estimated Transit (Not Guaranteed)</th><th>Est. Total Cost (excl. tax) <span class="tip" title="Includes all freight charges / services / fuel surcharges. Excludes gov't taxes.">ⓘ</span></th></tr></thead>
           <tbody>${rows}</tbody>

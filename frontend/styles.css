@@ -684,6 +684,11 @@ dl.kv dd { margin: 0; font-weight: 600; }
 }
 .fetch-btn:hover { background: #d14e0a; }
 .fetch-btn:disabled { opacity: 0.7; cursor: wait; }
+.fetch-btn-left { width: 100%; }
+.rate-actions-card { padding: 16px; }
+.rate-actions-card .btn { display: block; width: 100%; margin: 0 0 10px; }
+.rate-actions-card .btn:last-of-type { margin-bottom: 0; }
+#quote-results thead th { text-transform: uppercase; font-size: 12px; letter-spacing: 0.02em; }
 .qq-split-right .qq-panel { margin-bottom: 0; }
 
 /* Selected rate row (cheapest) highlighted like the reference board */
