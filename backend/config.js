@@ -23,6 +23,8 @@ module.exports = {
   // Optional integrations. Empty string = disabled; related endpoints
   // return 501 with a clear message instead of failing at boot.
   easypostKey: process.env.EASYPOST_API_KEY || '',
+  // EasyPost webhook signing secret (used to verify /api/webhooks/easypost).
+  easypostWebhookSecret: process.env.EASYPOST_WEBHOOK_SECRET || '',
   stripeKey: process.env.STRIPE_SECRET_KEY || '',
   // Stripe webhook signing secret (used to verify /api/webhooks/stripe).
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',

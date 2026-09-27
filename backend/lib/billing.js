@@ -121,18 +121,32 @@ async function checkQuota(userId) {
   return { allowed: true, state, reason: null };
 }
 
-// incrementQuota(userId): count one consumed quote. Call only after a quote
-// was actually produced. Keeps the period rollover race-safe.
-async function incrementQuota(userId) {
-  if (!db.isEnabled()) return;
+// tryIncrementQuota(userId, limit): atomically consume one quote, but only
+// when the hard cap allows it. Returns true when the quote was counted,
+// false when the cap was already reached (a concurrent request won the race).
+// The check and the increment happen in a single UPDATE, so concurrent
+// requests can never push usage past a hard cap — quotas are hard caps with
+// no overdraft. limit = null means unlimited. Fails closed: a DB error
+// throws, and callers must not serve the quote uncounted.
+async function tryIncrementQuota(userId, limit) {
+  if (!db.isEnabled()) return true;
   const period = currentPeriod();
-  await db.query(
+  const r = await db.query(
     `UPDATE users
         SET quotes_used = CASE WHEN quota_period = $2 THEN quotes_used + 1 ELSE 1 END,
             quota_period = $2
-      WHERE id = $1`,
-    [userId, period]
+      WHERE id = $1
+        AND ($3 IS NULL OR quota_period IS DISTINCT FROM $2 OR quotes_used < $3)
+      RETURNING quotes_used`,
+    [userId, period, limit]
   );
+  return r.rowCount > 0;
+}
+
+// incrementQuota(userId): legacy non-atomic counter. Kept for compatibility;
+// new code should use tryIncrementQuota so hard caps hold under concurrency.
+async function incrementQuota(userId) {
+  await tryIncrementQuota(userId, null);
 }
 
 // setSubscription(userId, fields): upsert billing fields from Stripe events.
@@ -161,5 +175,6 @@ module.exports = {
   getBillingState,
   checkQuota,
   incrementQuota,
+  tryIncrementQuota,
   setSubscription,
 };

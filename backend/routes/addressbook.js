@@ -13,6 +13,13 @@ const db = require('../db');
 
 const router = express.Router();
 
+// Address-book records contain customer PII — every route requires sign-in.
+// (ownerId below is therefore always the signed-in account's id.)
+router.use((req, res, next) => {
+  if (!req.user) return res.status(401).json({ error: 'Sign in required.' });
+  next();
+});
+
 // In-memory fallback: id -> record.
 const mem = new Map();
 

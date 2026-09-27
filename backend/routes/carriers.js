@@ -20,7 +20,13 @@ const router = express.Router();
 
 // In-memory fallback.
 const memCarriers = new Map(); // id -> record
-const memExclusions = new Map(); // lowercased carrier name -> original-case name
+const memExclusions = new Map(); // userId -> Map(lowercased name -> original-case name)
+
+function memExclFor(userId) {
+  let m = memExclusions.get(userId);
+  if (!m) { m = new Map(); memExclusions.set(userId, m); }
+  return m;
+}
 
 // Carriers the rate matrix already quotes (must match carrier_label in
 // backend/rates/build-matrix.js).
@@ -74,6 +80,7 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Sign in required.' });
   const name = str((req.body || {}).name, 160).trim();
   if (!name) return res.status(400).json({ error: 'name is required' });
   const rec = {
@@ -105,6 +112,7 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Sign in required.' });
   const name = str((req.body || {}).name, 160).trim();
   if (!name) return res.status(400).json({ error: 'name is required' });
   const rec = {
@@ -138,6 +146,7 @@ router.put('/:id', async (req, res) => {
 });
 
 router.delete('/:id', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Sign in required.' });
   if (db.isEnabled()) {
     try {
       const r = await db.query('DELETE FROM carriers WHERE id = $1 RETURNING id', [req.params.id]);
@@ -154,64 +163,83 @@ router.delete('/:id', async (req, res) => {
 // --- Exclusions ------------------------------------------------------------
 
 router.get('/exclusions', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Sign in required.' });
+  const userId = req.user.id;
   if (db.isEnabled()) {
     try {
-      const r = await db.query('SELECT carrier_name FROM carrier_exclusions ORDER BY carrier_name ASC');
+      const r = await db.query(
+        'SELECT carrier_name FROM carrier_exclusions WHERE user_id = $1 ORDER BY carrier_name ASC',
+        [userId]
+      );
       return res.json({ exclusions: r.rows.map((x) => x.carrier_name) });
     } catch (err) {
       return res.status(502).json({ error: 'Could not list exclusions: ' + err.message });
     }
   }
-  res.json({ exclusions: [...memExclusions.values()].sort() });
+  const m = memExclusions.get(userId);
+  res.json({ exclusions: m ? [...m.values()].sort() : [] });
 });
 
 router.post('/exclusions', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Sign in required.' });
+  const userId = req.user.id;
   const name = str((req.body || {}).name, 160).trim();
   if (!name) return res.status(400).json({ error: 'name is required' });
   if (db.isEnabled()) {
     try {
       await db.query(
-        'INSERT INTO carrier_exclusions (carrier_name) VALUES ($1) ON CONFLICT (carrier_name) DO NOTHING',
-        [name]
+        `INSERT INTO carrier_exclusions (user_id, carrier_name) VALUES ($1, $2)
+         ON CONFLICT (user_id, carrier_name) DO NOTHING`,
+        [userId, name]
       );
       return res.status(201).json({ excluded: name });
     } catch (err) {
       return res.status(502).json({ error: 'Could not add exclusion: ' + err.message });
     }
   }
-  memExclusions.set(name.toLowerCase(), name);
+  memExclFor(userId).set(name.toLowerCase(), name);
   res.status(201).json({ excluded: name });
 });
 
 router.delete('/exclusions/:name', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Sign in required.' });
+  const userId = req.user.id;
   const name = decodeURIComponent(req.params.name);
   if (db.isEnabled()) {
     try {
-      const r = await db.query('DELETE FROM carrier_exclusions WHERE carrier_name = $1 RETURNING carrier_name', [name]);
+      const r = await db.query(
+        'DELETE FROM carrier_exclusions WHERE user_id = $1 AND carrier_name = $2 RETURNING carrier_name',
+        [userId, name]
+      );
       if (!r.rows.length) return res.status(404).json({ error: 'No such exclusion' });
       return res.json({ removed: name });
     } catch (err) {
       return res.status(502).json({ error: 'Could not remove exclusion: ' + err.message });
     }
   }
-  if (!memExclusions.delete(name.toLowerCase())) return res.status(404).json({ error: 'No such exclusion' });
+  const m = memExclusions.get(userId);
+  if (!m || !m.delete(name.toLowerCase())) return res.status(404).json({ error: 'No such exclusion' });
   res.json({ removed: name });
 });
 
-// getExcludedNames(): lowercased set of excluded carrier names, for the
-// rates route. Non-fatal: a DB error returns the (possibly empty)
-// in-memory set so quoting never breaks.
-async function getExcludedNames() {
+// getExcludedNames(userId): lowercased set of the account's excluded carrier
+// names, for the rates route. Exclusions are per-account: one user's hidden
+// carrier must not disappear from another account's rate board. Unsigned
+// callers (guest quotes) get no exclusions. Non-fatal: a DB error returns the
+// (possibly empty) in-memory set so quoting never breaks.
+async function getExcludedNames(userId) {
+  if (!userId) return new Set();
   if (db.isEnabled()) {
     try {
-      const r = await db.query('SELECT carrier_name FROM carrier_exclusions');
+      const r = await db.query('SELECT carrier_name FROM carrier_exclusions WHERE user_id = $1', [userId]);
       return new Set(r.rows.map((x) => String(x.carrier_name).toLowerCase()));
     } catch (err) {
       console.error('[carriers] exclusion lookup failed (continuing):', err.message);
       return new Set();
     }
   }
-  return new Set(memExclusions.keys());
+  const m = memExclusions.get(userId);
+  return new Set(m ? m.keys() : []);
 }
 
 module.exports = router;

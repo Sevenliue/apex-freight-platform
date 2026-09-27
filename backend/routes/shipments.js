@@ -13,29 +13,20 @@ const { round2 } = require('../lib/money');
 
 const router = express.Router();
 
-// userCanShip(userId): the shipping-approval gate. Admins (ADMIN_EMAILS)
-// always pass; ordinary accounts must be approved by an admin in
-// Admin → Account approvals. New accounts start quote-only.
-async function userCanShip(userId) {
-  if (!userId) return false;
-  try {
-    if (db.isEnabled()) {
-      const r = await db.query('SELECT shipping_approved FROM users WHERE id = $1 LIMIT 1', [userId]);
-      if (r.rows.length && r.rows[0].shipping_approved) return true;
-    }
-  } catch { /* fall through to the billing/admin check */ }
-  try {
-    const billing = require('../lib/billing');
-    return !!((await billing.getBillingState(userId) || {}).isAdmin);
-  } catch {
-    return false;
-  }
-}
+// The shipping-approval gate lives in lib/ so every route can share it
+// without a routes/ <-> routes/ circular dependency.
+const { userCanShip } = require('../lib/shipping-approval');
 
 router.post('/buy', async (req, res) => {
-  const { shipment_id, rate_id, db_quote_id = null, user_id = null, charged_amount } = req.body || {};
-  // The logged-in account wins over the optional guest user_id label.
-  const effectiveUserId = (req.user && req.user.id) || user_id || null;
+  if (!req.user) {
+    return res.status(401).json({ error: 'Sign in required.' });
+  }
+  if (!(await userCanShip(req.user.id))) {
+    return res.status(403).json({ error: 'Shipping approval required.' });
+  }
+  const { shipment_id, rate_id, db_quote_id = null } = req.body || {};
+  // The logged-in account is always the attribution; never trust a client id.
+  const effectiveUserId = req.user.id;
 
   if (!shipment_id || !rate_id) {
     return res.status(400).json({ error: 'shipment_id and rate_id are required' });
@@ -51,6 +42,9 @@ router.post('/buy', async (req, res) => {
   const rate = quote.rates.find((r) => r.rate_id === rate_id);
   if (!rate) {
     return res.status(404).json({ error: 'Unknown rate_id for this shipment' });
+  }
+  if ((quote.packages || []).some((p) => p && p.dg)) {
+    return res.status(403).json({ error: 'Dangerous-goods shipments require admin review before purchase.' });
   }
   if (rate.source !== 'easypost' || !quote.easypost_shipment_id) {
     return res.status(400).json({
@@ -72,7 +66,7 @@ router.post('/buy', async (req, res) => {
       tracking_code: bought.tracking_code,
       label_url: (bought.postage_label && bought.postage_label.label_url) || null,
       status: 'purchased',
-      charged_amount: charged_amount != null ? round2(charged_amount) : rate.retail_cad,
+      charged_amount: rate.retail_cad,
       created_at: new Date().toISOString(),
     };
     store.orders.push(order);
@@ -294,60 +288,87 @@ async function prepareOrder(body, effectiveUserId) {
 // customer has paid. Matrix LTL: mints the internal PRO and marks scheduled.
 async function finalizeShipmentPayment(dbOrderId, paymentIntentId) {
   if (!db.isEnabled()) throw new Error('finalizeShipmentPayment requires a database');
-  const r = await db.query('SELECT * FROM orders WHERE id = $1', [dbOrderId]);
-  if (!r.rows.length) throw new Error('order not found: ' + dbOrderId);
-  const row = r.rows[0];
-  if (row.payment_status === 'paid') {
-    return { already: true, id: row.id, status: row.status, tracking_code: row.tracking_code };
-  }
-  let status = 'scheduled';
-  let tracking = row.tracking_code;
-  let labelUrl = row.label_url;
-  let carrier = row.carrier;
-  let service = row.service_level;
-  const epShipment = row.easypost_shipment_id;
-  const epRate = row.easypost_rate_id;
-  if (epShipment && epRate && easypost.isEnabled()) {
-    const bought = await easypostRoute.buyEasypostLabel(epShipment, epRate);
-    status = 'purchased';
-    tracking = bought.tracking_code || null;
-    labelUrl = (bought.postage_label && bought.postage_label.label_url) || null;
-    carrier = bought.carrier || carrier;
-    service = bought.service || service;
-  } else if (!tracking) {
-    tracking = 'APX-' + Math.random().toString(36).slice(2, 8).toUpperCase();
-  }
-  await db.query(
-    `UPDATE orders SET status = $2, tracking_code = $3, label_url = $4, payment_status = 'paid',
-                      stripe_payment_intent_id = $5, carrier = $6, service_level = $7
-     WHERE id = $1`,
-    [dbOrderId, status, tracking, labelUrl, paymentIntentId || null, carrier, service]
-  );
-  const mem = store.orders.find((o) => o.id === dbOrderId);
-  if (mem) {
-    mem.status = status; mem.tracking_code = tracking; mem.label_url = labelUrl;
-    mem.payment_status = 'paid'; mem.carrier = carrier; mem.service = service;
-  }
-  // Payment confirmation (best-effort).
+  // Row-locked transaction: concurrent webhook redeliveries serialize here,
+  // so a retried event can never buy the label twice (M2).
+  const client = await db.getPool().connect();
+  let out;
   try {
-    const notifyLib = require('../lib/notify');
-    let bol = {};
-    try { bol = typeof row.bol_json === 'object' ? row.bol_json || {} : JSON.parse(row.bol_json || '{}'); } catch { /* ignore */ }
-    notifyLib.notify('payment_succeeded', {
-      carrier, charged_amount: row.charged_amount, tracking_code: tracking,
-      shipper_order_no: row.shipper_order_no, bol,
-    });
-  } catch (err) { console.error('[notify] hook failed (non-fatal):', err.message); }
-  return {
-    id: dbOrderId,
-    status,
-    tracking_code: tracking,
-    carrier,
-    service,
-    charged_amount: row.charged_amount != null ? Number(row.charged_amount) : null,
-    label_url: labelUrl,
-    bol_url: `/api/shipments/bol/${encodeURIComponent(dbOrderId)}`,
-  };
+    await client.query('BEGIN');
+    const r = await client.query('SELECT * FROM orders WHERE id = $1 FOR UPDATE', [dbOrderId]);
+    if (!r.rows.length) {
+      const e = new Error('order not found: ' + dbOrderId);
+      e.permanent = true; // no point in Stripe retrying an unknown order
+      throw e;
+    }
+    const row = r.rows[0];
+    if (row.payment_status === 'paid') {
+      out = { already: true, id: row.id, status: row.status, tracking_code: row.tracking_code };
+    } else if (row.status !== 'awaiting_payment') {
+      // Never resurrect a cancelled / rejected / already-scheduled order with
+      // a late payment (e.g. admin rejected a DG order while Checkout was open).
+      const e = new Error('order not payable: status is ' + row.status);
+      e.permanent = true;
+      throw e;
+    } else {
+      let status = 'scheduled';
+      let tracking = row.tracking_code;
+      let labelUrl = row.label_url;
+      let carrier = row.carrier;
+      let service = row.service_level;
+      const epShipment = row.easypost_shipment_id;
+      const epRate = row.easypost_rate_id;
+      if (epShipment && epRate && easypost.isEnabled()) {
+        const bought = await easypostRoute.buyEasypostLabel(epShipment, epRate);
+        status = 'purchased';
+        tracking = bought.tracking_code || null;
+        labelUrl = (bought.postage_label && bought.postage_label.label_url) || null;
+        carrier = bought.carrier || carrier;
+        service = bought.service || service;
+      } else if (!tracking) {
+        tracking = 'APX-' + Math.random().toString(36).slice(2, 8).toUpperCase();
+      }
+      await client.query(
+        `UPDATE orders SET status = $2, tracking_code = $3, label_url = $4, payment_status = 'paid',
+                          stripe_payment_intent_id = $5, carrier = $6, service_level = $7
+         WHERE id = $1`,
+        [dbOrderId, status, tracking, labelUrl, paymentIntentId || null, carrier, service]
+      );
+      const mem = store.orders.find((o) => o.id === dbOrderId);
+      if (mem) {
+        mem.status = status; mem.tracking_code = tracking; mem.label_url = labelUrl;
+        mem.payment_status = 'paid'; mem.carrier = carrier; mem.service = service;
+      }
+      out = {
+        id: dbOrderId,
+        status,
+        tracking_code: tracking,
+        carrier,
+        service,
+        charged_amount: row.charged_amount != null ? Number(row.charged_amount) : null,
+        label_url: labelUrl,
+        bol_url: `/api/shipments/bol/${encodeURIComponent(dbOrderId)}`,
+        shipper_order_no: row.shipper_order_no || null,
+        bol: (() => { try { const bj = row.bol_json; return typeof bj === 'object' ? bj || {} : JSON.parse(bj || '{}'); } catch { return {}; } })(),
+      };
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch { /* no transaction to roll back */ }
+    throw err;
+  } finally {
+    client.release();
+  }
+  // Payment confirmation (best-effort, only for a fresh finalization).
+  if (!out.already) {
+    try {
+      const notifyLib = require('../lib/notify');
+      notifyLib.notify('payment_succeeded', {
+        carrier: out.carrier, charged_amount: out.charged_amount, tracking_code: out.tracking_code,
+        shipper_order_no: out.shipper_order_no, bol: out.bol,
+      });
+    } catch (err) { console.error('[notify] hook failed (non-fatal):', err.message); }
+  }
+  return out;
 }
 
 // POST /api/shipments/checkout — pay-first scheduling.
@@ -582,12 +603,13 @@ router.post('/:id/cancel', async (req, res) => {
 });
 
 // GET /api/shipments/order/:id — payment/scheduling status, for the
-// post-checkout confirmation page. The id is an unguessable uuid; when the
-// caller is signed in as someone else (and not admin), access is denied.
+// post-checkout confirmation page. Requires sign-in; the caller must own the
+// order or be an admin. (An unguessable uuid alone is not authorization.)
 router.get('/order/:id', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Sign in required.' });
   const order = await findOrder(req.params.id);
   if (!order) return res.status(404).json({ error: 'Shipment not found.' });
-  if (req.user && order.user_id && order.user_id !== req.user.id) {
+  if (order.user_id && order.user_id !== req.user.id) {
     let isAdmin = false;
     try { isAdmin = !!((await billing.getBillingState(req.user.id) || {}).isAdmin); } catch { /* ignore */ }
     if (!isAdmin) return res.status(403).json({ error: 'Not your shipment.' });
@@ -803,8 +825,16 @@ async function findOrder(id) {
 }
 
 router.get('/bol/:id', async (req, res) => {
+  if (!req.user) return res.status(401).send('Sign in required.');
   const order = await findOrder(req.params.id);
   if (!order) return res.status(404).send('Shipment not found');
+  // BOLs carry full PII — only the order owner or an admin may view.
+  const billing = require('../lib/billing');
+  let isAdmin = false;
+  try { isAdmin = !!((await billing.getBillingState(req.user.id)) || {}).isAdmin; } catch { /* no */ }
+  if (String(order.user_id) !== String(req.user.id) && !isAdmin) {
+    return res.status(403).send('Not your shipment.');
+  }
   const b = order.bol || {};
   const shipper = b.shipper || {};
   const consignee = b.consignee || {};
@@ -899,3 +929,5 @@ ${(() => { const n = [b.delivery_note_1, b.delivery_note_2].filter(Boolean).map(
 
 // Exported for the Stripe webhook: finalize a paid shipment order.
 module.exports.finalizeShipmentPayment = finalizeShipmentPayment;
+// Exported for other routes that need the shipping-approval gate.
+module.exports.userCanShip = userCanShip;

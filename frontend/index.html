@@ -1873,6 +1873,8 @@
     }
 
     async function confirmCompleteShipment() {
+      const rateId = selectedRateId();
+      if (!rateId) { showAlert('Pick a carrier rate first.'); return; }
       const errBox = $('#cm-error');
       const refNum = $('#cm-ref-num').value.trim();
       const poNum = $('#cm-po-num').value.trim();

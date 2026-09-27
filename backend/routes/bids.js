@@ -16,10 +16,10 @@ const router = express.Router();
 const now = () => new Date().toISOString();
 
 router.post('/submit', async (req, res) => {
-  const { shipment_posting_id, carrier_id, bid_amount, estimated_transit_days, notes } = req.body || {};
+  if (!req.user) return res.status(401).json({ error: 'Sign in required.' });
+  const { shipment_posting_id, bid_amount, estimated_transit_days, notes } = req.body || {};
   const missing = [];
   if (!shipment_posting_id) missing.push('shipment_posting_id');
-  if (!carrier_id) missing.push('carrier_id');
   const amount = Number(bid_amount);
   if (!Number.isFinite(amount) || amount <= 0) missing.push('bid_amount (positive number)');
   if (missing.length) {
@@ -32,7 +32,8 @@ router.post('/submit', async (req, res) => {
     return res.status(409).json({ error: `Posting is ${load.status}; no longer open for bids` });
   }
 
-  const carrierId = db.isEnabled() ? await db.ensureUser(carrier_id, 'carrier') : carrier_id;
+  // The bidder is always the signed-in account — never a client-supplied id.
+  const carrierId = req.user.id;
 
   // Upsert on (posting, carrier): a carrier gets one live bid per posting.
   let bid = [...store.bids.values()].find(
@@ -83,7 +84,12 @@ router.post('/submit', async (req, res) => {
 });
 
 router.post('/accept', async (req, res) => {
-  const { bid_id, shipper_id, payment_method_id } = req.body || {};
+  if (!req.user) return res.status(401).json({ error: 'Sign in required.' });
+  const { userCanShip } = require('../lib/shipping-approval');
+  if (!(await userCanShip(req.user.id))) {
+    return res.status(403).json({ error: 'Shipping approval required.' });
+  }
+  const { bid_id, payment_method_id } = req.body || {};
   if (!bid_id) return res.status(400).json({ error: 'bid_id is required' });
 
   const bid = store.bids.get(bid_id);
@@ -93,10 +99,9 @@ router.post('/accept', async (req, res) => {
   }
 
   const load = store.loads.get(bid.shipment_posting_id);
-  // Normalize the caller's label to the stored uuid before the ownership check
-  // (ensureUser mints a stable uuid per label at load creation).
-  const acceptShipperId = shipper_id ? await db.ensureUser(shipper_id, 'shipper') : null;
-  if (acceptShipperId && load && load.shipper_id !== acceptShipperId) {
+  // Only the shipper who posted the load can accept a bid on it.
+  const acceptShipperId = req.user.id;
+  if (load && load.shipper_id !== acceptShipperId) {
     return res.status(403).json({ error: 'Only the posting shipper can accept bids' });
   }
 

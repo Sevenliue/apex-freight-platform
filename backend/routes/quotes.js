@@ -151,6 +151,7 @@ function memToQuote(q) {
 
 // POST /api/quotes/:id/save — { name?, delivery_note_1?, delivery_note_2?, private_notes? }
 router.post('/:id/save', async (req, res) => {
+  if (!req.user) return bad(res, 401, 'Sign in required.');
   const { id } = req.params;
   const body = req.body || {};
   const name = String(body.name || '').slice(0, 255) || null;
@@ -163,6 +164,7 @@ router.post('/:id/save', async (req, res) => {
   // In-memory record first (fast path; also the only path without a DB).
   const mem = store.quotes.get(id);
   if (mem) {
+    if (ownerMismatch(req, mem.user_id)) return bad(res, 403, 'Not your quote');
     mem.quote_name = name;
     mem.is_saved = true;
     Object.assign(mem, notes);
@@ -185,6 +187,9 @@ router.post('/:id/save', async (req, res) => {
   // Fall back to a DB row by uuid (e.g. after a server restart).
   if (db.isEnabled()) {
     try {
+      const chk = await db.query('SELECT user_id FROM quotes WHERE id = $1', [id]);
+      if (!chk.rows.length) return bad(res, 404, 'Unknown quote id — request a fresh quote first');
+      if (ownerMismatch(req, chk.rows[0].user_id)) return bad(res, 403, 'Not your quote');
       const r = await db.query(
         `UPDATE quotes SET is_saved = true, quote_name = COALESCE($2, quote_name),
                            delivery_note_1 = $3, delivery_note_2 = $4, private_notes = $5
@@ -201,21 +206,15 @@ router.post('/:id/save', async (req, res) => {
   return bad(res, 404, 'Unknown quote id — request a fresh quote first');
 });
 
-// GET /api/quotes/saved?user_id= — the logged-in account wins over the
-// optional guest user_id label.
+// GET /api/quotes/saved — the signed-in account's saved quotes only.
 router.get('/saved', async (req, res) => {
-  const userId = (req.user && req.user.id) || req.query.user_id || null;
+  if (!req.user) return bad(res, 401, 'Sign in required.');
+  const userId = req.user.id;
   if (db.isEnabled()) {
     try {
-      const params = [];
-      let where = 'WHERE is_saved = true';
-      if (userId) {
-        const uuid = await db.ensureUser(userId, 'shipper');
-        params.push(uuid);
-        where += ` AND user_id = $${params.length}`;
-      }
       const r = await db.query(
-        `SELECT * FROM quotes ${where} ORDER BY created_at DESC LIMIT 50`, params
+        'SELECT * FROM quotes WHERE is_saved = true AND user_id = $1 ORDER BY created_at DESC LIMIT 50',
+        [userId]
       );
       return res.json({ quotes: r.rows.map(rowToQuote) });
     } catch (err) {
@@ -223,7 +222,7 @@ router.get('/saved', async (req, res) => {
     }
   }
   const all = [...store.savedQuotes.values()]
-    .filter((q) => !userId || q.user_id === userId)
+    .filter((q) => q.user_id === userId)
     .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
     .slice(0, 50);
   return res.json({ quotes: all.map(memToQuote) });
@@ -291,7 +290,10 @@ async function resolveQuote(id) {
 }
 
 function ownerMismatch(req, userId) {
-  return !!(userId && req.user && req.user.id && String(req.user.id) !== String(userId));
+  // Anonymous callers may only touch ownerless (guest) quotes; anyone else
+  // must match the quote owner's account.
+  if (!req.user) return !!userId;
+  return !!(userId && String(req.user.id) !== String(userId));
 }
 
 function attPublic(a) {

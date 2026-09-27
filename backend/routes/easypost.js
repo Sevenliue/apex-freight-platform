@@ -13,6 +13,7 @@ const db = require('../db');
 const easypost = require('../lib/easypost');
 const { store, id } = require('../lib/store');
 const { round2, applyMarkup } = require('../lib/money');
+const { userCanShip } = require('../lib/shipping-approval');
 
 const router = express.Router();
 
@@ -52,7 +53,21 @@ function toRate(r) {
 // weight_lb is the TOTAL shipment weight; it is split across `pieces`.
 // ---------------------------------------------------------------------------
 router.post('/rates', async (req, res) => {
+  if (!req.user) return bad(res, 401, 'Sign in required.');
   if (!easypost.isEnabled()) return notConfigured(res);
+
+  // Quota: a Worldwide EasyPost rating counts like any other quote.
+  const billing = require('../lib/billing');
+  let quotaState = null;
+  try {
+    const q = await billing.checkQuota(req.user.id);
+    quotaState = q.state;
+    if (!q.allowed) {
+      return res.status(402).json({ error: q.reason || 'Monthly quote limit reached.', upgrade_required: true });
+    }
+  } catch (err) {
+    return bad(res, 503, 'Billing is unavailable right now — please try again.');
+  }
 
   const b = req.body || {};
   const fromCity = b.from_city;
@@ -60,7 +75,8 @@ router.post('/rates', async (req, res) => {
   const toCity = b.to_city;
   const toProv = b.to_province || b.to_state;
   const weightLb = Number(b.weight_lb);
-  const pieces = Math.max(1, Math.floor(Number(b.pieces) || 1));
+  // Cap pieces: each piece becomes a parcel in the EasyPost call.
+  const pieces = Math.min(50, Math.max(1, Math.floor(Number(b.pieces) || 1)));
 
   if (!fromCity || !fromProv || !toCity || !toProv) {
     return bad(res, 400, 'from_city, from_province, to_city and to_province are required');
@@ -89,7 +105,12 @@ router.post('/rates', async (req, res) => {
       parcels,
     });
 
-    const rates = (shipment.rates || []).map(toRate);
+    // Currency guard: the platform charges in CAD. A non-CAD EasyPost rate
+    // must never be passed off as CAD (the customer would be under- or
+    // over-charged). Drop non-CAD rates until real FX conversion exists.
+    const rates = (shipment.rates || [])
+      .filter((r) => String(r.currency || 'CAD').toUpperCase() === 'CAD')
+      .map(toRate);
     const quoteId = id('epq');
     store.quotes.set(quoteId, {
       shipment_id: quoteId,
@@ -99,6 +120,20 @@ router.post('/rates', async (req, res) => {
       rates,
       created_at: new Date().toISOString(),
     });
+
+    // Count the rating against the monthly quota (atomic — a lost race is a
+    // 402, so hard caps hold). Admins are never counted.
+    if (rates.length && !(quotaState && quotaState.isAdmin)) {
+      let counted = false;
+      try {
+        counted = await billing.tryIncrementQuota(req.user.id, quotaState ? quotaState.quotesLimit : null);
+      } catch (err) {
+        return bad(res, 503, 'Billing is unavailable right now — please try again.');
+      }
+      if (!counted) {
+        return res.status(402).json({ error: 'Monthly quote limit reached.', upgrade_required: true });
+      }
+    }
 
     return res.json({
       configured: true,
@@ -120,6 +155,8 @@ router.post('/rates', async (req, res) => {
 // configured, and always kept in the in-memory order log.
 // ---------------------------------------------------------------------------
 router.post('/buy', async (req, res) => {
+  if (!req.user) return bad(res, 401, 'Sign in required.');
+  if (!(await userCanShip(req.user.id))) return bad(res, 403, 'Shipping approval required.');
   if (!easypost.isEnabled()) return notConfigured(res);
 
   const { shipment_id, rate_id } = req.body || {};
@@ -134,6 +171,9 @@ router.post('/buy', async (req, res) => {
   const rate = (quote.rates || []).find((r) => r.rate_id === rate_id);
   if (!rate) {
     return bad(res, 404, 'Unknown rate_id for this shipment');
+  }
+  if ((quote.packages || []).some((p) => p && p.dg)) {
+    return bad(res, 403, 'Dangerous-goods shipments require admin review before purchase.');
   }
 
   try {

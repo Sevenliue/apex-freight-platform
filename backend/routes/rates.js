@@ -62,6 +62,11 @@ function normalizePackages(packages, parcel) {
       },
     ];
   }
+  // Cap the line count: each package line fans out into rating work, so an
+  // unbounded array is a cheap denial-of-service vector.
+  if (list.length > 50) {
+    throw new Error('Too many package lines — 50 maximum per quote.');
+  }
   return list.map((p, i) => {
     const qty = Math.max(1, Math.floor(num(p.qty, 1)));
     const weight = num(p.weight_lb ?? p.weight, NaN);
@@ -294,8 +299,9 @@ router.post('/', async (req, res) => {
 
   // Carrier exclusions (from the Carriers tab): excluded carriers are
   // filtered out of the matrix-ranked board, case-insensitively.
+  // Exclusions are per-account; guests see no exclusions.
   try {
-    const excluded = await getExcludedNames();
+    const excluded = await getExcludedNames(req.user ? req.user.id : null);
     if (excluded.size) {
       matrixQuotes = matrixQuotes.filter(
         (q) => !excluded.has(String(q.carrier_label || '').toLowerCase())
@@ -491,12 +497,28 @@ router.post('/', async (req, res) => {
   if (warnings.length) body.warnings = warnings;
   if (suggestions.length) body.suggestions = suggestions;
   // Count the quote against the monthly quota only when rates were produced.
-  // Admins (owner/staff bypass) are never counted.
+  // Admins (owner/staff bypass) are never counted. The increment is atomic:
+  // if a concurrent request took the last available quote, this one is not
+  // served — hard caps are never exceeded, even under double-clicks.
   if (rates.length && !(quotaState && quotaState.isAdmin)) {
+    let counted = false;
     try {
-      await billingLib.incrementQuota(req.user.id);
+      counted = await billingLib.tryIncrementQuota(
+        req.user.id,
+        quotaState ? quotaState.quotesLimit : null
+      );
     } catch (err) {
-      console.error('[rates] quota increment failed (non-fatal):', err.message);
+      console.error('[rates] quota increment failed:', err.message);
+      return bad(res, 503, 'Billing is unavailable right now — please try again.');
+    }
+    if (!counted) {
+      return res.status(402).json({
+        error: 'Monthly quote limit reached.',
+        upgrade_required: true,
+        tier: quotaState && quotaState.tier,
+        quotes_used: quotaState && quotaState.quotesUsed,
+        quotes_limit: quotaState && quotaState.quotesLimit,
+      });
     }
     if (quotaState) {
       body.quota = {

@@ -175,9 +175,15 @@ async function stripeWebhookHandler(req, res) {
   try {
     await handleEvent(stripe, event);
   } catch (err) {
-    // Log but still acknowledge: a 500 would make Stripe retry a handler
-    // that may fail the same way every time.
-    console.error('[stripe-webhook] handler error (acknowledging anyway):', err.message);
+    // Transient failures (DB outage, EasyPost error) → 500 so Stripe retries.
+    // finalizeShipmentPayment is idempotent, so a redelivery is safe.
+    // Permanent failures (unknown order id, order no longer payable) → 200
+    // after logging, since retrying would never succeed.
+    console.error('[stripe-webhook] handler error:', err.message);
+    if (err && err.permanent) {
+      return res.status(200).json({ received: true, note: 'permanent failure logged' });
+    }
+    return res.status(500).json({ error: 'handler failed; Stripe will retry' });
   }
   return res.status(200).json({ received: true });
 }

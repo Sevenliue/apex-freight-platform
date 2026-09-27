@@ -374,6 +374,31 @@ CREATE TABLE IF NOT EXISTS carrier_exclusions (
   created_at        timestamptz     NOT NULL DEFAULT now()
 );
 
+-- 2026-09-27: carrier exclusions become per-account. They were a single
+-- global list (one row per carrier_name shared by every account), so one
+-- user's exclusion hid the carrier for everyone. Migrate to (user_id,
+-- carrier_name) rows. Idempotent — safe to run on every boot.
+ALTER TABLE carrier_exclusions ADD COLUMN IF NOT EXISTS user_id uuid;
+DO $$
+DECLARE
+  pkdef  text;
+  pkname text;
+BEGIN
+  SELECT pg_get_constraintdef(oid), conname INTO pkdef, pkname
+  FROM pg_constraint
+  WHERE conrelid = 'carrier_exclusions'::regclass AND contype = 'p';
+  IF pkdef IS NULL OR position('(user_id, carrier_name)' in pkdef) = 0 THEN
+    -- Legacy global rows cannot be attributed to an account; drop them so
+    -- the composite primary key (which forbids NULL user_id) applies cleanly.
+    DELETE FROM carrier_exclusions WHERE user_id IS NULL;
+    IF pkname IS NOT NULL THEN
+      EXECUTE 'ALTER TABLE carrier_exclusions DROP CONSTRAINT ' || quote_ident(pkname);
+    END IF;
+    ALTER TABLE carrier_exclusions ADD PRIMARY KEY (user_id, carrier_name);
+  END IF;
+END
+$$;
+
 -- ---------------------------------------------------------------------------
 -- Subscription billing (added 2026-09-27): Stripe subscriptions + monthly
 -- quote quotas. Idempotent: ALTER ... IF NOT EXISTS.

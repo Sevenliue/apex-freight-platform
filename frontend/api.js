@@ -79,7 +79,7 @@ async function request(method, path, body) {
 }
 
 const get = (path) => request('GET', path);
-const post = (path, body) => request('POST', path, body);
+export const post = (path, body) => request('POST', path, body);
 
 /* Billing — subscription plans and quote quotas. */
 export function billingStatus() {

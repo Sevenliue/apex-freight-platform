@@ -10,10 +10,12 @@
 const express = require('express');
 const db = require('../db');
 const matrix = require('../lib/matrix');
+const { requireAdmin } = require('./admin');
 
 const router = express.Router();
 
 router.post('/upload', async (req, res) => {
+  if (!(await requireAdmin(req, res))) return;
   const { carrier_id, carrier_label, fsc_percent, lanes } = req.body || {};
   if (!carrier_id || typeof carrier_id !== 'string') {
     return res.status(400).json({ error: 'carrier_id is required' });

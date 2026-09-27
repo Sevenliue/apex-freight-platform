@@ -18,9 +18,9 @@ function place(v) {
 }
 
 router.post('/create', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Sign in required.' });
   const b = req.body || {};
   const missing = [];
-  if (!b.shipper_id) missing.push('shipper_id');
   if (!b.origin || !b.origin.city || !b.origin.state) missing.push('origin{city,state}');
   if (!b.destination || !b.destination.city || !b.destination.state) missing.push('destination{city,state}');
   if (!b.pickup_date) missing.push('pickup_date');
@@ -31,7 +31,8 @@ router.post('/create', async (req, res) => {
     return res.status(400).json({ error: `Missing/invalid fields: ${missing.join(', ')}` });
   }
 
-  const shipperId = db.isEnabled() ? await db.ensureUser(b.shipper_id, 'shipper') : b.shipper_id;
+  // The poster is always the signed-in account — never a client-supplied id.
+  const shipperId = req.user.id;
 
   const load = {
     id: db.newId('load'),
@@ -119,8 +120,16 @@ router.get('/open', async (req, res) => {
 });
 
 router.post('/:id/probill', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Sign in required.' });
   const load = store.loads.get(req.params.id);
   if (!load) return res.status(404).json({ error: 'Load not found' });
+  // Only the posting shipper or the awarded carrier may set the PRO number.
+  const me = req.user.id;
+  const isShipper = load.shipper_id === me;
+  const isCarrier = load.awarded_carrier_id === me || load.carrier_id === me;
+  if (!isShipper && !isCarrier) {
+    return res.status(403).json({ error: 'Only the posting shipper or awarded carrier can set the PRO number.' });
+  }
   const { carrier_probill_number } = req.body || {};
   if (!carrier_probill_number) {
     return res.status(400).json({ error: 'carrier_probill_number is required' });

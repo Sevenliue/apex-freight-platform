@@ -24,6 +24,10 @@ app.use(cors());
 // gate below never sees it.
 app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), require('./routes/stripe-webhook'));
 
+// EasyPost webhooks need the RAW request body for HMAC signature
+// verification, so this is mounted BEFORE express.json() too.
+app.post('/api/webhooks/easypost', express.raw({ type: 'application/json' }), require('./routes/webhooks').easypostWebhook);
+
 app.use(express.json({ limit: '1mb' }));
 
 // Minimal morgan-style request log.

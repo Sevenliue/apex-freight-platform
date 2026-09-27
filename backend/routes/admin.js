@@ -13,6 +13,7 @@ const { sanitizeMarkup } = require('../lib/markup');
 const router = express.Router();
 
 router.get('/overview', async (req, res) => {
+  if (!(await requireAdmin(req, res))) return;
   if (!db.isEnabled()) {
     return res.status(501).json({ error: 'Admin overview requires a database. Set DATABASE_URL to enable it.' });
   }
@@ -43,6 +44,7 @@ router.get('/overview', async (req, res) => {
 
 // DELETE /api/admin/loads/:id — remove a posting and its bids/transactions.
 router.delete('/loads/:id', async (req, res) => {
+  if (!(await requireAdmin(req, res))) return;
   if (!db.isEnabled()) {
     return res.status(501).json({ error: 'Deleting loads requires a database. Set DATABASE_URL to enable it.' });
   }
@@ -58,6 +60,8 @@ router.delete('/loads/:id', async (req, res) => {
 });
 
 module.exports = router;
+// Exported so other routes can reuse the admin gate.
+module.exports.requireAdmin = requireAdmin;
 
 // ---------------------------------------------------------------------------
 // Account approvals (added 2026-09-27): every new account starts quote-only.
@@ -221,7 +225,11 @@ router.put('/store/products/:id', async (req, res) => {
   for (const k of ['title', 'subtitle', 'description']) {
     if (typeof b[k] === 'string') { fields.push(`${k} = $${i++}`); vals.push(b[k]); }
   }
-  if (Number.isFinite(Number(b.price_cents))) { fields.push(`price_cents = $${i++}`); vals.push(Math.round(Number(b.price_cents))); }
+  if (Number.isFinite(Number(b.price_cents))) {
+    const cents = Math.round(Number(b.price_cents));
+    if (cents < 0) return res.status(400).json({ error: 'price_cents cannot be negative.' });
+    fields.push(`price_cents = $${i++}`); vals.push(cents);
+  }
   if (typeof b.active === 'boolean') { fields.push(`active = $${i++}`); vals.push(b.active); }
   if (!fields.length) return res.status(400).json({ error: 'Nothing to update.' });
   try {
