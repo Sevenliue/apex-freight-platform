@@ -23,6 +23,61 @@ router.get('/accessorials', (req, res) => {
   res.json({ accessorials: acc.list() });
 });
 
+// POST /api/quotes/full-load-request — custom pricing request for a full truckload.
+// Stores the request (DB when configured, memory otherwise) and notifies the admin.
+const fullLoadMem = [];
+router.post('/full-load-request', async (req, res) => {
+  if (!req.user) return bad(res, 401, 'Sign in to request full-load pricing.');
+  const b = req.body || {};
+  const origin_city = String((b.origin && b.origin.city) || '').trim();
+  const dest_city = String((b.destination && b.destination.city) || '').trim();
+  if (!origin_city || !dest_city) return bad(res, 400, 'Origin and destination cities are required.');
+  const equipment = ['dry_van', 'reefer', 'flatbed', 'other'].includes(b.equipment) ? b.equipment : 'dry_van';
+  const rec = {
+    id: 'fl_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+    user_id: req.user.id,
+    user_email: req.user.email,
+    origin_city,
+    origin_province: String((b.origin && (b.origin.state || b.origin.province)) || '').trim(),
+    dest_city,
+    dest_province: String((b.destination && (b.destination.state || b.destination.province)) || '').trim(),
+    equipment,
+    weight_lb: Math.max(0, parseFloat(b.weight_lb) || 0),
+    pieces: Math.max(0, parseInt(b.pieces, 10) || 0),
+    pickup_date: b.pickup_date || null,
+    commodity: String(b.commodity || '').slice(0, 120),
+    notes: String(b.notes || '').slice(0, 2000),
+    status: 'new',
+    created_at: new Date().toISOString(),
+  };
+  try {
+    if (db.isEnabled()) {
+      const r = await db.query(
+        `INSERT INTO full_load_requests
+           (user_id, user_email, origin_city, origin_province, dest_city, dest_province,
+            equipment, weight_lb, pieces, pickup_date, commodity, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+         RETURNING id, created_at`,
+        [rec.user_id, rec.user_email, rec.origin_city, rec.origin_province, rec.dest_city,
+         rec.dest_province, rec.equipment, rec.weight_lb, rec.pieces,
+         rec.pickup_date || null, rec.commodity, rec.notes]
+      );
+      rec.id = r.rows[0].id;
+      rec.created_at = r.rows[0].created_at;
+    } else {
+      fullLoadMem.unshift(rec);
+    }
+  } catch (err) {
+    console.error('[quotes] full-load-request store failed (memory fallback):', err.message);
+    fullLoadMem.unshift(rec);
+  }
+  try {
+    const notifyLib = require('../lib/notify');
+    notifyLib.notify('full_load_request', null, { request: rec });
+  } catch (err) { console.error('[notify] hook failed (non-fatal):', err.message); }
+  res.json({ ok: true });
+});
+
 function rowToQuote(row) {
   const j = (v) => {
     if (v == null) return null;

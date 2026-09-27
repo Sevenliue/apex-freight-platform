@@ -114,6 +114,15 @@ async function notify(event, order, opts = {}) {
         });
         break;
       }
+      case 'full_load_request': {
+        const r = opts.request || {};
+        const eq = { dry_van: 'Dry van', reefer: 'Reefer', flatbed: 'Flatbed', other: 'Other' }[r.equipment] || r.equipment || '—';
+        await sendEmail({
+          to: admin, event, subject: `Full-load pricing request — ${r.origin_city || '?'} → ${r.dest_city || '?'}`,
+          text: `A customer requested custom full-load pricing.\nRoute: ${r.origin_city || '?'}, ${r.origin_province || ''} → ${r.dest_city || '?'}, ${r.dest_province || ''}\nEquipment: ${eq}\nWeight: ${r.weight_lb || '—'} lb\nPieces: ${r.pieces || '—'}\nPickup: ${r.pickup_date || '—'}\nCommodity: ${r.commodity || '—'}\nCustomer: ${r.user_email || '—'}\n\nFollow up with a price directly.`,
+        });
+        break;
+      }
       case 'shipping_approved': {
         const u = opts.user || {};
         await sendEmail({

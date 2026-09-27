@@ -119,6 +119,12 @@ router.post('/', async (req, res) => {
     return bad(res, 401, 'Sign in to get a quote — quoting needs an account.');
   }
 
+  // Full load is custom-priced per truck: no LTL rating, no quota burn.
+  // The frontend shows a request card instead of the rate board.
+  if (req.body && req.body.load_type === 'full_load') {
+    return res.json({ full_load: true });
+  }
+
   // Monthly quota: free 5 / starter 50 / pro unlimited per calendar month.
   let quotaState = null;
   try {

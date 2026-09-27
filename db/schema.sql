@@ -393,3 +393,26 @@ CREATE INDEX IF NOT EXISTS idx_users_stripe_customer_id ON users(stripe_customer
 -- customer can schedule/pay for shipments. Admins (ADMIN_EMAILS) bypass.
 -- ---------------------------------------------------------------------------
 ALTER TABLE users ADD COLUMN IF NOT EXISTS shipping_approved boolean NOT NULL DEFAULT false;
+
+-- ---------------------------------------------------------------------------
+-- Full-load pricing requests (added 2026-09-27): a customer can ask for custom
+-- pricing on a full truckload instead of instant LTL rates. An admin is
+-- notified and follows up with a price.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS full_load_requests (
+  id              uuid            PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         uuid,
+  user_email      text,
+  origin_city     text,
+  origin_province text,
+  dest_city       text,
+  dest_province   text,
+  equipment       text,
+  weight_lb       numeric,
+  pieces          integer,
+  pickup_date     date,
+  commodity       text,
+  notes           text,
+  status          text NOT NULL DEFAULT 'new',
+  created_at      timestamptz NOT NULL DEFAULT now()
+);

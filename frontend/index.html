@@ -190,6 +190,13 @@
               <label class="seg"><input type="radio" name="direction" value="third_party"> 3rd Party</label>
             </div>
           </fieldset>
+          <fieldset>
+            <legend>Load Type</legend>
+            <div class="segmented" role="radiogroup" aria-label="Load type">
+              <label class="seg active"><input type="radio" name="load_type" value="ltl" checked> LTL</label>
+              <label class="seg"><input type="radio" name="load_type" value="full_load"> Full Load</label>
+            </div>
+          </fieldset>
         </div>
         <div class="form-grid">
           <label class="inline">Freight Charges
@@ -1165,7 +1172,7 @@
         country: (g('b_country').trim() || 'CA').toUpperCase(),
       };
     }
-    $$('#quote-form input[name="region"], #quote-form input[name="direction"]').forEach((r) =>
+    $$('#quote-form input[name="region"], #quote-form input[name="direction"], #quote-form input[name="load_type"]').forEach((r) =>
       r.addEventListener('change', () => { syncSegs(); syncBillToBlock(); })
     );
     document.querySelector('#freight-charges').addEventListener('change', syncBillToBlock);
@@ -1251,6 +1258,7 @@
       const params = {
         region: currentRegion(),
         direction: currentDirection(),
+        load_type: (document.querySelector('#quote-form input[name="load_type"]:checked') || {}).value || 'ltl',
         freight_charges: (document.querySelector('#freight-charges') || {}).value || 'prepaid',
         pickup_date: pickupDate,
         bill_to: billToNeeded ? bill_to : {},
@@ -1315,6 +1323,26 @@
 
     function renderBoard(data) {
       const box = $('#quote-results');
+      if (data && data.full_load) {
+        currentQuote = null;
+        box.innerHTML = `<div class="card"><strong>Full load &mdash; custom pricing.</strong><br>
+          <span class="note">A full truckload is priced per truck, not off the LTL rate sheets. Pick the equipment and send a request &mdash; we will come back with a price.</span>
+          <div class="form-grid single" style="margin-top:10px;max-width:340px">
+            <label class="inline">Equipment
+              <select id="fl-equipment">
+                <option value="dry_van">Dry van</option>
+                <option value="reefer">Reefer</option>
+                <option value="flatbed">Flatbed</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+          </div>
+          <div class="actions" style="margin-top:10px">
+            <button type="button" class="btn primary" id="fl-request">Request full-load pricing</button>
+          </div></div>`;
+        $('#fl-request').addEventListener('click', requestFullLoad);
+        return;
+      }
       if (data && data.worldwide_notice) {
         currentQuote = null;
         box.innerHTML = `<div class="card empty"><strong>Worldwide rates need a live carrier connection.</strong><br>
@@ -1432,6 +1460,27 @@
       return el ? el.value : null;
     }
 
+    async function requestFullLoad() {
+      const btn = $('#fl-request');
+      if (btn) { btn.disabled = true; btn.textContent = 'Sending\u2026'; }
+      try {
+        const p = lastQuoteParams || {};
+        const pkgs = p.packages || [];
+        const totalW = pkgs.reduce((a, x) => a + (Number(x.weight_lb) || 0), 0);
+        const totalP = pkgs.reduce((a, x) => a + (Number(x.pieces) || Number(x.qty) || 0), 0);
+        await api.post('/api/quotes/full-load-request', {
+          origin: p.origin || {}, destination: p.destination || {},
+          equipment: ($('#fl-equipment') || {}).value || 'dry_van',
+          weight_lb: totalW, pieces: totalP,
+          pickup_date: p.pickup_date || null,
+          commodity: String((pkgs[0] || {}).description || (pkgs[0] || {}).product_name || ''),
+        });
+        showAlert('Request sent \u2014 we will get back to you with full-load pricing.');
+      } catch (err) {
+        showAlert('Could not send the request. Please try again.');
+      }
+      if (btn) { btn.disabled = false; btn.textContent = 'Request full-load pricing'; }
+    }
     async function saveCurrentQuote() {
       if (!currentQuote) return;
       const lane = `${lastQuoteParams.origin.city} → ${lastQuoteParams.destination.city}`;
