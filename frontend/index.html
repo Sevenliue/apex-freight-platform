@@ -120,6 +120,13 @@
         </div>
         <fieldset>
           <legend>Packages</legend>
+          <div class="units-row">
+            <span class="note">Units:</span>
+            <div class="segmented" role="radiogroup" aria-label="Weight and dimension units">
+              <label class="seg active"><input type="radio" name="units" value="imperial" checked> lbs / in</label>
+              <label class="seg"><input type="radio" name="units" value="metric"> kg / cm</label>
+            </div>
+          </div>
           <div class="table-wrap"><table class="data pkg-table" id="pkg-table">
             <thead><tr>
               <th>Qty</th><th>Package Type</th><th>Product Name</th><th>Weight (lb)</th>
@@ -522,16 +529,61 @@
       return listOptions(PRODUCT_NAMES, customLists.product_name, selected || '', 'Choose…');
     }
 
+    /* ---------- lbs/in <-> kg/cm unit toggle ---------- */
+    const LB_TO_KG = 0.45359237;
+    const IN_TO_CM = 2.54;
+    let pkgUnits = 'imperial'; // 'imperial' | 'metric'
+
+    const round1 = (n) => Math.round(n * 10) / 10;
+    const round2 = (n) => Math.round(n * 100) / 100;
+
+    // Convert one package row's inputs between unit systems (in place).
+    function convertPkgRowUnits(tr, toMetric) {
+      const conv = (el, factor) => {
+        if (!el || el.value === '') return;
+        const n = parseFloat(el.value);
+        if (Number.isFinite(n)) el.value = String(round1(n * factor));
+      };
+      conv(tr.querySelector('[name="weight_lb"]'), toMetric ? LB_TO_KG : 1 / LB_TO_KG);
+      for (const n of ['length', 'width', 'height']) {
+        conv(tr.querySelector(`[name="${n}"]`), toMetric ? IN_TO_CM : 1 / IN_TO_CM);
+      }
+    }
+
+    function renderUnitHeaders() {
+      const ths = document.querySelectorAll('#pkg-table thead th');
+      const m = pkgUnits === 'metric';
+      if (ths[3]) ths[3].textContent = m ? 'Weight (kg)' : 'Weight (lb)';
+      if (ths[4]) ths[4].textContent = m ? 'Length (cm)' : 'Length (in)';
+      if (ths[5]) ths[5].textContent = m ? 'Width (cm)' : 'Width (in)';
+      if (ths[6]) ths[6].textContent = m ? 'Height (cm)' : 'Height (in)';
+    }
+
+    document.querySelectorAll('input[name="units"]').forEach((r) => {
+      r.addEventListener('change', () => {
+        const toMetric = document.querySelector('input[name="units"]:checked').value === 'metric';
+        if ((toMetric && pkgUnits === 'metric') || (!toMetric && pkgUnits === 'imperial')) return;
+        document.querySelectorAll('#pkg-rows tr').forEach((tr) => convertPkgRowUnits(tr, toMetric));
+        pkgUnits = toMetric ? 'metric' : 'imperial';
+        renderUnitHeaders();
+        syncSegs();
+      });
+    });
+
     function addPkgRow(data = {}) {
       const tr = document.createElement('tr');
+      // Saved/loaded data is always lb/in; convert to the display units.
+      const m = pkgUnits === 'metric';
+      const dw = (v) => (v == null || v === '' ? '' : String(m ? round1(v * LB_TO_KG) : v));
+      const dd = (v) => (v == null || v === '' ? '' : String(m ? round1(v * IN_TO_CM) : v));
       tr.innerHTML = `
         <td><input type="number" name="qty" min="1" step="1" value="${esc(data.qty ?? 1)}" required></td>
         <td><select name="package_type">${pkgTypeOptions(data.package_type)}</select></td>
         <td><select name="product_name">${productNameOptions(data.product_name)}</select></td>
-        <td><input type="number" name="weight_lb" min="0.1" step="0.1" value="${esc(data.weight_lb ?? '')}" required placeholder="500"></td>
-        <td><input type="number" name="length" min="0" step="0.1" value="${esc(data.length ?? '')}" placeholder="48"></td>
-        <td><input type="number" name="width" min="0" step="0.1" value="${esc(data.width ?? '')}" placeholder="40"></td>
-        <td><input type="number" name="height" min="0" step="0.1" value="${esc(data.height ?? '')}" placeholder="36"></td>
+        <td><input type="number" name="weight_lb" min="0.1" step="0.1" value="${esc(dw(data.weight_lb))}" required placeholder="${m ? '227' : '500'}"></td>
+        <td><input type="number" name="length" min="0" step="0.1" value="${esc(dd(data.length))}" placeholder="${m ? '122' : '48'}"></td>
+        <td><input type="number" name="width" min="0" step="0.1" value="${esc(dd(data.width))}" placeholder="${m ? '102' : '40'}"></td>
+        <td><input type="number" name="height" min="0" step="0.1" value="${esc(dd(data.height))}" placeholder="${m ? '91' : '36'}"></td>
         <td class="chk"><input type="checkbox" name="stackable"${data.stackable ? ' checked' : ''}></td>
         <td class="chk"><input type="checkbox" name="dg"${data.dg ? ' checked' : ''}></td>
         <td class="narrow"><input type="text" name="un_number" value="${esc(data.un_number || '')}" placeholder="UN1202"></td>
@@ -546,17 +598,21 @@
     }
 
     function collectPackages() {
+      // The backend always rates in lb/in: convert metric inputs back.
+      const fW = pkgUnits === 'metric' ? 1 / LB_TO_KG : 1; // kg -> lb
+      const fD = pkgUnits === 'metric' ? 1 / IN_TO_CM : 1; // cm -> in
       return [...$('#pkg-rows').rows].map((tr) => {
         const v = (n) => tr.querySelector(`[name="${n}"]`).value;
         const c = (n) => tr.querySelector(`[name="${n}"]`).checked;
+        const dim = (n) => (v(n) === '' ? null : round2(parseFloat(v(n)) * fD));
         return {
           qty: Math.max(1, parseInt(v('qty'), 10) || 1),
           package_type: v('package_type'),
           product_name: v('product_name').trim(),
-          weight_lb: parseFloat(v('weight_lb')) || 0,
-          length: v('length') === '' ? null : parseFloat(v('length')),
-          width: v('width') === '' ? null : parseFloat(v('width')),
-          height: v('height') === '' ? null : parseFloat(v('height')),
+          weight_lb: round2((parseFloat(v('weight_lb')) || 0) * fW),
+          length: dim('length'),
+          width: dim('width'),
+          height: dim('height'),
           stackable: c('stackable'),
           dg: c('dg'),
           un_number: v('un_number').trim(),
@@ -901,7 +957,7 @@
 
       box.innerHTML = `
         <h2>Best Available Freight Rates and Service Options for this shipment</h2>
-        ${data.total_weight_lbs != null ? `<p class="lede">Total weight: <strong>${esc(String(data.total_weight_lbs))} lb</strong>${accLine ? ' · Services: ' + accLine : ''}</p>` : ''}
+        ${data.total_weight_lbs != null ? `<p class="lede">Total weight: <strong>${esc(pkgUnits === 'metric' ? String(round1(data.total_weight_lbs * LB_TO_KG)) + ' kg' : String(data.total_weight_lbs) + ' lb')}</strong>${accLine ? ' · Services: ' + accLine : ''}</p>` : ''}
         <div class="table-wrap"><table class="data">
           <thead><tr><th></th><th>Carrier</th><th>Estimated Transit (Not Guaranteed)</th><th>Est. Total Cost (excl. tax) <span class="tip" title="Includes all freight charges / services / fuel surcharges. Excludes gov't taxes.">ⓘ</span></th></tr></thead>
           <tbody>${rows}</tbody>
