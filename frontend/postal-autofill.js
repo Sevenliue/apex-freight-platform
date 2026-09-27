@@ -4,9 +4,9 @@
  * exists in window.APEX_FSA (frontend/fsa.js), the matching city + province
  * fields fill in automatically.
  *
- * - Manual edits are never clobbered: once the user types in city/province
- *   after an auto-fill, those fields stop updating until the postal code
- *   changes to a different FSA.
+ * - Manual edits are never clobbered: a city/province the user typed is left
+ *   alone even when the postal code is entered afterward. Empty fields are
+ *   auto-filled, and previously auto-filled values update when the FSA changes.
  * - Unknown FSAs are ignored quietly (no error).
  * - Postal display is normalized to uppercase "A1A 1A1" on blur.
  * - window.APEX_postalFilled(zipName, fsa) is called by the address-book
@@ -68,15 +68,23 @@
 
       z.addEventListener('input', function () {
         var fsa = fsaOf(z.value);
-        if (fsa === z.dataset.lastFsa) return; // same FSA: never clobber manual edits
+        // Only act on a valid FSA that changed; intermediate keystrokes that
+        // briefly make the FSA invalid must not reset the tracking.
+        if (!fsa || fsa === z.dataset.lastFsa) return;
+        var prev = z.dataset.lastFsa;
         z.dataset.lastFsa = fsa;
-        if (c) delete c.dataset.manual;
-        if (s) delete s.dataset.manual;
         var hit = fsa && FSA[fsa];
-        if (hit) {
-          if (c) c.value = hit[0];
-          if (s) s.value = hit[1];
+        var prevHit = prev && FSA[prev];
+        // Fill empty fields; update previously auto-filled ones on FSA change;
+        // never overwrite a manually typed value.
+        function maybeFill(t, idx) {
+          if (!t || !hit) return;
+          if (t.dataset.manual) return;
+          var cur = t.value.trim();
+          if (!cur || (prevHit && cur === prevHit[idx])) t.value = hit[idx];
         }
+        maybeFill(c, 0);
+        maybeFill(s, 1);
         // unknown FSA: quiet, leave city/province alone
       });
 

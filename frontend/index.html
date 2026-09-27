@@ -1082,7 +1082,7 @@
         <td><input type="number" name="qty" min="1" step="1" value="${esc(data.qty ?? 1)}" required></td>
         <td><select name="package_type">${pkgTypeOptions(data.package_type)}</select></td>
         <td><select name="product_name">${productNameOptions(data.product_name)}</select></td>
-        <td><input type="number" name="weight_lb" min="0.1" step="0.1" value="${esc(dw(data.weight_lb))}" required placeholder="${m ? '227' : '500'}"></td>
+        <td><input type="number" name="weight_lb" min="0.1" step="0.1" value="${esc(dw(data.weight_lb))}" required placeholder="0.0"></td>
         <td><input type="number" name="length" min="0" step="0.1" value="${esc(dd(data.length))}" placeholder="${m ? '122' : '48'}"></td>
         <td><input type="number" name="width" min="0" step="0.1" value="${esc(dd(data.width))}" placeholder="${m ? '102' : '40'}"></td>
         <td><input type="number" name="height" min="0" step="0.1" value="${esc(dd(data.height))}" placeholder="${m ? '91' : '36'}"></td>
