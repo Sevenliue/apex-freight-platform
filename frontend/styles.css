@@ -69,9 +69,9 @@ body {
 .tab.side-cta {
   width: calc(66% - 16px); margin: 0 auto 12px; justify-content: center;
   background: var(--amber); border: 1px solid var(--amber-dark); color: var(--navy-dark);
-  font-weight: 800; font-size: 16px; padding: 13px 12px; border-radius: 12px;
+  font-weight: 700; font-size: 15px; padding: 10px 18px; border-radius: 8px;
 }
-.tab.side-cta svg { width: 20px; height: 20px; flex: 0 0 20px; opacity: 1; }
+.tab.side-cta svg { width: 16px; height: 16px; flex: 0 0 16px; opacity: 1; }
 .tab.side-cta:hover { background: var(--amber); border-color: var(--amber-dark); color: var(--navy-dark); filter: brightness(1.06); }
 .tab.side-cta.active { background: var(--amber); border-color: var(--amber-dark); color: var(--navy-dark); }
 .tab.side-cta.active svg { color: var(--navy-dark); }
