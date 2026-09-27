@@ -53,13 +53,30 @@ async function request(method, path, body) {
       (data && typeof data === 'object' && (data.message || data.error)) ||
       (typeof data === 'string' && data) ||
       `Request failed (${res.status})`;
-    throw new Error(String(msg));
+    const err = new Error(String(msg));
+    // Callers (quote gating) need the status: 401 = sign in, 402 = quota.
+    err.status = res.status;
+    err.data = data;
+    throw err;
   }
   return data;
 }
 
 const get = (path) => request('GET', path);
 const post = (path, body) => request('POST', path, body);
+
+/* Billing — subscription plans and quote quotas. */
+export function billingStatus() {
+  return get('/api/billing/status');
+}
+
+export function createCheckout({ tier, billing }) {
+  return post('/api/billing/checkout', { tier, billing });
+}
+
+export function billingPortal() {
+  return post('/api/billing/portal', {});
+}
 
 /* Health */
 export function getHealth() {

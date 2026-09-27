@@ -30,6 +30,7 @@ const { store, id } = require('../lib/store');
 const { getExcludedNames } = require('./carriers');
 const { round2, applyMarkup } = require('../lib/money');
 const acc = require('../lib/accessorials');
+const billingLib = require('../lib/billing');
 
 const router = express.Router();
 
@@ -105,6 +106,30 @@ function expandParcels(pkgs) {
 }
 
 router.post('/', async (req, res) => {
+  // Quoting requires a signed-in shipper account (no more guest quoting).
+  if (!req.user) {
+    return bad(res, 401, 'Sign in to get a quote — quoting needs an account.');
+  }
+
+  // Monthly quota: free 5 / starter 50 / pro unlimited per calendar month.
+  let quotaState = null;
+  try {
+    const quota = await billingLib.checkQuota(req.user.id);
+    quotaState = quota.state;
+    if (!quota.allowed) {
+      return res.status(402).json({
+        error: quota.reason || 'Monthly quote limit reached.',
+        upgrade_required: true,
+        tier: quota.state && quota.state.tier,
+        quotes_used: quota.state && quota.state.quotesUsed,
+        quotes_limit: quota.state && quota.state.quotesLimit,
+      });
+    }
+  } catch (err) {
+    console.error('[rates] quota check failed:', err.message);
+    return bad(res, 503, 'Billing is unavailable right now — please try again.');
+  }
+
   const {
     origin = {},
     destination = {},
@@ -122,6 +147,8 @@ router.post('/', async (req, res) => {
 
   // The logged-in account wins over the optional guest user_id label.
   // req.user.id is already a users uuid, so ensureUser passes it through.
+  // Guests can no longer quote (401 above), but the label is kept for
+  // backward compatibility with saved payloads.
   const effectiveUserId = (req.user && req.user.id) || user_id || null;
 
   // Shipment type + freight charges (parsed before validation: worldwide
@@ -372,6 +399,21 @@ router.post('/', async (req, res) => {
   if (db_quote_id != null) body.db_quote_id = db_quote_id;
   if (warnings.length) body.warnings = warnings;
   if (suggestions.length) body.suggestions = suggestions;
+  // Count the quote against the monthly quota only when rates were produced.
+  if (rates.length) {
+    try {
+      await billingLib.incrementQuota(req.user.id);
+    } catch (err) {
+      console.error('[rates] quota increment failed (non-fatal):', err.message);
+    }
+    if (quotaState) {
+      body.quota = {
+        tier: quotaState.tier,
+        quotes_used: quotaState.quotesUsed + 1,
+        quotes_limit: quotaState.quotesLimit, // null = unlimited
+      };
+    }
+  }
   return res.json(body);
 });
 

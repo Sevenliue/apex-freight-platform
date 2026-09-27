@@ -319,3 +319,19 @@ CREATE TABLE IF NOT EXISTS carrier_exclusions (
   carrier_name      varchar(160)    PRIMARY KEY,
   created_at        timestamptz     NOT NULL DEFAULT now()
 );
+
+-- ---------------------------------------------------------------------------
+-- Subscription billing (added 2026-09-27): Stripe subscriptions + monthly
+-- quote quotas. Idempotent: ALTER ... IF NOT EXISTS.
+-- Tiers: free (5 quotes/mo), starter (50 quotes/mo), pro (unlimited).
+-- subscription_status: none | active | trialing | past_due | canceled ...
+-- Only active/trialing count as a paid subscription; anything else is
+-- treated as the free tier by the quota logic.
+-- ---------------------------------------------------------------------------
+ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id text;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_tier text NOT NULL DEFAULT 'free';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status text NOT NULL DEFAULT 'none';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS current_period_end timestamptz;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS quotes_used integer NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS quota_period text;
+CREATE INDEX IF NOT EXISTS idx_users_stripe_customer_id ON users(stripe_customer_id);

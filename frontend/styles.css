@@ -309,3 +309,35 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 .modal-card .actions { margin-top: 4px; }
 .form-error { color: var(--danger); font-size: 13.5px; margin: 0 0 10px; }
 .form-error.hidden { display: none; }
+
+/* Global hide utility (used by JS toggles throughout the page). */
+.hidden { display: none !important; }
+
+/* ---------- Pricing & billing ---------- */
+.billing-cycle { margin: 4px 0 18px; }
+.billing-cycle .seg { display: inline-flex; align-items: center; gap: 6px; }
+.billing-card { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 18px 0; }
+.plan {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 22px; position: relative;
+  display: flex; flex-direction: column;
+}
+.plan.current { border-color: var(--amber-dark); box-shadow: 0 0 0 2px var(--amber); }
+.plan h3 { font-size: 18px; margin: 0 0 4px; padding-right: 90px; }
+.plan .badge.save { position: absolute; top: 18px; right: 16px; }
+.plan-price { font-size: 30px; font-weight: 800; color: var(--navy-dark); margin: 8px 0 2px; font-variant-numeric: tabular-nums; }
+.plan-feats { list-style: none; margin: 12px 0 18px; padding: 0; flex: 1; }
+.plan-feats li { padding: 5px 0 5px 24px; position: relative; font-size: 14px; color: #33414d; }
+.plan-feats li::before { content: "\2713"; position: absolute; left: 4px; color: var(--green); font-weight: 800; }
+.plan .actions { margin-top: auto; }
+.badge.save { background: var(--amber); color: var(--navy-dark); }
+.plan-badge {
+  background: rgba(255, 255, 255, 0.16); color: #fff;
+  font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px;
+  text-transform: capitalize; white-space: nowrap;
+}
+.quota-note { color: #cdd8e2; font-size: 12.5px; white-space: nowrap; }
+@media (max-width: 640px) {
+  .quota-note { display: none; }
+}

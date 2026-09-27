@@ -17,6 +17,13 @@ const authStub = require('./middleware/auth');
 const app = express();
 
 app.use(cors());
+
+// Stripe webhook needs the RAW request body for signature verification, so
+// it is mounted BEFORE express.json(). Stripe authenticates via the webhook
+// signature (STRIPE_WEBHOOK_SECRET), not a Bearer <redacted> so the auth-token
+// gate below never sees it.
+app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), require('./routes/stripe-webhook'));
+
 app.use(express.json({ limit: '1mb' }));
 
 // Minimal morgan-style request log.
@@ -56,6 +63,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/rates', require('./routes/rates'));
+app.use('/api/billing', require('./routes/billing'));
 app.use('/api/quotes', require('./routes/quotes'));
 app.use('/api/shipments', require('./routes/shipments'));
 app.use('/api/tracking', require('./routes/tracking'));

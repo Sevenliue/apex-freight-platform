@@ -15,6 +15,7 @@
       </div>
       <nav class="tabs" role="tablist" aria-label="Sections">
         <button class="tab active" data-tab="quote" role="tab" aria-selected="true">Quote</button>
+        <button class="tab" data-tab="pricing" role="tab" aria-selected="false">Pricing</button>
         <button class="tab" data-tab="addressbook" role="tab" aria-selected="false">Address Book</button>
         <button class="tab" data-tab="carriers" role="tab" aria-selected="false">Carriers</button>
         <button class="tab" data-tab="tracking" role="tab" aria-selected="false">Tracking</button>
@@ -33,6 +34,14 @@
     <section id="tab-quote" class="panel active" role="tabpanel">
       <h1>Get a rate</h1>
       <p class="lede">Compare carrier rates instantly. All amounts in CAD.</p>
+      <div id="quote-gate" class="card empty hidden">
+        <strong>Sign in to get a quote.</strong><br>
+        <span class="note">Quoting needs a free account — it takes less than a minute.</span>
+        <div class="actions" style="justify-content:center">
+          <button type="button" class="btn primary" id="gate-login">Log in</button>
+          <button type="button" class="btn" id="gate-signup">Sign up free</button>
+        </div>
+      </div>
       <form id="quote-form" class="card">
         <div class="form-grid">
           <fieldset>
@@ -140,6 +149,21 @@
       <div id="quote-results"></div>
       <h2>Saved quotes</h2>
       <div id="saved-quotes"><p class="note">Loading…</p></div>
+    </section>
+
+    <!-- PRICING -->
+    <section id="tab-pricing" class="panel" role="tabpanel">
+      <h1>Plans &amp; billing</h1>
+      <p class="lede">Quoting needs an account. Every plan includes the Best Available Freight Rates board, address book, and BOL printing.</p>
+      <div id="billing-status"></div>
+      <div class="actions billing-cycle">
+        <div class="segmented" role="radiogroup" aria-label="Billing period">
+          <label class="seg active"><input type="radio" name="billing-cycle" value="monthly" checked> Monthly</label>
+          <label class="seg"><input type="radio" name="billing-cycle" value="annual"> Annual <span class="badge save">2 months free</span></label>
+        </div>
+      </div>
+      <div class="plans" id="plans"></div>
+      <p class="note">Prices in CAD, taxes extra. Cancel anytime from the billing portal — you keep your plan until the end of the paid period.</p>
     </section>
 
     <!-- ADDRESS BOOK -->
@@ -429,6 +453,11 @@
       });
     });
 
+    function showTab(name) {
+      const btn = document.querySelector(`.tab[data-tab="${name}"]`);
+      if (btn) btn.click();
+    }
+
     /* ---------- QUOTE (Smart Shipping-style flow) ---------- */
     let currentQuote = null; // last rated {shipment_id, rates, packages, ...}
     let lastQuoteParams = null; // form params for save/complete
@@ -596,7 +625,15 @@
         lastQuoteParams = params;
         renderBoard(data);
       } catch (err) {
-        showAlert('Could not get rates: ' + err.message);
+        if (err && err.status === 401) {
+          // Quoting now needs a signed-in account.
+          gateQuoteForm();
+          showAlert('Please sign in to get a quote.');
+        } else if (err && err.status === 402 && err.data && err.data.upgrade_required) {
+          renderQuotaExceeded(err.data);
+        } else {
+          showAlert('Could not get rates: ' + err.message);
+        }
       } finally {
         btn.disabled = false;
         btn.textContent = 'Get rates';
@@ -1453,10 +1490,16 @@
       const area = $('#account-area');
       if (!area) return;
       if (currentUser) {
+        const tier = billingState ? billingState.tier : null;
+        const badge = tier ? `<span class="plan-badge">${esc(tierName(tier))}</span>` : '';
+        const usage = billingState ? `<span class="quota-note">${esc(quotaLabel())}</span>` : '';
         area.innerHTML =
           `<span class="account-name">${esc(currentUser.name || currentUser.email || 'Account')}</span>` +
+          badge + usage +
+          `<button class="btn small account-btn" id="plan-btn" type="button">Plan</button>` +
           `<button class="btn small account-btn" id="logout-btn" type="button">Log out</button>`;
         $('#logout-btn').addEventListener('click', signOut);
+        $('#plan-btn').addEventListener('click', () => showTab('pricing'));
       } else {
         area.innerHTML =
           `<button class="btn small account-btn" id="login-btn" type="button">Log in</button>` +
@@ -1520,8 +1563,8 @@
       api.setAuthToken(data.token);
       currentUser = data.user;
       closeAuthModal();
-      renderAccount();
-      // Refresh the account-scoped views.
+      // Refresh the account-scoped views + billing plan.
+      loadBilling();
       loadSavedQuotes();
       if (typeof loadAddressBook === 'function') loadAddressBook();
     }
@@ -1534,7 +1577,8 @@
       }
       api.setAuthToken(null);
       currentUser = null;
-      renderAccount();
+      billingState = null;
+      loadBilling();
       loadSavedQuotes();
       if (typeof loadAddressBook === 'function') loadAddressBook();
     }
@@ -1595,14 +1639,216 @@
         try {
           const { user } = await api.me();
           currentUser = user;
-          renderAccount();
+          loadBilling();
           loadSavedQuotes();
           if (typeof loadAddressBook === 'function') loadAddressBook();
         } catch {
           api.setAuthToken(null); // stale token — drop it quietly
           renderAccount();
+          gateQuoteForm();
         }
       }
+    }
+
+    /* ---------- BILLING / SUBSCRIPTIONS ---------- */
+    // Tiers: free (5 quotes/calendar month), starter ($29/mo or $290/yr,
+    // 50 quotes/mo), pro ($79/mo or $790/yr, unlimited). Quoting requires a
+    // signed-in account; the server enforces quotas and answers 402 when the
+    // month's allowance is used up.
+
+    let billingState = null; // GET /api/billing/status — null when logged out
+    let billingCycle = 'monthly';
+
+    const PLANS = [
+      {
+        tier: 'free', name: 'Free', monthly: 0, annual: 0,
+        quotes: '5 quotes per month',
+        features: ['Best Available Freight Rates board', 'Address book', 'BOL printing'],
+      },
+      {
+        tier: 'starter', name: 'Starter', monthly: 29, annual: 290,
+        quotes: '50 quotes per month',
+        features: ['Everything in Free', 'Save & reload quotes', 'Shipment history'],
+      },
+      {
+        tier: 'pro', name: 'Pro', monthly: 79, annual: 790,
+        quotes: 'Unlimited quotes',
+        features: ['Everything in Starter', 'Priority support'],
+      },
+    ];
+
+    function planPrice(plan) {
+      return billingCycle === 'annual' ? `$${plan.annual}/yr` : plan.monthly === 0 ? '$0' : `$${plan.monthly}/mo`;
+    }
+
+    async function loadBilling() {
+      billingState = null;
+      if (currentUser) {
+        try {
+          billingState = await api.billingStatus();
+        } catch (err) {
+          console.error('billing status failed:', err.message);
+        }
+      }
+      renderPricing();
+      renderAccount();
+      gateQuoteForm();
+    }
+
+    function quotaLabel() {
+      if (!billingState) return '';
+      if (billingState.quotes_limit == null) return 'Unlimited quotes';
+      return `${billingState.quotes_used} of ${billingState.quotes_limit} quotes used`;
+    }
+
+    function tierName(t) {
+      return t ? t[0].toUpperCase() + t.slice(1) : '…';
+    }
+
+    function renderBillingStatus() {
+      const box = $('#billing-status');
+      if (!box) return;
+      if (!currentUser) {
+        box.innerHTML =
+          `<div class="card empty"><strong>Sign up free</strong> to start quoting — ` +
+          `5 quotes a month, no card needed.</div>`;
+        return;
+      }
+      const s = billingState;
+      const renew = s && s.period_end ? ` · Renews ${dateStr(s.period_end)}` : '';
+      const portalBtn =
+        s && s.has_payment_method
+          ? `<button type="button" class="btn small" id="manage-billing">Manage billing</button>`
+          : '';
+      box.innerHTML =
+        `<div class="card billing-card"><div><strong>${esc(tierName(s && s.tier))} plan</strong>` +
+        `<span class="muted"> · ${esc(quotaLabel())}${esc(renew)}</span></div>` +
+        `<div class="actions">${portalBtn}</div></div>`;
+      const mb = $('#manage-billing');
+      if (mb) mb.addEventListener('click', openPortal);
+    }
+
+    function renderPlans() {
+      const box = $('#plans');
+      if (!box) return;
+      box.innerHTML = PLANS.map((plan) => {
+        const isCurrent = billingState && billingState.tier === plan.tier;
+        const popular = plan.tier === 'starter' ? '<span class="badge save">Most popular</span>' : '';
+        let btn;
+        if (isCurrent) {
+          btn = `<button type="button" class="btn small" disabled>Current plan</button>`;
+        } else if (plan.tier === 'free') {
+          btn = currentUser
+            ? `<button type="button" class="btn small" disabled>Free tier</button>`
+            : `<button type="button" class="btn small primary" data-plan-cta="free">Sign up free</button>`;
+        } else if (currentUser && billingState && billingState.billing_active && billingState.tier !== plan.tier) {
+          btn = `<button type="button" class="btn small" data-plan-cta="${plan.tier}">Switch plan</button>`;
+        } else {
+          btn = `<button type="button" class="btn small primary" data-plan-cta="${plan.tier}">Subscribe</button>`;
+        }
+        const feats = [plan.quotes, ...plan.features].map((f) => `<li>${esc(f)}</li>`).join('');
+        return (
+          `<div class="plan${isCurrent ? ' current' : ''}">${popular}<h3>${esc(plan.name)}</h3>` +
+          `<p class="plan-price">${esc(planPrice(plan))}</p>` +
+          `<ul class="plan-feats">${feats}</ul>` +
+          `<div class="actions">${btn}</div></div>`
+        );
+      }).join('');
+      box.querySelectorAll('[data-plan-cta]').forEach((b) =>
+        b.addEventListener('click', () => planCta(b.dataset.planCta))
+      );
+    }
+
+    function renderPricing() {
+      renderBillingStatus();
+      renderPlans();
+    }
+
+    async function planCta(tier) {
+      if (!currentUser) {
+        openAuthModal('signup');
+        return;
+      }
+      if (tier !== 'free' && billingState && billingState.billing_active && billingState.tier !== tier) {
+        // Already on a different paid tier: change it in the portal so
+        // Stripe prorates instead of stacking a second subscription.
+        await openPortal();
+        return;
+      }
+      try {
+        const { url } = await api.createCheckout({ tier, billing: billingCycle });
+        window.location.href = url;
+      } catch (err) {
+        showAlert('Could not start checkout: ' + err.message);
+      }
+    }
+
+    async function openPortal() {
+      try {
+        const { url } = await api.billingPortal();
+        window.location.href = url;
+      } catch (err) {
+        showAlert('Could not open billing: ' + err.message);
+      }
+    }
+
+    // Quoting needs an account: logged-out visitors see a sign-in prompt
+    // instead of the quote form.
+    function gateQuoteForm() {
+      const gate = $('#quote-gate');
+      const form = $('#quote-form');
+      if (!gate || !form) return;
+      const authed = !!currentUser;
+      gate.classList.toggle('hidden', authed);
+      form.classList.toggle('hidden', !authed);
+    }
+
+    function renderQuotaExceeded(data) {
+      const box = $('#quote-results');
+      box.innerHTML =
+        `<div class="card empty"><strong>Monthly quote limit reached.</strong><br>` +
+        `<span class="note">${esc((data && data.error) || 'Upgrade your plan for more quotes.')}</span>` +
+        `<div class="actions" style="justify-content:center">` +
+        `<button type="button" class="btn primary" id="upgrade-btn">See plans</button></div></div>`;
+      $('#upgrade-btn').addEventListener('click', () => showTab('pricing'));
+      box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // After returning from Stripe Checkout: confirm or dismiss, clean the URL.
+    function handleBillingReturn() {
+      const q = new URLSearchParams(location.search);
+      const flag = q.get('billing');
+      if (!flag) return;
+      q.delete('billing');
+      q.delete('session_id');
+      history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q.toString() : ''));
+      if (flag === 'success') {
+        showAlert('Subscription active — welcome aboard! Your plan is now live.');
+        // The webhook may still be landing: refresh now and once more shortly.
+        loadBilling();
+        setTimeout(loadBilling, 5000);
+      } else if (flag === 'cancelled') {
+        showAlert('Checkout cancelled — no charge was made.');
+      }
+    }
+
+    function initBilling() {
+      $$('input[name="billing-cycle"]').forEach((r) =>
+        r.addEventListener('change', () => {
+          billingCycle = (document.querySelector('input[name="billing-cycle"]:checked') || {}).value || 'monthly';
+          $$('.billing-cycle .seg').forEach((s) =>
+            s.classList.toggle('active', !!(s.querySelector('input') || {}).checked)
+          );
+          renderPlans();
+        })
+      );
+      const gl = $('#gate-login');
+      if (gl) gl.addEventListener('click', () => openAuthModal('login'));
+      const gs = $('#gate-signup');
+      if (gs) gs.addEventListener('click', () => openAuthModal('signup'));
+      renderPricing();
+      gateQuoteForm();
+      handleBillingReturn();
     }
 
     /* ---------- ADDRESS BOOK + CARRIERS wiring ---------- */
@@ -1616,6 +1862,7 @@
     $('#exc-add').addEventListener('click', addExclusion);
 
     initAccount();
+    initBilling();
   </script>
 </body>
 </html>

@@ -25,7 +25,10 @@ Copy `../.env.example` to `../.env` and fill in values to enable integrations.
 | `PORT` | `5000` | — |
 | `MARKUP_PERCENT` | `15` | markup on matrix quotes and awarded bids |
 | `EASYPOST_API_KEY` | _(empty)_ | parcel rates, label purchase, tracking |
-| `STRIPE_SECRET_KEY` | _(empty)_ | charging shippers on bid accept |
+| `STRIPE_SECRET_KEY` | _(empty)_ | charging shippers on bid accept + subscription Checkout/portal |
+| `STRIPE_WEBHOOK_SECRET` | _(empty)_ | verifies `POST /api/webhooks/stripe` calls |
+| `STRIPE_PRICE_STARTER_MONTHLY` / `_ANNUAL` | _(empty)_ | price IDs for the Starter plan (never hardcode) |
+| `STRIPE_PRICE_PRO_MONTHLY` / `_ANNUAL` | _(empty)_ | price IDs for the Pro plan (never hardcode) |
 | `DATABASE_URL` | _(empty)_ | Postgres persistence + reports + admin |
 | `FRONTEND_ORIGIN` | _(empty)_ | public frontend URL (Stripe callbacks) |
 | `AUTH_TOKEN` | _(empty)_ | bearer-token auth stub (see below) |
