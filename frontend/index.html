@@ -1097,6 +1097,7 @@
         else showAlert('At least one package line is required.');
       });
       $('#pkg-rows').appendChild(tr);
+      syncFetchButton();
     }
 
     function collectPackages() {
@@ -1385,6 +1386,13 @@
     }
     $('#quote-form').addEventListener('input', syncFetchButton);
     $('#quote-form').addEventListener('change', syncFetchButton);
+    syncFetchButton();
+    // Browser autofill / restored form values don't fire input events — re-check briefly after load.
+    let _sfcN = 0;
+    const _sfcT = setInterval(() => {
+      syncFetchButton();
+      if (++_sfcN >= 12) clearInterval(_sfcT);
+    }, 500);
 
     $('#quote-form').addEventListener('submit', async (e) => {
       e.preventDefault();
