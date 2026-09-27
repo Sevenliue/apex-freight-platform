@@ -38,8 +38,7 @@ router.post('/buy', async (req, res) => {
   }
 
   try {
-    const client = easypost.getClient();
-    const bought = await client.Shipment.buy(quote.easypost_shipment_id, rate_id);
+    const bought = await easypost.buyLabel(quote.easypost_shipment_id, rate_id);
 
     const order = {
       id: id('ord'),

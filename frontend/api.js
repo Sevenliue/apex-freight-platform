@@ -58,6 +58,22 @@ export function trackShipment(code, carrier) {
   return get(path);
 }
 
+/* EasyPost live endpoints. Each answers { configured: false } when no
+   EASYPOST_API_KEY is set on the server. */
+export function getEasypostRates(params) {
+  return post('/api/easypost/rates', params);
+}
+
+export function buyEasypostLabel(shipment_id, rate_id) {
+  return post('/api/easypost/buy', { shipment_id, rate_id });
+}
+
+export function trackEasypost(code, carrier) {
+  let path = `/api/easypost/track/${encodeURIComponent(code)}`;
+  if (carrier) path += `?carrier=${encodeURIComponent(carrier)}`;
+  return get(path);
+}
+
 /* Webhooks — invoked by the carrier API, not the UI; included for completeness. */
 export function easypostWebhook(payload) {
   return post('/api/webhooks/easypost', payload);

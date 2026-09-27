@@ -20,8 +20,9 @@ router.get('/:tracking_code', async (req, res) => {
   }
 
   try {
-    const client = easypost.getClient();
-    const tracker = await client.Tracker.create({ tracking_code, carrier });
+    // Create (or refresh) the tracker via the fetch wrapper, then read
+    // back the freshest status.
+    const tracker = await easypost.getTracking(tracking_code, carrier);
 
     const tracking_details = (tracker.tracking_details || []).map((d) => {
       const loc = d.tracking_location || {};

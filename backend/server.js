@@ -40,6 +40,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/rates', require('./routes/rates'));
 app.use('/api/shipments', require('./routes/shipments'));
 app.use('/api/tracking', require('./routes/tracking'));
+app.use('/api/easypost', require('./routes/easypost'));
 app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/loads', require('./routes/loads'));
 app.use('/api/bids', require('./routes/bids'));

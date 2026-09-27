@@ -76,32 +76,34 @@ router.post('/', async (req, res) => {
 
   const warnings = [];
 
-  // EasyPost parcel rates (optional).
+  // EasyPost parcel rates (optional). Uses the fetch-based wrapper in
+  // lib/easypost.js; nothing is charged for rating.
   if (easypost.isEnabled()) {
     try {
-      const client = easypost.getClient();
-      const shipment = await client.Shipment.create({
-        to_address: {
+      const shipment = await easypost.createShipment({
+        to: {
           street1: destination.street1,
           city: destination.city,
           state: destination.state,
           zip: destination.zip,
           country: destination.country || 'CA',
         },
-        from_address: {
+        from: {
           street1: origin.street1,
           city: origin.city,
           state: origin.state,
           zip: origin.zip,
           country: origin.country || 'CA',
         },
-        // EasyPost expects parcel weight in ounces.
-        parcel: {
-          length: parcel.length,
-          width: parcel.width,
-          height: parcel.height,
-          weight: round2(weightLbs * 16),
-        },
+        // EasyPost expects parcel weight in ounces (converted in the wrapper).
+        parcels: [
+          {
+            weight_lbs: weightLbs,
+            length: parcel.length,
+            width: parcel.width,
+            height: parcel.height,
+          },
+        ],
       });
       store.quotes.get(shipment_id).easypost_shipment_id = shipment.id;
       for (const r of shipment.rates || []) {

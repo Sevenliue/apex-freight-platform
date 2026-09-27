@@ -312,7 +312,13 @@
         );
         return;
       }
-      const rows = rates
+
+      // Rate-sheet quotes and live carrier rates render as separate
+      // sections; only live rates are purchasable here.
+      const sheetRates = rates.filter((r) => r.source !== 'easypost');
+      const liveRates = rates.filter((r) => r.source === 'easypost');
+
+      const sheetRows = sheetRates
         .map(
           (r) => `<tr>
             <td>${esc(r.carrier)}</td>
@@ -323,19 +329,49 @@
             <td class="num">${cad(r.retail_cad)}</td>
             <td>${sourceBadge(r.source)}</td>
             <td class="num">${r.delivery_days != null ? esc(String(r.delivery_days)) : '—'}</td>
+          </tr>`
+        )
+        .join('');
+
+      const liveRows = liveRates
+        .map(
+          (r) => `<tr>
+            <td>${esc(r.carrier)}</td>
+            <td>${esc(r.service)}</td>
+            <td class="num">${cad(r.cost_cad)}</td>
+            <td class="num">${cad(r.retail_cad)}</td>
+            <td class="num">${r.delivery_days != null ? esc(String(r.delivery_days)) : '—'}</td>
+            <td>${r.delivery_date ? esc(dateStr(r.delivery_date)) : '—'}</td>
             <td><button class="btn small" data-buy="${esc(r.rate_id)}" data-shipment="${esc(data.shipment_id)}">Buy</button></td>
           </tr>`
         )
         .join('');
-      box.innerHTML = `
+
+      let html = '';
+      if (sheetRates.length) {
+        html += `
         <h2>Available rates</h2>
         <div class="table-wrap"><table class="data">
           <thead><tr>
             <th>Carrier</th><th>Service</th><th>Base $</th><th>FSC %</th>
-            <th>Total $</th><th>Your price $</th><th>Source</th><th>Days</th><th></th>
+            <th>Total $</th><th>Your price $</th><th>Source</th><th>Days</th>
           </tr></thead>
-          <tbody>${rows}</tbody>
+          <tbody>${sheetRows}</tbody>
         </table></div>`;
+      }
+      if (liveRates.length) {
+        html += `
+        <h2>Live carrier rates</h2>
+        <p class="lede">Real-time parcel rates. Buying a label charges the carrier cost; your price includes the platform markup.</p>
+        <div class="table-wrap"><table class="data">
+          <thead><tr>
+            <th>Carrier</th><th>Service</th><th>Cost $</th>
+            <th>Your price $</th><th>Days</th><th>Est. delivery</th><th></th>
+          </tr></thead>
+          <tbody>${liveRows}</tbody>
+        </table></div>`;
+      }
+      box.innerHTML = html;
       $$('#quote-results [data-buy]').forEach((b) =>
         b.addEventListener('click', () => buyRate(b.dataset.buy, b.dataset.shipment, b))
       );
@@ -347,7 +383,15 @@
       btn.textContent = 'Buying…';
       try {
         const res = await api.buyLabel(rateId, shipmentId);
-        showAlert('Label purchased. ' + (res.message || JSON.stringify(res)));
+        const extra = res.tracking_code ? ` Tracking: ${res.tracking_code}.` : '';
+        const label = res.label_url ? ` <a href="${esc(res.label_url)}" target="_blank" rel="noopener">Print label</a>` : '';
+        showAlert('Label purchased.' + extra + ' ' + (res.message || ''));
+        const box = $('#quote-results');
+        if (label && box) {
+          const p = document.createElement('p');
+          p.innerHTML = label;
+          box.prepend(p);
+        }
       } catch (err) {
         showAlert('Purchase failed: ' + err.message);
       } finally {
@@ -363,7 +407,17 @@
       const box = $('#track-results');
       box.innerHTML = '<div class="card empty">Loading…</div>';
       try {
-        const t = await api.trackShipment(f.get('code').trim(), f.get('carrier').trim() || undefined);
+        // Try live EasyPost tracking first; fall back to the existing
+        // tracking endpoint when EasyPost is not connected.
+        const code = f.get('code').trim();
+        const carrier = f.get('carrier').trim() || undefined;
+        let t;
+        try {
+          const live = await api.trackEasypost(code, carrier);
+          t = live && live.configured === false ? await api.trackShipment(code, carrier) : live;
+        } catch {
+          t = await api.trackShipment(code, carrier);
+        }
         renderTracking(box, t);
       } catch (err) {
         box.innerHTML = '';
@@ -377,8 +431,8 @@
         .map(
           (x) => `<li>
             <span class="tl-dot"></span>
-            <div><strong>${esc(x.status || x.description || 'Update')}</strong>
-            <div class="muted">${esc(x.location || '')} · ${esc(x.timestamp || x.date || '')}</div></div>
+            <div><strong>${esc(x.status || x.description || x.message || 'Update')}</strong>
+            <div class="muted">${esc(x.location || '')} · ${esc(x.timestamp || x.datetime || x.date || '')}</div></div>
           </li>`
         )
         .join('');
@@ -386,7 +440,7 @@
         <div class="card">
           <h2>${esc(t.status || t.current_status || 'Shipment status')}</h2>
           <p class="muted">${esc(t.carrier || '')} ${t.tracking_code ? '· ' + esc(t.tracking_code) : ''}</p>
-          ${t.estimated_delivery ? `<p>Estimated delivery: <strong>${esc(dateStr(t.estimated_delivery))}</strong></p>` : ''}
+          ${t.estimated_delivery || t.est_delivery_date ? `<p>Estimated delivery: <strong>${esc(dateStr(t.estimated_delivery || t.est_delivery_date))}</strong></p>` : ''}
         </div>
         ${items ? `<h2>Timeline</h2><ol class="timeline">${items}</ol>` : '<p class="muted">No timeline events available.</p>'}`;
     }
