@@ -463,14 +463,14 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 .dash-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 4px 0 26px; }
 .dash-card {
   display: flex; gap: 12px; align-items: flex-start; text-align: left;
-  background: #fff; border: 1px solid var(--line); border-radius: 10px;
-  padding: 16px; cursor: pointer; font: inherit; color: inherit;
-  transition: border-color .15s, box-shadow .15s;
+  background: var(--navy-dark); border: 1px solid var(--navy); border-radius: 10px;
+  padding: 16px; cursor: pointer; font: inherit; color: #fff;
+  transition: border-color .15s, box-shadow .15s, transform .1s;
 }
-.dash-card:hover { border-color: var(--navy); box-shadow: 0 2px 10px rgba(20,40,70,.08); }
+.dash-card:hover { border-color: var(--amber); box-shadow: 0 4px 14px rgba(20,40,70,.25); transform: translateY(-1px); }
 .dash-ico { font-size: 26px; line-height: 1.2; }
 .dash-txt strong { display: block; font-size: 15.5px; margin-bottom: 4px; }
-.dash-txt small { color: #5a6b7a; font-size: 13px; line-height: 1.45; display: block; }
+.dash-txt small { color: #c3cfda; font-size: 13px; line-height: 1.45; display: block; }
 .dash-orders-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin: 6px 0 14px; }
 .dash-orders-head h2 { margin: 0; }
 .filters { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 14px; }
