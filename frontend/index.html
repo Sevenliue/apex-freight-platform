@@ -147,6 +147,31 @@
             <div class="check-grid" id="acc-delivery"><span class="note">Loading…</span></div>
           </fieldset>
         </div>
+        <fieldset>
+          <legend>Notes &amp; Attachments</legend>
+          <h3 class="sub">Delivery Notes</h3>
+          <p class="note">(text you enter in these boxes will print on the bill of lading)</p>
+          <div class="row-2">
+            <label>Box 1 <input type="text" name="delivery_note_1" maxlength="60" placeholder="e.g. Call 30 min before arrival"></label>
+            <label>Box 2 <input type="text" name="delivery_note_2" maxlength="60" placeholder="e.g. Dock 4, forklift on site"></label>
+          </div>
+          <p class="note chars"><span id="dn1-left">60</span> characters left on Box 1 · <span id="dn2-left">60</span> left on Box 2</p>
+          <h3 class="sub">Attachments</h3>
+          <label class="file-pick" id="file-pick">(click here to select files)
+            <input type="file" id="quote-files" multiple hidden>
+          </label>
+          <ul id="attach-list" class="file-list"><li class="note">No files attached.</li></ul>
+          <p class="note" id="attach-hint">Files attach to the quote once you press Get rates.</p>
+          <h3 class="sub">User's Private Notes</h3>
+          <p class="note">(does not print on any documents)</p>
+          <textarea name="private_notes" rows="2" placeholder="Internal notes — only visible to your account"></textarea>
+        </fieldset>
+        <fieldset>
+          <legend>Additional Insurance</legend>
+          <label class="check"><input type="checkbox" name="add_insurance"> Purchase additional cargo insurance</label>
+          <label>Declared value (CAD $) <input type="number" name="declared_value" min="0" step="1" placeholder="5000"></label>
+          <p class="note">Covers loss or damage above standard carrier liability — 1% of declared value (min $20), charged at cost on top of the freight rate.</p>
+        </fieldset>
         <label class="inline" id="user-id-row">User ID (optional)
           <input name="user_id" type="text" placeholder="paste your user UUID (auth coming later)">
         </label>
@@ -570,6 +595,84 @@
       });
     });
 
+    /* ---------- delivery notes counters + attachments ---------- */
+    function syncNoteCounters() {
+      const n1 = document.querySelector('#quote-form [name="delivery_note_1"]');
+      const n2 = document.querySelector('#quote-form [name="delivery_note_2"]');
+      if (n1) $('#dn1-left').textContent = 60 - n1.value.length;
+      if (n2) $('#dn2-left').textContent = 60 - n2.value.length;
+    }
+
+    let stagedFiles = [];   // File objects picked before a quote exists
+    let attachedFiles = []; // server records for the current quote
+
+    function renderAttachList() {
+      const ul = $('#attach-list');
+      if (!ul) return;
+      const staged = stagedFiles.map((f, i) =>
+        `<li><span>${esc(f.name)}</span> <span class="note">staged — uploads on Get rates</span> <button type="button" class="btn small" data-unstage="${i}">Remove</button></li>`);
+      const attached = attachedFiles.map((a) =>
+        `<li><button type="button" class="linklike" data-dl="${esc(a.id)}" data-fn="${esc(a.filename)}">${esc(a.filename)}</button>` +
+        `<span class="note">${a.size_bytes != null ? Math.max(1, Math.round(a.size_bytes / 1024)) + ' KB' : ''}</span> ` +
+        `<button type="button" class="btn small" data-delatt="${esc(a.id)}">Delete</button></li>`);
+      ul.innerHTML = staged.concat(attached).join('') || '<li class="note">No files attached.</li>';
+      ul.querySelectorAll('[data-unstage]').forEach((b) =>
+        b.addEventListener('click', () => { stagedFiles.splice(Number(b.dataset.unstage), 1); renderAttachList(); }));
+      ul.querySelectorAll('[data-delatt]').forEach((b) =>
+        b.addEventListener('click', () => deleteAttachment(b.dataset.delatt)));
+      ul.querySelectorAll('[data-dl]').forEach((b) =>
+        b.addEventListener('click', async () => {
+          try { await api.downloadAttachment(b.dataset.dl, b.dataset.fn); }
+          catch (err) { showAlert('Download failed: ' + err.message); }
+        }));
+    }
+
+    async function deleteAttachment(attId) {
+      const qid = currentQuote && (currentQuote.db_quote_id || currentQuote.shipment_id);
+      if (!qid) return;
+      try {
+        await api.deleteAttachment(qid, attId);
+        attachedFiles = attachedFiles.filter((a) => String(a.id) !== String(attId));
+        renderAttachList();
+      } catch (err) { showAlert('Could not delete file: ' + err.message); }
+    }
+
+    async function uploadStagedFiles() {
+      const qid = currentQuote && (currentQuote.db_quote_id || currentQuote.shipment_id);
+      if (!qid || !stagedFiles.length) return;
+      try {
+        const { uploaded } = await api.uploadAttachments(qid, stagedFiles);
+        stagedFiles = [];
+        attachedFiles = (uploaded || []).concat(attachedFiles);
+        renderAttachList();
+        const hint = $('#attach-hint');
+        if (hint) hint.textContent = 'Files are attached to this quote.';
+      } catch (err) {
+        showAlert('File upload failed: ' + err.message);
+      }
+    }
+
+    async function refreshAttachments() {
+      const qid = currentQuote && (currentQuote.db_quote_id || currentQuote.shipment_id);
+      if (!qid) { attachedFiles = []; renderAttachList(); return; }
+      try {
+        const { attachments } = await api.listAttachments(qid);
+        attachedFiles = attachments || [];
+      } catch { attachedFiles = []; }
+      renderAttachList();
+    }
+
+    document.querySelector('#quote-form [name="delivery_note_1"]')
+      .addEventListener('input', syncNoteCounters);
+    document.querySelector('#quote-form [name="delivery_note_2"]')
+      .addEventListener('input', syncNoteCounters);
+    $('#quote-files').addEventListener('change', (e) => {
+      stagedFiles = stagedFiles.concat([...e.target.files]).slice(0, 10);
+      e.target.value = '';
+      renderAttachList();
+    });
+    syncNoteCounters();
+
     function addPkgRow(data = {}) {
       const tr = document.createElement('tr');
       // Saved/loaded data is always lb/in; convert to the display units.
@@ -850,6 +953,11 @@
         bill_to: billToNeeded ? bill_to : {},
         depot_dropoff: f.get('depot_dropoff') === 'on',
         depot_pickup: f.get('depot_pickup') === 'on',
+        delivery_note_1: (f.get('delivery_note_1') || '').toString().trim().slice(0, 60),
+        delivery_note_2: (f.get('delivery_note_2') || '').toString().trim().slice(0, 60),
+        private_notes: (f.get('private_notes') || '').toString().trim().slice(0, 4000),
+        add_insurance: f.get('add_insurance') === 'on',
+        declared_value: Math.max(0, parseFloat(f.get('declared_value')) || 0),
         origin: {
           street1: f.get('o_street').trim(), city: f.get('o_city').trim(),
           state: f.get('o_state').trim(), zip: f.get('o_zip').trim(),
@@ -878,6 +986,8 @@
         const data = await api.getRates(params);
         lastQuoteParams = params;
         renderBoard(data);
+        await uploadStagedFiles();
+        await refreshAttachments();
       } catch (err) {
         if (err && err.status === 401) {
           // Quoting now needs a signed-in account.
@@ -950,7 +1060,7 @@
             <td class="chk"><input type="radio" name="rate-pick" value="${esc(r.rate_id)}"${i === 0 ? ' checked' : ''}></td>
             <td>${esc(r.carrier)}${r.service ? '<br><span class="note">' + esc(r.service) + '</span>' : ''} ${sourceBadge(r.source)}</td>
             <td>${r.delivery_days != null ? esc(String(r.delivery_days)) : '—'}</td>
-            <td class="num"><strong>${cad(r.retail_cad)}</strong></td>
+            <td class="num"><strong>${cad(r.retail_cad)}</strong>${r.insurance_cad ? `<br><span class="note">incl. ${cad(r.insurance_cad)} insurance</span>` : ''}</td>
           </tr>`
         )
         .join('');
@@ -967,7 +1077,6 @@
             <label>Ref # <input id="ref-num" type="text" placeholder="Reference number"></label>
             <label>PO # <input id="po-num" type="text" placeholder="Purchase order"></label>
           </div>
-          <label>Delivery notes <input id="del-notes" type="text" placeholder="Notes for the driver / BOL"></label>
           <div class="actions" style="margin-top:10px">
             <button class="btn" id="save-quote-btn">Save This Quote</button>
             <button class="btn primary" id="complete-shipment-btn">Complete This Shipment</button>
@@ -990,7 +1099,12 @@
       const name = prompt('Name this quote:', `${lane} — ${currentQuote.total_weight_lbs} lb`);
       if (name === null) return;
       try {
-        await api.saveQuote(currentQuote.shipment_id, name || `${lane}`);
+        const f = new FormData(document.querySelector('#quote-form'));
+        await api.saveQuote(currentQuote.shipment_id, name || `${lane}`, {
+          delivery_note_1: (f.get('delivery_note_1') || '').toString().trim().slice(0, 60),
+          delivery_note_2: (f.get('delivery_note_2') || '').toString().trim().slice(0, 60),
+          private_notes: (f.get('private_notes') || '').toString().trim().slice(0, 4000),
+        });
         showAlert('Quote saved.');
         loadSavedQuotes();
       } catch (err) {
@@ -1006,13 +1120,16 @@
       btn.disabled = true;
       btn.textContent = 'Completing…';
       try {
+        const qf = document.querySelector('#quote-form');
+        const qv = (n) => ((qf.querySelector(`[name="${n}"]`) || {}).value || '').trim();
         const res = await api.completeShipment({
           shipment_id: currentQuote.shipment_id,
           rate_id: rateId,
           shipper: lastQuoteParams.shipper,
           consignee: lastQuoteParams.consignee,
           references: { 'Ref #': $('#ref-num').value.trim(), 'PO #': $('#po-num').value.trim() },
-          delivery_notes: $('#del-notes').value.trim(),
+          delivery_note_1: qv('delivery_note_1').slice(0, 60),
+          delivery_note_2: qv('delivery_note_2').slice(0, 60),
           user_id: lastQuoteParams.user_id,
           region: lastQuoteParams.region,
           direction: lastQuoteParams.direction,
@@ -1116,6 +1233,12 @@
         const setCheck = (n, v) => { const el = document.querySelector(`#quote-form [name="${n}"]`); if (el) el.checked = !!v; };
         setCheck('depot_dropoff', quote.depot_dropoff);
         setCheck('depot_pickup', quote.depot_pickup);
+        set('delivery_note_1', quote.delivery_note_1);
+        set('delivery_note_2', quote.delivery_note_2);
+        set('private_notes', quote.private_notes);
+        syncNoteCounters();
+        setCheck('add_insurance', quote.add_insurance);
+        set('declared_value', quote.insurance_declared);
         // One tap: refill the form and re-rate fresh.
         document.querySelector('#quote-form').requestSubmit();
         document.querySelector('#tab-quote').scrollIntoView({ behavior: 'smooth' });

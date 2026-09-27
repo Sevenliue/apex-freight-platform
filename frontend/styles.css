@@ -356,3 +356,12 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 /* Units toggle row above the package table */
 .units-row { display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; }
 .units-row .note { margin: 0; }
+
+/* Notes & attachments */
+.sub { font-size: 1rem; margin: 14px 0 4px; }
+.chars { color: #66727e; font-size: 0.85em; }
+.file-pick { display: block; border: 2px dashed #c3ccd4; border-radius: 8px; padding: 18px; text-align: center; color: #5a6b7a; cursor: pointer; margin: 6px 0; }
+.file-pick:hover { border-color: var(--navy); color: var(--navy); }
+.file-list { list-style: none; margin: 6px 0; padding: 0; }
+.file-list li { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #eef1f4; }
+.linklike { background: none; border: none; color: var(--navy); text-decoration: underline; cursor: pointer; font: inherit; padding: 0; }

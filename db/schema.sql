@@ -72,6 +72,30 @@ CREATE INDEX IF NOT EXISTS idx_address_book_user_id ON address_book(user_id);
 ALTER TABLE quotes ADD COLUMN IF NOT EXISTS depot_dropoff boolean NOT NULL DEFAULT false;
 ALTER TABLE quotes ADD COLUMN IF NOT EXISTS depot_pickup boolean NOT NULL DEFAULT false;
 
+-- Delivery notes (print on the BOL) + private notes (internal only), added 2026-09-27.
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS delivery_note_1 varchar(60) NOT NULL DEFAULT '';
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS delivery_note_2 varchar(60) NOT NULL DEFAULT '';
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS private_notes text NOT NULL DEFAULT '';
+
+-- Additional cargo insurance, added 2026-09-27.
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS add_insurance boolean NOT NULL DEFAULT false;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS insurance_declared numeric;
+
+-- Quote attachments (commercial invoices, photos, etc.).
+CREATE TABLE IF NOT EXISTS quote_attachments (
+    id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    quote_id    uuid        REFERENCES quotes(id) ON DELETE CASCADE,
+    shipment_key varchar(64) NOT NULL,
+    user_id     uuid        REFERENCES users(id) ON DELETE SET NULL,
+    filename    varchar(255) NOT NULL,
+    stored_path text        NOT NULL,
+    mime        varchar(128),
+    size_bytes  integer,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_attachments_shipment ON quote_attachments(shipment_key);
+CREATE INDEX IF NOT EXISTS idx_attachments_quote ON quote_attachments(quote_id);
+
 -- Custom per-account dropdown lists (added 2026-09-27): shippers can add
 -- their own package types and product names; kind is 'package_type' or
 -- 'product_name'.

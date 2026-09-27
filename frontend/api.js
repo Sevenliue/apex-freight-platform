@@ -105,8 +105,8 @@ export function me() {
    single-parcel {weight, length, width, height} still accepted. region /
    direction / freight_charges / bill_to are the Smart Shipping-style top
    options. */
-export function getRates({ origin, destination, parcel, packages, accessorials, shipper, consignee, user_id, region, direction, freight_charges, bill_to }) {
-  return post('/api/rates', { origin, destination, parcel, packages, accessorials, shipper, consignee, user_id, region, direction, freight_charges, bill_to });
+export function getRates({ origin, destination, parcel, packages, accessorials, shipper, consignee, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup, delivery_note_1, delivery_note_2, private_notes, add_insurance, declared_value }) {
+  return post('/api/rates', { origin, destination, parcel, packages, accessorials, shipper, consignee, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup, delivery_note_1, delivery_note_2, private_notes, add_insurance, declared_value });
 }
 
 /* Saved quotes + accessorial catalog. */
@@ -114,8 +114,8 @@ export function getAccessorialCatalog() {
   return get('/api/quotes/accessorials');
 }
 
-export function saveQuote(id, name) {
-  return post(`/api/quotes/${encodeURIComponent(id)}/save`, { name });
+export function saveQuote(id, name, notes) {
+  return post(`/api/quotes/${encodeURIComponent(id)}/save`, { name, ...(notes || {}) });
 }
 
 export function listSavedQuotes(user_id) {
@@ -127,8 +127,48 @@ export function getQuote(id) {
 }
 
 /* Complete a shipment (book label or schedule pickup) + printable BOL. */
-export function completeShipment({ shipment_id, rate_id, shipper, consignee, references, delivery_notes, user_id, region, direction, freight_charges, bill_to }) {
-  return post('/api/shipments/complete', { shipment_id, rate_id, shipper, consignee, references, delivery_notes, user_id, region, direction, freight_charges, bill_to });
+export function completeShipment({ shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup }) {
+  return post('/api/shipments/complete', { shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup });
+}
+
+/* Quote attachments (multipart — auth header, no JSON content type). */
+export function listAttachments(quoteId) {
+  return get(`/api/quotes/${encodeURIComponent(quoteId)}/attachments`);
+}
+
+export function deleteAttachment(quoteId, attId) {
+  return request('DELETE', `/api/quotes/${encodeURIComponent(quoteId)}/attachments/${encodeURIComponent(attId)}`);
+}
+
+export async function uploadAttachments(quoteId, files) {
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f);
+  const headers = {};
+  const token = getAuthToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(API_BASE_URL + `/api/quotes/${encodeURIComponent(quoteId)}/attachments`, {
+    method: 'POST', headers, body: fd,
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error((data && (data.error || data.message)) || `Upload failed (${res.status})`);
+  return data;
+}
+
+export async function downloadAttachment(attId, filename) {
+  const headers = {};
+  const token = getAuthToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(API_BASE_URL + `/api/quotes/attachments/${encodeURIComponent(attId)}/download`, { headers });
+  if (!res.ok) throw new Error(`Download failed (${res.status})`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename || 'file';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 /* Buy a label for a rated shipment. */

@@ -145,6 +145,11 @@ router.post('/', async (req, res) => {
     bill_to = {},
     depot_dropoff: rawDepotDropoff = false,
     depot_pickup: rawDepotPickup = false,
+    add_insurance: rawAddInsurance = false,
+    declared_value: rawDeclaredValue = 0,
+    delivery_note_1: rawNote1 = '',
+    delivery_note_2: rawNote2 = '',
+    private_notes: rawPrivateNotes = '',
   } = req.body || {};
 
   // The logged-in account wins over the optional guest user_id label.
@@ -164,6 +169,22 @@ router.post('/', async (req, res) => {
   // depot (no carrier delivery). Informational — recorded on the BOL.
   const depot_dropoff = rawDepotDropoff === true || rawDepotDropoff === 'true';
   const depot_pickup = rawDepotPickup === true || rawDepotPickup === 'true';
+
+  // Notes: Box 1 / Box 2 print on the BOL (60 chars each); private notes are
+  // internal-only and never printed.
+  const delivery_note_1 = String(rawNote1 || '').slice(0, 60);
+  const delivery_note_2 = String(rawNote2 || '').slice(0, 60);
+  const private_notes = String(rawPrivateNotes || '').slice(0, 4000);
+
+  // Additional cargo insurance (platform add-on, charged at cost — no markup):
+  // 1% of declared value, $20 minimum, added to every rate's retail total.
+  const INSURANCE_RATE = 0.01;
+  const INSURANCE_MIN_CAD = 20;
+  const add_insurance = rawAddInsurance === true || rawAddInsurance === 'true' || rawAddInsurance === 'on';
+  const declared_value = Math.max(0, round2(parseFloat(rawDeclaredValue) || 0));
+  const insurance_cad = add_insurance && declared_value > 0
+    ? Math.max(INSURANCE_MIN_CAD, round2(declared_value * INSURANCE_RATE))
+    : 0;
 
   if (region === 'worldwide') {
     if (!origin.city || !origin.country || !destination.city || !destination.country) {
@@ -298,6 +319,12 @@ router.post('/', async (req, res) => {
     bill_to: billTo,
     depot_dropoff,
     depot_pickup,
+    delivery_note_1,
+    delivery_note_2,
+    private_notes,
+    add_insurance,
+    declared_value,
+    insurance_cad,
     parcel: { weight: totalWeightLbs },
     total_weight_lbs: totalWeightLbs,
     user_id: effectiveUserId,
@@ -353,6 +380,15 @@ router.post('/', async (req, res) => {
     }
   }
 
+  // Additional insurance lands on every rate's retail total (at cost).
+  if (insurance_cad > 0) {
+    for (const r of rates) {
+      r.insurance_cad = insurance_cad;
+      r.insurance_declared_value = declared_value;
+      r.retail_cad = round2(r.retail_cad + insurance_cad);
+    }
+  }
+
   // One ranked board: cheapest sell price first.
   rates.sort((a, b) => a.retail_cad - b.retail_cad);
 
@@ -367,8 +403,10 @@ router.post('/', async (req, res) => {
                              parcel_weight, parcel_length, parcel_width, parcel_height,
                              shipper_json, consignee_json, packages_json, accessorials_json, rates_json,
                              region, direction, freight_charges, bill_to_json,
-                             depot_dropoff, depot_pickup)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+                             depot_dropoff, depot_pickup,
+                             delivery_note_1, delivery_note_2, private_notes,
+                             add_insurance, insurance_declared)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)
          RETURNING id`,
         [
           userUuid,
@@ -380,6 +418,8 @@ router.post('/', async (req, res) => {
           JSON.stringify(packages), JSON.stringify(accessorialCodes), JSON.stringify(rates),
           region, direction, freight_charges, JSON.stringify(billTo),
           depot_dropoff, depot_pickup,
+          delivery_note_1, delivery_note_2, private_notes,
+          add_insurance, declared_value,
         ]
       );
       db_quote_id = r.rows[0] && r.rows[0].id;
