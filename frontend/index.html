@@ -124,7 +124,16 @@
 
     <!-- DASHBOARD -->
     <section id="tab-dashboard" class="panel active" role="tabpanel">
-      <h1>Dashboard</h1>
+      <div class="hero-quote">
+        <div class="hero-quote-txt">
+          <h1>Get a freight quote in seconds</h1>
+          <p class="lede">Compare live carrier rates instantly. All amounts in CAD.</p>
+        </div>
+        <div class="hero-quote-actions">
+          <button type="button" class="btn primary hero-btn" data-dash-goto="quote" data-region="canada_usa" data-loadtype="ltl">⚡ Quick Quote</button>
+          <button type="button" class="btn hero-btn" data-dash-goto="quote" data-region="canada_usa" data-loadtype="full_load">🚛 Full Load</button>
+        </div>
+      </div>
       <div class="dash-cards">
         <button type="button" class="dash-card" data-dash-goto="quote" data-region="worldwide">
           <span class="dash-ico">📦</span>
@@ -2923,7 +2932,7 @@
     /* ---------- DASHBOARD ---------- */
     let DASH = [];
 
-    function goQuote(region) {
+    function goQuote(region, loadType) {
       showTab('quote');
       if (region) {
         const r = document.querySelector(
@@ -2932,6 +2941,15 @@
         if (r && !r.checked) {
           r.checked = true;
           r.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+      if (loadType) {
+        const lt = document.querySelector(
+          `#quote-form input[name="load_type"][value="${loadType}"]`
+        );
+        if (lt && !lt.checked) {
+          lt.checked = true;
+          lt.dispatchEvent(new Event('change', { bubbles: true }));
         }
       }
     }
@@ -3350,7 +3368,7 @@
     $$('[data-dash-goto]').forEach((c) =>
       c.addEventListener('click', () => {
         const tab = c.dataset.dashGoto;
-        if (tab === 'quote') goQuote(c.dataset.region || null);
+        if (tab === 'quote') goQuote(c.dataset.region || null, c.dataset.loadtype || null);
         else showTab(tab);
       })
     );
