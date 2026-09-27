@@ -26,8 +26,8 @@
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
           <div class="nav-sub">
-            <button class="tab sub" data-tab="quote" data-region="worldwide" data-loadtype="ltl" role="tab" aria-selected="false"><span>Quick Quote</span></button>
-            <button class="tab sub" data-tab="quote" role="tab" aria-selected="false"><span>Create Shipment</span></button>
+            <button class="tab sub" data-tab="dashboard" data-region="worldwide" data-loadtype="ltl" role="tab" aria-selected="false"><span>Quick Quote</span></button>
+            <button class="tab sub" data-tab="dashboard" role="tab" aria-selected="false"><span>Create Shipment</span></button>
             <button class="tab sub" data-tab="comingsoon" data-comingsoon="Claim Management" role="tab" aria-selected="false"><span>Claim Management</span></button>
             <button class="tab sub" data-tab="comingsoon" data-comingsoon="Schedule Pickup" role="tab" aria-selected="false"><span>Schedule Pickup</span></button>
             <button class="tab sub" data-tab="comingsoon" data-comingsoon="Import Excel" role="tab" aria-selected="false"><span>Import Excel</span></button>
@@ -41,15 +41,15 @@
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
           <div class="nav-sub">
-            <button class="tab sub" data-tab="quote" data-region="canada_usa" data-loadtype="ltl" role="tab" aria-selected="false"><span>Quick Quote</span></button>
-            <button class="tab sub" data-tab="quote" role="tab" aria-selected="false"><span>Create Shipment</span></button>
+            <button class="tab sub" data-tab="dashboard" data-region="canada_usa" data-loadtype="ltl" role="tab" aria-selected="false"><span>Quick Quote</span></button>
+            <button class="tab sub" data-tab="dashboard" role="tab" aria-selected="false"><span>Create Shipment</span></button>
             <button class="tab sub" data-tab="comingsoon" data-comingsoon="Specialty Request" role="tab" aria-selected="false"><span>Specialty Request</span></button>
             <button class="tab sub" data-tab="comingsoon" data-comingsoon="Request List" role="tab" aria-selected="false"><span>Request List</span></button>
-            <button class="tab sub" data-tab="quote" data-scroll="saved-quotes" role="tab" aria-selected="false"><span>Saved Quotes</span></button>
+            <button class="tab sub" data-tab="dashboard" data-scroll="saved-quotes" role="tab" aria-selected="false"><span>Saved Quotes</span></button>
             <button class="tab sub" data-tab="dashboard" data-scroll="dash-orders" role="tab" aria-selected="false"><span>My LTL Orders</span></button>
           </div>
         </div>
-        <button class="tab" data-tab="quote" data-loadtype="full_load" role="tab" aria-selected="false">
+        <button class="tab" data-tab="dashboard" data-loadtype="full_load" role="tab" aria-selected="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
           <span>Full Load</span>
         </button>
@@ -124,57 +124,7 @@
 
     <!-- DASHBOARD -->
     <section id="tab-dashboard" class="panel active" role="tabpanel">
-      <div class="hero-quote">
-        <div class="hero-quote-txt">
-          <h1>Get a freight quote in seconds</h1>
-          <p class="lede">Compare live carrier rates instantly. All amounts in CAD.</p>
-        </div>
-        <div class="hero-quote-actions">
-          <button type="button" class="btn primary hero-btn" data-dash-goto="quote" data-region="canada_usa" data-loadtype="ltl">⚡ Quick Quote</button>
-          <button type="button" class="btn hero-btn" data-dash-goto="quote" data-region="canada_usa" data-loadtype="full_load">🚛 Full Load</button>
-        </div>
-      </div>
-      <div class="dash-cards">
-        <button type="button" class="dash-card" data-dash-goto="quote" data-region="worldwide">
-          <span class="dash-ico">📦</span>
-          <span class="dash-txt"><strong>Package shipping</strong><small>Express delivery and tracking for your smaller packages</small></span>
-        </button>
-        <button type="button" class="dash-card" data-dash-goto="quote" data-region="canada_usa">
-          <span class="dash-ico">🚚</span>
-          <span class="dash-txt"><strong>LTL Freight</strong><small>Efficient freight shipping for large, heavy or palletized loads</small></span>
-        </button>
-        <button type="button" class="dash-card" data-dash-goto="quote">
-          <span class="dash-ico">🗓️</span>
-          <span class="dash-txt"><strong>Schedule Pickup</strong><small>Book a convenient pickup time for your carrier shipments</small></span>
-        </button>
-        <button type="button" class="dash-card" data-dash-goto="pricing">
-          <span class="dash-ico">🧾</span>
-          <span class="dash-txt"><strong>Billing Center</strong><small>Manage invoices, payment methods, and account credits</small></span>
-        </button>
-      </div>
-      <div class="dash-orders-head">
-        <div>
-          <h2>My Orders</h2>
-          <p class="lede">View and manage all your orders.</p>
-        </div>
-        <div class="actions">
-          <button type="button" class="btn primary" id="dash-create">+ Create Shipment</button>
-          <button type="button" class="btn" id="dash-export">Export</button>
-        </div>
-      </div>
-      <div class="card filters">
-        <label>Start Time <input type="date" id="dash-start"></label>
-        <label>End Time <input type="date" id="dash-end"></label>
-        <label>Carrier <select id="dash-carrier"><option value="">All</option></select></label>
-        <label>Order Status <select id="dash-status"><option value="">All</option><option value="scheduled">Scheduled</option><option value="purchased">Purchased</option></select></label>
-        <label>Shipment Type <select id="dash-type"><option value="">All</option></select></label>
-        <label class="grow">Search <input type="search" id="dash-q" placeholder="Search by order #, tracking #, ref #"></label>
-      </div>
-      <div id="dash-orders"><div class="card empty">Loading…</div></div>
-    </section>
-
-    <!-- QUOTE -->
-    <section id="tab-quote" class="panel" role="tabpanel">
+      <!-- QUOTE FORM: top of the main page -->
       <h1>Get a rate</h1>
       <p class="lede">Compare carrier rates instantly. All amounts in CAD.</p>
       <div id="payment-result"></div>
@@ -344,7 +294,45 @@
       <div id="quote-results"></div>
       <h2>Saved quotes</h2>
       <div id="saved-quotes"><p class="note">Loading…</p></div>
+      <div class="dash-cards">
+        <button type="button" class="dash-card" data-dash-goto="quote" data-region="worldwide">
+          <span class="dash-ico">📦</span>
+          <span class="dash-txt"><strong>Package shipping</strong><small>Express delivery and tracking for your smaller packages</small></span>
+        </button>
+        <button type="button" class="dash-card" data-dash-goto="quote" data-region="canada_usa">
+          <span class="dash-ico">🚚</span>
+          <span class="dash-txt"><strong>LTL Freight</strong><small>Efficient freight shipping for large, heavy or palletized loads</small></span>
+        </button>
+        <button type="button" class="dash-card" data-dash-goto="quote">
+          <span class="dash-ico">🗓️</span>
+          <span class="dash-txt"><strong>Schedule Pickup</strong><small>Book a convenient pickup time for your carrier shipments</small></span>
+        </button>
+        <button type="button" class="dash-card" data-dash-goto="pricing">
+          <span class="dash-ico">🧾</span>
+          <span class="dash-txt"><strong>Billing Center</strong><small>Manage invoices, payment methods, and account credits</small></span>
+        </button>
+      </div>
+      <div class="dash-orders-head">
+        <div>
+          <h2>My Orders</h2>
+          <p class="lede">View and manage all your orders.</p>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn primary" id="dash-create">+ Create Shipment</button>
+          <button type="button" class="btn" id="dash-export">Export</button>
+        </div>
+      </div>
+      <div class="card filters">
+        <label>Start Time <input type="date" id="dash-start"></label>
+        <label>End Time <input type="date" id="dash-end"></label>
+        <label>Carrier <select id="dash-carrier"><option value="">All</option></select></label>
+        <label>Order Status <select id="dash-status"><option value="">All</option><option value="scheduled">Scheduled</option><option value="purchased">Purchased</option></select></label>
+        <label>Shipment Type <select id="dash-type"><option value="">All</option></select></label>
+        <label class="grow">Search <input type="search" id="dash-q" placeholder="Search by order #, tracking #, ref #"></label>
+      </div>
+      <div id="dash-orders"><div class="card empty">Loading…</div></div>
     </section>
+
 
     <!-- PRICING -->
     <section id="tab-pricing" class="panel" role="tabpanel">
@@ -739,11 +727,11 @@
         if (t) t.textContent = nm;
         if (d) d.textContent = nm + ' is on the Apex roadmap and is not available yet.';
       }
-      if (btn.dataset.tab === 'quote' && btn.dataset.region) {
+      if (btn.dataset.tab === 'dashboard' && btn.dataset.region) {
         const r = document.querySelector(`#quote-form input[name="region"][value="${btn.dataset.region}"]`);
         if (r && !r.checked) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); }
       }
-      if (btn.dataset.tab === 'quote' && btn.dataset.loadtype) {
+      if (btn.dataset.tab === 'dashboard' && btn.dataset.loadtype) {
         const lt = document.querySelector(`#quote-form input[name="load_type"][value="${btn.dataset.loadtype}"]`);
         if (lt && !lt.checked) { lt.checked = true; lt.dispatchEvent(new Event('change', { bubbles: true })); }
       }
@@ -1727,7 +1715,7 @@
         set('declared_value', quote.insurance_declared);
         // One tap: refill the form and re-rate fresh.
         document.querySelector('#quote-form').requestSubmit();
-        document.querySelector('#tab-quote').scrollIntoView({ behavior: 'smooth' });
+        document.querySelector('#quote-form').scrollIntoView({ behavior: 'smooth' });
       } catch (err) {
         showAlert('Could not reload quote: ' + err.message);
       } finally {
@@ -2475,7 +2463,7 @@
         const fsa = window.APEX_fsaOf ? window.APEX_fsaOf(a.postal) : '';
         window.APEX_postalFilled(zname, fsa);
       }
-      document.querySelector('.tab[data-tab="quote"]').click();
+      document.querySelector('.tab[data-tab="dashboard"]').click();
     }
 
     /* ---------- CARRIERS ---------- */
@@ -2933,7 +2921,7 @@
     let DASH = [];
 
     function goQuote(region, loadType) {
-      showTab('quote');
+      showTab('dashboard');
       if (region) {
         const r = document.querySelector(
           `#quote-form input[name="region"][value="${region}"]`
@@ -3239,7 +3227,7 @@
       const isAdmin = !!(billingState && billingState.is_admin);
       btn.style.display = isAdmin ? '' : 'none';
       if (!isAdmin && $('#tab-admin') && $('#tab-admin').classList.contains('active')) {
-        showTab('quote');
+        showTab('dashboard');
       }
     }
 

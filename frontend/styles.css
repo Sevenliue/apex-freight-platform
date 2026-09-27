@@ -436,23 +436,7 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 .linklike { background: none; border: none; color: var(--navy); text-decoration: underline; cursor: pointer; font: inherit; padding: 0; }
 
 /* ---------- dashboard ---------- */
-.hero-quote {
-  display: flex; align-items: center; justify-content: space-between; gap: 20px;
-  background: linear-gradient(120deg, #0f2a4a 0%, #1b4f8a 100%);
-  border-radius: 14px; padding: 30px 32px; margin-bottom: 24px; color: #fff;
-  flex-wrap: wrap;
-}
-.hero-quote-txt h1 { margin: 0 0 6px; font-size: 26px; color: #fff; }
-.hero-quote-txt .lede { margin: 0; color: rgba(255,255,255,.78); }
-.hero-quote-actions { display: flex; gap: 12px; flex-wrap: wrap; }
-.btn.hero-btn { font-size: 17px; padding: 14px 30px; border-radius: 10px; font-weight: 700; }
-.hero-quote-actions .btn:not(.primary) { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.35); color: #fff; }
-.hero-quote-actions .btn:not(.primary):hover { background: rgba(255,255,255,.24); }
-@media (max-width: 640px) {
-  .hero-quote { padding: 22px 20px; }
-  .hero-quote-actions { width: 100%; }
-  .hero-quote-actions .btn.hero-btn { flex: 1; text-align: center; }
-}
+
 .dash-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 4px 0 26px; }
 .dash-card {
   display: flex; gap: 12px; align-items: flex-start; text-align: left;
