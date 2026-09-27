@@ -695,11 +695,11 @@ dl.kv dd { margin: 0; font-weight: 600; }
 #quote-results thead th { text-transform: uppercase; font-size: 12px; letter-spacing: 0.02em; }
 .qq-split-right .qq-panel { margin-bottom: 0; }
 
-/* Selected rate row (cheapest) highlighted like the reference board */
-#tab-dashboard #quote-results table.data tbody tr.picked { background: #1a7a4c; color: #fff; }
-#tab-dashboard #quote-results table.data tbody tr.picked td strong { color: #fff; }
-#tab-dashboard #quote-results table.data tbody tr.picked .note { color: #ffe8d6; }
-#tab-dashboard #quote-results table.data tbody tr.picked:hover { background: #146038; }
+/* Selected rate row (cheapest) — light blue highlight */
+#tab-dashboard #quote-results table.data tbody tr.picked { background: #d4e8f7; color: #1e3a5f; }
+#tab-dashboard #quote-results table.data tbody tr.picked td strong { color: #1e3a5f; }
+#tab-dashboard #quote-results table.data tbody tr.picked .note { color: #4a6a8a; }
+#tab-dashboard #quote-results table.data tbody tr.picked:hover { background: #bcd9f2; }
 
 /* ---- Service toggles: label left, switch right, two columns (reference style) ---- */
 #acc-pickup.check-grid, #acc-delivery.check-grid {
