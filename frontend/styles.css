@@ -379,6 +379,9 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 .modal-overlay .modal { max-width: 640px; max-height: 85vh; overflow-y: auto; }
 .terms-body p { font-size: 14px; margin: 10px 0; line-height: 1.55; }
 .modal-card { background: var(--card); border-radius: var(--radius); box-shadow: 0 16px 48px rgba(0,0,0,.25); width: 100%; max-width: 400px; padding: 24px; position: relative; }
+.modal-card.wide { max-width: 560px; max-height: 88vh; overflow-y: auto; }
+.cm-sec { margin: 18px 0 6px; font-size: 15px; }
+.modal-card.wide textarea { width: 100%; }
 .modal-close { position: absolute; top: 10px; right: 14px; border: 0; background: none; font-size: 22px; line-height: 1; color: var(--muted); cursor: pointer; }
 .modal-close:hover { color: var(--ink); }
 .modal-tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }

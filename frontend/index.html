@@ -308,42 +308,6 @@
         <div class="qq-split">
           <div class="qq-split-left">
             <button type="submit" class="btn fetch-btn fetch-btn-left" id="fetch-rates-btn">Fetch Carrier Results</button>
-            <section class="qq-panel">
-              <h3 class="qq-head">Delivery Notes</h3>
-              <div class="qq-body">
-                <p class="note">(text you enter in these boxes will print on the bill of lading)</p>
-                <div class="qq-notes-stack">
-                  <label>Box 1 <input type="text" name="delivery_note_1" maxlength="60" placeholder="e.g. Call 30 min before arrival"></label>
-                  <label>Box 2 <input type="text" name="delivery_note_2" maxlength="60" placeholder="e.g. Dock 4, forklift on site"></label>
-                </div>
-                <p class="note chars"><span id="dn1-left">60</span> characters left on Box 1 · <span id="dn2-left">60</span> left on Box 2</p>
-              </div>
-            </section>
-            <section class="qq-panel">
-              <h3 class="qq-head">Attachments</h3>
-              <div class="qq-body">
-                <label class="file-pick" id="file-pick">(click here to select files)
-                  <input type="file" id="quote-files" multiple hidden>
-                </label>
-                <ul id="attach-list" class="file-list"><li class="note">No files attached.</li></ul>
-                <p class="note" id="attach-hint">Files attach to the quote once you press Get rates.</p>
-              </div>
-            </section>
-            <section class="qq-panel">
-              <h3 class="qq-head">User's Private Notes</h3>
-              <div class="qq-body">
-                <p class="note">(does not print on any documents)</p>
-                <textarea name="private_notes" rows="2" placeholder="Internal notes — only visible to your account"></textarea>
-              </div>
-            </section>
-            <section class="qq-panel">
-              <h3 class="qq-head">Additional Insurance</h3>
-              <div class="qq-body">
-                <label class="check"><input type="checkbox" name="add_insurance"> Purchase additional cargo insurance</label>
-                <label>Declared value (CAD $) <input type="number" name="declared_value" min="0" step="1" placeholder="5000"></label>
-                <p class="note">Covers loss or damage above standard carrier liability — 1% of declared value (min $20), charged at cost on top of the freight rate.</p>
-              </div>
-            </section>
             <p class="note">Instant rates come from uploaded carrier tariffs; live rates need carrier API keys. Transit times are estimates, not guaranteed.</p>
           </div>
           <div class="qq-split-right">
@@ -366,13 +330,34 @@
         </div>
       </form>
       <div id="complete-modal" class="modal-overlay hidden">
-        <div class="modal-card" role="dialog" aria-modal="true" aria-label="Complete this shipment">
+        <div class="modal-card wide" role="dialog" aria-modal="true" aria-label="Complete this shipment">
           <button type="button" class="modal-close" id="cm-close" aria-label="Close">\u00d7</button>
           <h3>Complete This Shipment</h3>
           <p class="note">These references are stored on every shipment for reporting.</p>
           <p class="form-error hidden" id="cm-error"></p>
           <label>Shipper's order # * <input id="cm-ref-num" type="text" placeholder="Your order number" autocomplete="off"></label>
           <label>Receiver's PO # * <input id="cm-po-num" type="text" placeholder="Receiver's PO number" autocomplete="off"></label>
+          <h4 class="cm-sec">Delivery Instructions</h4>
+          <p class="note">These print on the bill of lading.</p>
+          <div class="qq-notes-stack">
+            <label>Instruction 1 <input type="text" id="cm-note-1" maxlength="60" placeholder="e.g. Call the receiver 30 minutes before arrival"></label>
+            <label>Instruction 2 <input type="text" id="cm-note-2" maxlength="60" placeholder="e.g. Use dock 4 — forklift on site"></label>
+          </div>
+          <p class="note chars"><span id="cm-dn1-left">60</span> characters left on instruction 1 · <span id="cm-dn2-left">60</span> left on instruction 2</p>
+          <h4 class="cm-sec">Attachments</h4>
+          <label class="file-pick" id="cm-file-pick">Choose files to attach
+            <input type="file" id="cm-files" multiple hidden>
+          </label>
+          <ul id="cm-attach-list" class="file-list"><li class="note">No files attached.</li></ul>
+          <p class="note" id="cm-attach-hint">Files upload when you complete the shipment.</p>
+          <h4 class="cm-sec">Private Notes</h4>
+          <p class="note">Never printed — only your account can see these.</p>
+          <textarea id="cm-private-notes" rows="2" placeholder="e.g. Customer prefers morning delivery"></textarea>
+          <h4 class="cm-sec">Cargo Insurance</h4>
+          <label class="check"><input type="checkbox" id="cm-add-insurance"> Add cargo insurance to this shipment</label>
+          <label>Declared value (CAD $) <input type="number" id="cm-declared-value" min="0" step="1" placeholder="5000"></label>
+          <p class="note">Covers loss or damage beyond standard carrier liability: 1% of declared value (minimum $20), added to your total at cost.</p>
+          <p class="note hidden" id="cm-ins-preview"></p>
           <label class="chk"><input type="checkbox" id="cm-terms"> I agree to the <a href="#" id="cm-terms-link">Terms of Service</a> *</label>
           <div class="actions">
             <button type="button" class="btn primary" id="cm-confirm">Confirm — Complete This Shipment</button>
@@ -1018,20 +1003,34 @@
 
     /* ---------- delivery notes counters + attachments ---------- */
     function syncNoteCounters() {
-      const n1 = document.querySelector('#quote-form [name="delivery_note_1"]');
-      const n2 = document.querySelector('#quote-form [name="delivery_note_2"]');
-      if (n1) $('#dn1-left').textContent = 60 - n1.value.length;
-      if (n2) $('#dn2-left').textContent = 60 - n2.value.length;
+      const n1 = $('#cm-note-1');
+      const n2 = $('#cm-note-2');
+      if (n1) $('#cm-dn1-left').textContent = 60 - n1.value.length;
+      if (n2) $('#cm-dn2-left').textContent = 60 - n2.value.length;
+    }
+
+    function syncInsurancePreview() {
+      const prev = $('#cm-ins-preview');
+      const on = $('#cm-add-insurance') && $('#cm-add-insurance').checked;
+      const dv = Math.max(0, parseFloat(($('#cm-declared-value') || {}).value) || 0);
+      if (!prev) return;
+      if (on && dv > 0) {
+        const cost = Math.max(20, Math.round(dv * 0.01 * 100) / 100);
+        prev.textContent = 'Adds $' + cost.toFixed(2) + ' CAD to your shipment total.';
+        prev.classList.remove('hidden');
+      } else {
+        prev.classList.add('hidden');
+      }
     }
 
     let stagedFiles = [];   // File objects picked before a quote exists
     let attachedFiles = []; // server records for the current quote
 
     function renderAttachList() {
-      const ul = $('#attach-list');
+      const ul = $('#cm-attach-list');
       if (!ul) return;
       const staged = stagedFiles.map((f, i) =>
-        `<li><span>${esc(f.name)}</span> <span class="note">staged — uploads on Get rates</span> <button type="button" class="btn small" data-unstage="${i}">Remove</button></li>`);
+        `<li><span>${esc(f.name)}</span> <span class="note">staged — uploads on completion</span> <button type="button" class="btn small" data-unstage="${i}">Remove</button></li>`);
       const attached = attachedFiles.map((a) =>
         `<li><button type="button" class="linklike" data-dl="${esc(a.id)}" data-fn="${esc(a.filename)}">${esc(a.filename)}</button>` +
         `<span class="note">${a.size_bytes != null ? Math.max(1, Math.round(a.size_bytes / 1024)) + ' KB' : ''}</span> ` +
@@ -1066,8 +1065,8 @@
         stagedFiles = [];
         attachedFiles = (uploaded || []).concat(attachedFiles);
         renderAttachList();
-        const hint = $('#attach-hint');
-        if (hint) hint.textContent = 'Files are attached to this quote.';
+        const hint = $('#cm-attach-hint');
+        if (hint) hint.textContent = 'Files are attached.';
       } catch (err) {
         showAlert('File upload failed: ' + err.message);
       }
@@ -1083,15 +1082,15 @@
       renderAttachList();
     }
 
-    document.querySelector('#quote-form [name="delivery_note_1"]')
-      .addEventListener('input', syncNoteCounters);
-    document.querySelector('#quote-form [name="delivery_note_2"]')
-      .addEventListener('input', syncNoteCounters);
-    $('#quote-files').addEventListener('change', (e) => {
+    $('#cm-note-1').addEventListener('input', syncNoteCounters);
+    $('#cm-note-2').addEventListener('input', syncNoteCounters);
+    $('#cm-files').addEventListener('change', (e) => {
       stagedFiles = stagedFiles.concat([...e.target.files]).slice(0, 10);
       e.target.value = '';
       renderAttachList();
     });
+    $('#cm-add-insurance').addEventListener('change', syncInsurancePreview);
+    $('#cm-declared-value').addEventListener('input', syncInsurancePreview);
     syncNoteCounters();
 
     function addPkgRow(data = {}) {
@@ -1558,11 +1557,6 @@
         bill_to: billToNeeded ? bill_to : {},
         depot_dropoff: f.get('depot_dropoff') === 'on',
         depot_pickup: f.get('depot_pickup') === 'on',
-        delivery_note_1: txt('delivery_note_1').slice(0, 60),
-        delivery_note_2: txt('delivery_note_2').slice(0, 60),
-        private_notes: txt('private_notes').slice(0, 4000),
-        add_insurance: f.get('add_insurance') === 'on',
-        declared_value: Math.max(0, parseFloat(f.get('declared_value')) || 0),
         origin: {
           street1: txt('o_street'), city: txt('o_city'),
           state: txt('o_state'), zip: txt('o_zip'),
@@ -1591,8 +1585,6 @@
         const data = await api.getRates(params);
         lastQuoteParams = params;
         renderBoard(data);
-        await uploadStagedFiles();
-        await refreshAttachments();
       } catch (err) {
         if (err && err.status === 401) {
           // Quoting now needs a signed-in account.
@@ -1841,7 +1833,21 @@
       const rateId = selectedRateId();
       if (!rateId) { showAlert('Pick a carrier rate first.'); return; }
       $('#cm-error').classList.add('hidden');
+      // Prefill shipment extras from the quote when it carries them.
+      const q = currentQuote || {};
+      $('#cm-ref-num').value = '';
+      $('#cm-po-num').value = '';
+      $('#cm-terms').checked = false;
+      $('#cm-note-1').value = (q.delivery_note_1 || '').slice(0, 60);
+      $('#cm-note-2').value = (q.delivery_note_2 || '').slice(0, 60);
+      $('#cm-private-notes').value = q.private_notes || '';
+      $('#cm-add-insurance').checked = !!q.add_insurance;
+      $('#cm-declared-value').value = q.insurance_declared || '';
+      stagedFiles = [];
+      syncNoteCounters();
+      syncInsurancePreview();
       $('#complete-modal').classList.remove('hidden');
+      refreshAttachments();
       setTimeout(() => $('#cm-ref-num').focus(), 60);
     }
 
@@ -1865,16 +1871,19 @@
       const origText = btn.textContent;
       btn.textContent = 'Starting secure payment…';
       try {
-        const qf = document.querySelector('#quote-form');
-        const qv = (n) => ((qf.querySelector(`[name="${n}"]`) || {}).value || '').trim();
+        // Staged files upload now, at shipment creation time.
+        await uploadStagedFiles();
         const payload = {
           shipment_id: currentQuote.shipment_id,
           rate_id: rateId,
           shipper: lastQuoteParams.shipper,
           consignee: lastQuoteParams.consignee,
           references: { 'Ref #': refNum, 'PO #': poNum },
-          delivery_note_1: qv('delivery_note_1').slice(0, 60),
-          delivery_note_2: qv('delivery_note_2').slice(0, 60),
+          delivery_note_1: ($('#cm-note-1').value || '').trim().slice(0, 60),
+          delivery_note_2: ($('#cm-note-2').value || '').trim().slice(0, 60),
+          private_notes: ($('#cm-private-notes').value || '').trim().slice(0, 4000),
+          add_insurance: $('#cm-add-insurance').checked,
+          declared_value: Math.max(0, parseFloat($('#cm-declared-value').value) || 0),
           terms_accepted: true,
           user_id: lastQuoteParams.user_id,
           region: lastQuoteParams.region,
@@ -2014,12 +2023,6 @@
         const setCheck = (n, v) => { const el = document.querySelector(`#quote-form [name="${n}"]`); if (el) el.checked = !!v; };
         setCheck('depot_dropoff', quote.depot_dropoff);
         setCheck('depot_pickup', quote.depot_pickup);
-        set('delivery_note_1', quote.delivery_note_1);
-        set('delivery_note_2', quote.delivery_note_2);
-        set('private_notes', quote.private_notes);
-        syncNoteCounters();
-        setCheck('add_insurance', quote.add_insurance);
-        set('declared_value', quote.insurance_declared);
         // One tap: refill the form and re-rate fresh.
         document.querySelector('#quote-form').requestSubmit();
         document.querySelector('#quote-form').scrollIntoView({ behavior: 'smooth' });
