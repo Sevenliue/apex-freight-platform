@@ -47,9 +47,9 @@ body {
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand-mark {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 42px; height: 42px; border-radius: 9px;
+  width: 50px; height: 50px; border-radius: 10px;
   background: #1e3a5f; color: #fff;
-  font-weight: 800; font-size: 16px; flex: 0 0 42px;
+  font-weight: 800; font-size: 19px; flex: 0 0 50px;
 }
 .brand-name { font-size: 17px; font-weight: 700; letter-spacing: 0.2px; }
 .side-nav {
