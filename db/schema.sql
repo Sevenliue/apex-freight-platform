@@ -255,3 +255,47 @@ ALTER TABLE quotes ADD COLUMN IF NOT EXISTS region          varchar(20) NOT NULL
 ALTER TABLE quotes ADD COLUMN IF NOT EXISTS direction       varchar(20) NOT NULL DEFAULT 'outbound';
 ALTER TABLE quotes ADD COLUMN IF NOT EXISTS freight_charges varchar(20) NOT NULL DEFAULT 'prepaid';
 ALTER TABLE quotes ADD COLUMN IF NOT EXISTS bill_to_json    jsonb;
+
+-- ---------------------------------------------------------------------------
+-- Address Book: saved shipper/consignee addresses with one-tap quote fill.
+-- Carriers: carrier directory + exclusion list (excluded carriers are hidden
+-- from the matrix-ranked quote board). Idempotent: safe to re-run.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS address_book (
+  id                uuid            PRIMARY KEY DEFAULT gen_random_uuid(),
+  label             varchar(120)    NOT NULL,
+  company           varchar(160),
+  contact_name      varchar(120),
+  street            varchar(160),
+  city              varchar(80)     NOT NULL,
+  province          varchar(40),
+  postal            varchar(20),
+  country           varchar(40)     NOT NULL DEFAULT 'CA',
+  phone             varchar(40),
+  email             varchar(160),
+  created_at        timestamptz     NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_address_book_label ON address_book(label);
+
+CREATE TABLE IF NOT EXISTS carriers (
+  id                uuid            PRIMARY KEY DEFAULT gen_random_uuid(),
+  name              varchar(160)    NOT NULL UNIQUE,
+  city              varchar(80),
+  province          varchar(40),
+  phone             varchar(40),
+  email             varchar(160),
+  created_at        timestamptz     NOT NULL DEFAULT now()
+);
+
+-- Seed the carriers the rate matrix already quotes (names must match the
+-- carrier_label strings in backend/rates/build-matrix.js).
+INSERT INTO carriers (name) VALUES
+  ('Rosenau Transport'),
+  ('Guilbault Transport'),
+  ('HiFab Transport')
+ON CONFLICT (name) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS carrier_exclusions (
+  carrier_name      varchar(160)    PRIMARY KEY,
+  created_at        timestamptz     NOT NULL DEFAULT now()
+);

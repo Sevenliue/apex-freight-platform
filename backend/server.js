@@ -46,6 +46,8 @@ app.use('/api/webhooks', require('./routes/webhooks'));
 app.use('/api/loads', require('./routes/loads'));
 app.use('/api/bids', require('./routes/bids'));
 app.use('/api/carrier-rates', require('./routes/carrier-rates'));
+app.use('/api/address-book', require('./routes/addressbook'));
+app.use('/api/carriers', require('./routes/carriers'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/admin', require('./routes/admin'));
 

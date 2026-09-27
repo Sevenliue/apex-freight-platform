@@ -15,6 +15,8 @@
       </div>
       <nav class="tabs" role="tablist" aria-label="Sections">
         <button class="tab active" data-tab="quote" role="tab" aria-selected="true">Quote</button>
+        <button class="tab" data-tab="addressbook" role="tab" aria-selected="false">Address Book</button>
+        <button class="tab" data-tab="carriers" role="tab" aria-selected="false">Carriers</button>
         <button class="tab" data-tab="tracking" role="tab" aria-selected="false">Tracking</button>
         <button class="tab" data-tab="loads" role="tab" aria-selected="false">Load Board</button>
         <button class="tab" data-tab="reports" role="tab" aria-selected="false">Reports</button>
@@ -137,6 +139,95 @@
       <div id="quote-results"></div>
       <h2>Saved quotes</h2>
       <div id="saved-quotes"><p class="note">Loading…</p></div>
+    </section>
+
+    <!-- ADDRESS BOOK -->
+    <section id="tab-addressbook" class="panel" role="tabpanel">
+      <h1>Address Book</h1>
+      <p class="lede">Saved shipper and consignee addresses. One tap fills the quote form.</p>
+      <div class="actions">
+        <input type="search" id="ab-search" placeholder="Search label, company, city…" style="max-width:280px">
+        <button type="button" class="btn primary" id="ab-add">+ Add address</button>
+      </div>
+      <fieldset id="ab-form-wrap" hidden>
+        <legend id="ab-form-title">Add address</legend>
+        <div class="form-grid">
+          <label>Label * <input name="ab_label" type="text" placeholder="e.g. Edmonton warehouse"></label>
+          <label>Company <input name="ab_company" type="text" placeholder="Company name"></label>
+        </div>
+        <div class="form-grid">
+          <label>Contact name <input name="ab_contact" type="text" placeholder="Jane Doe"></label>
+          <label>Street <input name="ab_street" type="text" placeholder="123 Industrial Ave"></label>
+        </div>
+        <div class="form-grid">
+          <label>City * <input name="ab_city" type="text" placeholder="Edmonton"></label>
+          <div class="row-2">
+            <label>Province <input name="ab_province" type="text" placeholder="AB" maxlength="10"></label>
+            <label>Postal code <input name="ab_postal" type="text" placeholder="T5S 1A1"></label>
+          </div>
+        </div>
+        <div class="form-grid">
+          <label class="inline">Country <input name="ab_country" type="text" value="CA" maxlength="2" style="max-width:80px"></label>
+          <label>Phone <input name="ab_phone" type="tel" placeholder="780-555-0100"></label>
+          <label>Email <input name="ab_email" type="email" placeholder="ship@example.com"></label>
+        </div>
+        <div class="actions">
+          <button type="button" class="btn primary" id="ab-save">Save</button>
+          <button type="button" class="btn" id="ab-cancel">Cancel</button>
+        </div>
+      </fieldset>
+      <div class="table-wrap"><table class="data">
+        <thead><tr><th>Label</th><th>Company</th><th>City</th><th>Prov</th><th>Phone</th><th>Actions</th></tr></thead>
+        <tbody id="ab-rows"><tr><td colspan="6" class="note">Loading…</td></tr></tbody>
+      </table></div>
+    </section>
+
+    <!-- CARRIERS -->
+    <section id="tab-carriers" class="panel" role="tabpanel">
+      <h1>Carriers</h1>
+      <p class="lede">Carrier directory and quote exclusions.</p>
+      <div class="form-grid">
+        <fieldset>
+          <legend>Carriers</legend>
+          <div class="actions">
+            <button type="button" class="btn primary" id="car-add">+ Add New Carrier</button>
+          </div>
+          <fieldset id="car-form-wrap" hidden>
+            <legend id="car-form-title">Add carrier</legend>
+            <label>Name * <input name="car_name" type="text" placeholder="Carrier name"></label>
+            <div class="row-2">
+              <label>City <input name="car_city" type="text" placeholder="Edmonton"></label>
+              <label>Prov/State <input name="car_province" type="text" placeholder="AB" maxlength="10"></label>
+            </div>
+            <div class="row-2">
+              <label>Primary phone <input name="car_phone" type="tel" placeholder="780-555-0100"></label>
+              <label>Email <input name="car_email" type="email" placeholder="dispatch@example.com"></label>
+            </div>
+            <div class="actions">
+              <button type="button" class="btn primary" id="car-save">Save</button>
+              <button type="button" class="btn" id="car-cancel">Cancel</button>
+            </div>
+          </fieldset>
+          <div class="table-wrap"><table class="data">
+            <thead><tr><th>Carrier Name</th><th>City</th><th>Prov/State</th><th>Primary Phone</th><th>Actions</th></tr></thead>
+            <tbody id="car-rows"><tr><td colspan="5" class="note">Loading…</td></tr></tbody>
+          </table></div>
+        </fieldset>
+        <fieldset>
+          <legend>Carrier Exclusion</legend>
+          <p class="note">The below list of carriers will NOT display in results of main quote searches.</p>
+          <label>Carrier
+            <select id="exc-select"><option value="">Loading…</option></select>
+          </label>
+          <div class="actions">
+            <button type="button" class="btn primary" id="exc-add">Add</button>
+          </div>
+          <div class="table-wrap"><table class="data">
+            <thead><tr><th>Carrier Name</th><th></th></tr></thead>
+            <tbody id="exc-rows"><tr><td colspan="2" class="note">Loading…</td></tr></tbody>
+          </table></div>
+        </fieldset>
+      </div>
     </section>
 
     <!-- TRACKING -->
@@ -298,6 +389,8 @@
         $$('.panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + btn.dataset.tab));
         if (btn.dataset.tab === 'loads') loadOpenLoads();
         if (btn.dataset.tab === 'admin') loadAdmin();
+        if (btn.dataset.tab === 'addressbook') loadAddressBook();
+        if (btn.dataset.tab === 'carriers') loadCarriers();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       });
     });
@@ -1025,6 +1118,297 @@
           ').</div>';
       }
     }
+
+    /* ---------- ADDRESS BOOK ---------- */
+    let AB = [];
+    let abEditing = null;
+
+    async function loadAddressBook() {
+      try {
+        const d = await api.listAddresses();
+        AB = d.addresses || [];
+        renderAddressBook();
+      } catch (err) {
+        $('#ab-rows').innerHTML =
+          '<tr><td colspan="6" class="note">Address book unavailable (' + esc(err.message) + ').</td></tr>';
+      }
+    }
+
+    function renderAddressBook() {
+      const q = ($('#ab-search').value || '').trim().toLowerCase();
+      const rows = AB.filter(
+        (a) =>
+          !q ||
+          [a.label, a.company, a.contact_name, a.city]
+            .some((v) => (v || '').toLowerCase().includes(q))
+      );
+      $('#ab-rows').innerHTML =
+        rows
+          .map(
+            (a) => `<tr>
+          <td>${esc(a.label)}</td><td>${esc(a.company)}</td><td>${esc(a.city)}</td>
+          <td>${esc(a.province)}</td><td>${esc(a.phone)}</td>
+          <td>
+            <button type="button" class="btn small" data-ab-use="shipper" data-ab-id="${esc(a.id)}">Use as shipper</button>
+            <button type="button" class="btn small" data-ab-use="consignee" data-ab-id="${esc(a.id)}">Use as consignee</button>
+            <button type="button" class="btn small" data-ab-edit="${esc(a.id)}">Edit</button>
+            <button type="button" class="btn small danger" data-ab-del="${esc(a.id)}">Delete</button>
+          </td></tr>`
+          )
+          .join('') ||
+        '<tr><td colspan="6" class="note">No addresses yet — add one above.</td></tr>';
+      $$('#ab-rows [data-ab-use]').forEach((b) =>
+        b.addEventListener('click', () => useAddress(b.dataset.abId, b.dataset.abUse))
+      );
+      $$('#ab-rows [data-ab-edit]').forEach((b) =>
+        b.addEventListener('click', () => editAddress(b.dataset.abEdit))
+      );
+      $$('#ab-rows [data-ab-del]').forEach((b) =>
+        b.addEventListener('click', () => delAddress(b.dataset.abDel))
+      );
+    }
+
+    function abFormVals() {
+      const w = $('#ab-form-wrap');
+      const v = (n) => w.querySelector(`[name="${n}"]`).value.trim();
+      return {
+        label: v('ab_label'),
+        company: v('ab_company'),
+        contact_name: v('ab_contact'),
+        street: v('ab_street'),
+        city: v('ab_city'),
+        province: v('ab_province'),
+        postal: v('ab_postal'),
+        country: v('ab_country') || 'CA',
+        phone: v('ab_phone'),
+        email: v('ab_email'),
+      };
+    }
+
+    function abFormFill(a) {
+      const w = $('#ab-form-wrap');
+      const set = (n, val) => { w.querySelector(`[name="${n}"]`).value = val || ''; };
+      set('ab_label', a.label); set('ab_company', a.company); set('ab_contact', a.contact_name);
+      set('ab_street', a.street); set('ab_city', a.city); set('ab_province', a.province);
+      set('ab_postal', a.postal); set('ab_country', a.country || 'CA');
+      set('ab_phone', a.phone); set('ab_email', a.email);
+    }
+
+    function openAbForm(editing) {
+      abEditing = editing || null;
+      $('#ab-form-title').textContent = editing ? 'Edit address' : 'Add address';
+      $('#ab-form-wrap').hidden = false;
+      $('#ab-form-wrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function closeAbForm() {
+      abEditing = null;
+      $('#ab-form-wrap').hidden = true;
+    }
+
+    async function saveAddress() {
+      const vals = abFormVals();
+      if (!vals.label || !vals.city) {
+        showAlert('Label and city are required.');
+        return;
+      }
+      try {
+        if (abEditing) await api.updateAddress(abEditing, vals);
+        else await api.createAddress(vals);
+        closeAbForm();
+        await loadAddressBook();
+      } catch (err) {
+        showAlert('Could not save address: ' + err.message);
+      }
+    }
+
+    function editAddress(id) {
+      const a = AB.find((x) => x.id === id);
+      if (!a) return;
+      openAbForm(id);
+      abFormFill(a);
+    }
+
+    async function delAddress(id) {
+      if (!confirm('Delete this address?')) return;
+      try {
+        await api.deleteAddress(id);
+        await loadAddressBook();
+      } catch (err) {
+        showAlert('Could not delete address: ' + err.message);
+      }
+    }
+
+    // Fill the quote form's shipper (s_*) / consignee (c_*, d_*) fields and
+    // switch to the Quote tab.
+    function useAddress(id, side) {
+      const a = AB.find((x) => x.id === id);
+      if (!a) return;
+      const form = $('#quote-form');
+      const displayName = a.company || a.contact_name || a.label;
+      const map =
+        side === 'shipper'
+          ? {
+              s_name: displayName, o_street: a.street, o_city: a.city,
+              o_state: a.province, o_zip: a.postal, o_country: a.country,
+              o_phone: a.phone, o_email: a.email,
+            }
+          : {
+              c_name: displayName, d_street: a.street, d_city: a.city,
+              d_state: a.province, d_zip: a.postal, d_country: a.country,
+              d_phone: a.phone, d_email: a.email,
+            };
+      for (const [name, val] of Object.entries(map)) {
+        const el = form.elements[name];
+        if (el) el.value = val || '';
+      }
+      document.querySelector('.tab[data-tab="quote"]').click();
+    }
+
+    /* ---------- CARRIERS ---------- */
+    let CAR = [];
+    let EXC = [];
+    let carEditing = null;
+
+    async function loadCarriers() {
+      try {
+        const [c, e] = await Promise.all([api.listCarriers(), api.listExclusions()]);
+        CAR = c.carriers || [];
+        EXC = e.exclusions || [];
+        renderCarriers();
+        renderExclusions();
+      } catch (err) {
+        $('#car-rows').innerHTML =
+          '<tr><td colspan="5" class="note">Carriers unavailable (' + esc(err.message) + ').</td></tr>';
+      }
+    }
+
+    function renderCarriers() {
+      $('#car-rows').innerHTML =
+        CAR.map(
+          (c) => `<tr>
+          <td>${esc(c.name)}</td><td>${esc(c.city)}</td><td>${esc(c.province)}</td>
+          <td>${esc(c.phone)}</td>
+          <td>
+            <button type="button" class="btn small" data-car-edit="${esc(c.id)}">Edit</button>
+            <button type="button" class="btn small danger" data-car-del="${esc(c.id)}">Delete</button>
+          </td></tr>`
+        ).join('') ||
+        '<tr><td colspan="5" class="note">No records to display.</td></tr>';
+      $$('#car-rows [data-car-edit]').forEach((b) =>
+        b.addEventListener('click', () => editCarrier(b.dataset.carEdit))
+      );
+      $$('#car-rows [data-car-del]').forEach((b) =>
+        b.addEventListener('click', () => delCarrier(b.dataset.carDel))
+      );
+    }
+
+    function renderExclusions() {
+      const lower = new Set(EXC.map((n) => String(n).toLowerCase()));
+      const options = CAR.filter((c) => !lower.has(String(c.name).toLowerCase()));
+      $('#exc-select').innerHTML =
+        options.map((c) => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('') ||
+        '<option value="">— all carriers excluded —</option>';
+      $('#exc-rows').innerHTML =
+        EXC.map(
+          (n) => `<tr><td>${esc(n)}</td>
+          <td><button type="button" class="btn small danger" data-exc-del="${esc(n)}">Remove</button></td></tr>`
+        ).join('') ||
+        '<tr><td colspan="2" class="note">No records to display.</td></tr>';
+      $$('#exc-rows [data-exc-del]').forEach((b) =>
+        b.addEventListener('click', () => delExclusion(b.dataset.excDel))
+      );
+    }
+
+    function carFormVals() {
+      const w = $('#car-form-wrap');
+      const v = (n) => w.querySelector(`[name="${n}"]`).value.trim();
+      return {
+        name: v('car_name'),
+        city: v('car_city'),
+        province: v('car_province'),
+        phone: v('car_phone'),
+        email: v('car_email'),
+      };
+    }
+
+    function openCarForm(editing) {
+      carEditing = editing || null;
+      $('#car-form-title').textContent = editing ? 'Edit carrier' : 'Add carrier';
+      $('#car-form-wrap').hidden = false;
+      $('#car-form-wrap').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function closeCarForm() {
+      carEditing = null;
+      $('#car-form-wrap').hidden = true;
+    }
+
+    async function saveCarrier() {
+      const vals = carFormVals();
+      if (!vals.name) {
+        showAlert('Carrier name is required.');
+        return;
+      }
+      try {
+        if (carEditing) await api.updateCarrier(carEditing, vals);
+        else await api.createCarrier(vals);
+        closeCarForm();
+        await loadCarriers();
+      } catch (err) {
+        showAlert('Could not save carrier: ' + err.message);
+      }
+    }
+
+    function editCarrier(id) {
+      const c = CAR.find((x) => x.id === id);
+      if (!c) return;
+      openCarForm(id);
+      const w = $('#car-form-wrap');
+      const set = (n, val) => { w.querySelector(`[name="${n}"]`).value = val || ''; };
+      set('car_name', c.name); set('car_city', c.city); set('car_province', c.province);
+      set('car_phone', c.phone); set('car_email', c.email);
+    }
+
+    async function delCarrier(id) {
+      if (!confirm('Delete this carrier?')) return;
+      try {
+        await api.deleteCarrier(id);
+        await loadCarriers();
+      } catch (err) {
+        showAlert('Could not delete carrier: ' + err.message);
+      }
+    }
+
+    async function addExclusion() {
+      const name = $('#exc-select').value;
+      if (!name) return;
+      try {
+        await api.addExclusion(name);
+        await loadCarriers();
+      } catch (err) {
+        showAlert('Could not add exclusion: ' + err.message);
+      }
+    }
+
+    async function delExclusion(name) {
+      try {
+        await api.removeExclusion(name);
+        await loadCarriers();
+      } catch (err) {
+        showAlert('Could not remove exclusion: ' + err.message);
+      }
+    }
+
+    /* ---------- ADDRESS BOOK + CARRIERS wiring ---------- */
+    $('#ab-add').addEventListener('click', () => openAbForm(null));
+    $('#ab-cancel').addEventListener('click', closeAbForm);
+    $('#ab-save').addEventListener('click', saveAddress);
+    $('#ab-search').addEventListener('input', renderAddressBook);
+    $('#car-add').addEventListener('click', () => openCarForm(null));
+    $('#car-cancel').addEventListener('click', closeCarForm);
+    $('#car-save').addEventListener('click', saveCarrier);
+    $('#exc-add').addEventListener('click', addExclusion);
   </script>
 </body>
 </html>

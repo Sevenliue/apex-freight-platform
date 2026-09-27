@@ -27,6 +27,7 @@ const db = require('../db');
 const matrix = require('../lib/matrix');
 const easypost = require('../lib/easypost');
 const { store, id } = require('../lib/store');
+const { getExcludedNames } = require('./carriers');
 const { round2, applyMarkup } = require('../lib/money');
 const acc = require('../lib/accessorials');
 
@@ -195,6 +196,19 @@ router.post('/', async (req, res) => {
     } catch (err) {
       return bad(res, 502, 'Rate matrix failed', err.message);
     }
+  }
+
+  // Carrier exclusions (from the Carriers tab): excluded carriers are
+  // filtered out of the matrix-ranked board, case-insensitively.
+  try {
+    const excluded = await getExcludedNames();
+    if (excluded.size) {
+      matrixQuotes = matrixQuotes.filter(
+        (q) => !excluded.has(String(q.carrier_label || '').toLowerCase())
+      );
+    }
+  } catch (err) {
+    console.error('[rates] exclusion filter failed (continuing):', err.message);
   }
 
   // Price each matrix rate: freight + accessorials (+ DG) -> markup -> retail.

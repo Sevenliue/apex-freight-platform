@@ -165,3 +165,49 @@ export function getCarrierReport(carrierId, { start_date, end_date, q } = {}) {
 export function getAdminOverview() {
   return get('/api/admin/overview');
 }
+
+/* Address book */
+export function listAddresses() {
+  return get('/api/address-book');
+}
+
+export function createAddress(a) {
+  return post('/api/address-book', a);
+}
+
+export function updateAddress(id, a) {
+  return request('PUT', `/api/address-book/${encodeURIComponent(id)}`, a);
+}
+
+export function deleteAddress(id) {
+  return request('DELETE', `/api/address-book/${encodeURIComponent(id)}`);
+}
+
+/* Carriers + exclusions */
+export function listCarriers() {
+  return get('/api/carriers');
+}
+
+export function createCarrier(c) {
+  return post('/api/carriers', c);
+}
+
+export function updateCarrier(id, c) {
+  return request('PUT', `/api/carriers/${encodeURIComponent(id)}`, c);
+}
+
+export function deleteCarrier(id) {
+  return request('DELETE', `/api/carriers/${encodeURIComponent(id)}`);
+}
+
+export function listExclusions() {
+  return get('/api/carriers/exclusions');
+}
+
+export function addExclusion(name) {
+  return post('/api/carriers/exclusions', { name });
+}
+
+export function removeExclusion(name) {
+  return request('DELETE', `/api/carriers/exclusions/${encodeURIComponent(name)}`);
+}
