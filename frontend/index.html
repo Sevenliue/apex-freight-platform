@@ -109,7 +109,7 @@
         <div class="nav-group" data-group="bookstore">
           <button class="tab group-toggle" aria-expanded="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-            <span>Bookstore</span>
+            <span>Northline Ops store</span>
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
           <div class="nav-sub">
@@ -3483,7 +3483,7 @@
     async function buyProduct(slug, btn) {
       if (!api.getAuthToken()) {
         openAuthModal('signup');
-        showAlert('Create a free account (or sign in) to buy from the bookstore.');
+        showAlert('Create a free account (or sign in) to buy from the Northline Ops store.');
         return;
       }
       const orig = btn.textContent;
@@ -3566,17 +3566,17 @@
     async function loadStoreAdmin() {
       const box = $('#store-admin');
       if (!box) return;
-      box.innerHTML = '<div class="card empty">Loading bookstore…</div>';
+      box.innerHTML = '<div class="card empty">Loading store…</div>';
       try {
         const [orders, prods] = await Promise.all([api.listStoreOrders(), api.listStoreProductsAdmin()]);
         const fmt = (c) => '$' + (c / 100).toFixed(2);
-        let h = '<h3>Bookstore orders</h3>';
+        let h = '<h3>Northline Ops store orders</h3>';
         const os = orders.orders || [];
         h += os.length
           ? '<div class="tablewrap"><table class="data"><thead><tr><th>Date</th><th>Customer</th><th>Product</th><th>Amount</th><th>Status</th></tr></thead><tbody>' +
             os.map((o) => '<tr><td>' + esc((o.created_at || '').slice(0, 10)) + '</td><td>' + esc(o.user_email || '') + '</td><td>' + esc(o.product_title || '') + '</td><td>' + fmt(o.amount_cents) + ' ' + esc((o.currency || '').toUpperCase()) + '</td><td>' + esc(o.status || '') + '</td></tr>').join('') +
             '</tbody></table></div>'
-          : '<div class="card empty">No bookstore orders yet.</div>';
+          : '<div class="card empty">No store orders yet.</div>';
         h += '<h3 style="margin-top:18px">Products</h3>';
         h += (prods.products || []).map((p) => (
           '<div class="card prod-row" data-prod="' + esc(p.id) + '">' +
@@ -3602,7 +3602,7 @@
           });
         });
       } catch (err) {
-        box.innerHTML = '<div class="card empty">Bookstore admin is unavailable (' + esc(err.message) + ').</div>';
+        box.innerHTML = '<div class="card empty">Store admin is unavailable (' + esc(err.message) + ').</div>';
       }
     }
 
