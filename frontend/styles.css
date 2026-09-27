@@ -682,3 +682,9 @@ dl.kv dd { margin: 0; font-weight: 600; }
 .fetch-btn:hover { background: #d14e0a; }
 .fetch-btn:disabled { opacity: 0.7; cursor: wait; }
 .qq-split-right .qq-panel { margin-bottom: 0; }
+
+/* Selected rate row (cheapest) highlighted like the reference board */
+#tab-dashboard #quote-results table.data tbody tr.picked { background: #e8590c; color: #fff; }
+#tab-dashboard #quote-results table.data tbody tr.picked td strong { color: #fff; }
+#tab-dashboard #quote-results table.data tbody tr.picked .note { color: #ffe8d6; }
+#tab-dashboard #quote-results table.data tbody tr.picked:hover { background: #d14e0a; }

@@ -1599,6 +1599,7 @@
       $('#complete-shipment-btn').addEventListener('click', completeCurrentShipment);
       gateCompleteButton();
       $('#terms-link').addEventListener('click', (e) => { e.preventDefault(); showTerms(); });
+      highlightPickedRow();
     }
 
     /* Terms of Service modal shown before a shipment can be completed. */
@@ -1625,6 +1626,19 @@
       overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
       overlay.querySelector('#terms-close').addEventListener('click', () => overlay.remove());
       document.body.appendChild(overlay);
+    }
+
+    function highlightPickedRow() {
+      const box = $('#quote-results');
+      if (!box) return;
+      const paint = () => {
+        box.querySelectorAll('input[name="rate-pick"]').forEach((r) => {
+          const tr = r.closest('tr');
+          if (tr) tr.classList.toggle('picked', r.checked);
+        });
+      };
+      box.querySelectorAll('input[name="rate-pick"]').forEach((r) => r.addEventListener('change', paint));
+      paint();
     }
 
     function selectedRateId() {
