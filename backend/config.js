@@ -25,6 +25,10 @@ module.exports = {
   easypostKey: process.env.EASYPOST_API_KEY || '',
   stripeKey: process.env.STRIPE_SECRET_KEY || '',
 
+  // Google Places API key for server-side address autocomplete proxy.
+  // Empty string = disabled; /api/places/* answers { configured: false }.
+  placesKey: process.env.GOOGLE_PLACES_API_KEY || '',
+
   // Optional Postgres persistence. Empty = in-memory demo mode.
   databaseUrl: process.env.DATABASE_URL || '',
 
