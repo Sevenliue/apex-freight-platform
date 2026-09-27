@@ -442,7 +442,7 @@
         <h2>Best Available Freight Rates and Service Options for this shipment</h2>
         ${data.total_weight_lbs != null ? `<p class="lede">Total weight: <strong>${esc(String(data.total_weight_lbs))} lb</strong>${accLine ? ' · Services: ' + accLine : ''}</p>` : ''}
         <div class="table-wrap"><table class="data">
-          <thead><tr><th></th><th>Carrier</th><th>Estimated Transit (Not Guaranteed)</th><th>Est. Total Cost (excl. tax)</th></tr></thead>
+          <thead><tr><th></th><th>Carrier</th><th>Estimated Transit (Not Guaranteed)</th><th>Est. Total Cost (excl. tax) <span class="tip" title="Includes all freight charges / services / fuel surcharges. Excludes gov't taxes.">ⓘ</span></th></tr></thead>
           <tbody>${rows}</tbody>
         </table></div>
         <div class="card" style="margin-top:12px">
