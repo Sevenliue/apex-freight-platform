@@ -320,9 +320,9 @@
         <td><input type="number" name="height" min="0" step="0.1" value="${esc(data.height ?? '')}" placeholder="36"></td>
         <td class="chk"><input type="checkbox" name="stackable"${data.stackable ? ' checked' : ''}></td>
         <td class="chk"><input type="checkbox" name="dg"${data.dg ? ' checked' : ''}></td>
-        <td><input type="text" name="un_number" value="${esc(data.un_number || '')}" placeholder="UN1202"></td>
-        <td><input type="text" name="freight_class" value="${esc(data.freight_class || '')}" placeholder="150"></td>
-        <td><input type="text" name="pkg_group" value="${esc(data.pkg_group || '')}" placeholder="II"></td>
+        <td class="narrow"><input type="text" name="un_number" value="${esc(data.un_number || '')}" placeholder="UN1202"></td>
+        <td class="narrow"><input type="text" name="freight_class" value="${esc(data.freight_class || '')}" placeholder="150"></td>
+        <td class="narrow"><input type="text" name="pkg_group" value="${esc(data.pkg_group || '')}" placeholder="II"></td>
         <td><button type="button" class="btn small danger pkg-del" title="Delete row">×</button></td>`;
       tr.querySelector('.pkg-del').addEventListener('click', () => {
         if ($('#pkg-rows').rows.length > 1) tr.remove();

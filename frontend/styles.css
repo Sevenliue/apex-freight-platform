@@ -245,3 +245,17 @@ details form { margin-top: 10px; }
 .btn.danger { background: var(--red-bg, #fdecec); color: var(--red, #b3261e); }
 @media (max-width: 720px) { .check-grid { grid-template-columns: 1fr; } }
 .tip { display: inline-block; width: 16px; height: 16px; line-height: 16px; text-align: center; border-radius: 50%; background: #e8eefc; color: #1a56db; font-size: 11px; cursor: help; margin-left: 4px; }
+
+/* Condensed packages table (right-side columns) */
+.pkg-table th, .pkg-table td { padding: 5px 6px; }
+.pkg-table td.narrow { width: 64px; }
+.pkg-table td.narrow input { max-width: 64px; min-width: 0; }
+.pkg-table td.chk { width: 30px; }
+.pkg-table td:last-child { width: 36px; }
+.pkg-table .pkg-del { padding: 2px 8px; }
+
+/* Condensed pick-up / delivery service grids */
+fieldset:has(#acc-pickup), fieldset:has(#acc-delivery) { padding: 10px 12px; }
+fieldset:has(#acc-pickup) .check-grid, fieldset:has(#acc-delivery) .check-grid { gap: 3px 10px; }
+fieldset:has(#acc-pickup) .check-grid .check, fieldset:has(#acc-delivery) .check-grid .check { font-size: 12.5px; gap: 6px; line-height: 1.35; }
+fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) .check-grid .check input { margin-top: 2px; }
