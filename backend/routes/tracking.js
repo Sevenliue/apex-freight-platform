@@ -13,7 +13,7 @@ router.get('/:tracking_code', async (req, res) => {
   const carrier = req.query.carrier;
 
   if (!easypost.isEnabled()) {
-    return res.status(501).json({ error: 'Tracking requires EASYPOST_API_KEY' });
+    return res.status(501).json({ error: 'Live tracking is not connected yet — the site owner needs to add a carrier tracking key.' });
   }
   if (!carrier) {
     return res.status(400).json({ error: 'carrier query parameter is required' });

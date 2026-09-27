@@ -66,7 +66,11 @@
       var s = el(g.state);
       if (!z) return;
 
-      z.addEventListener('input', function () {
+      z.addEventListener('input', fillFromPostal);
+      // 'change' covers programmatic/automation fills that set the value
+      // without firing 'input' (fires on blur after an edit).
+      z.addEventListener('change', fillFromPostal);
+      function fillFromPostal() {
         var fsa = fsaOf(z.value);
         // Only act on a valid FSA that changed; intermediate keystrokes that
         // briefly make the FSA invalid must not reset the tracking.
@@ -86,7 +90,7 @@
         maybeFill(c, 0);
         maybeFill(s, 1);
         // unknown FSA: quiet, leave city/province alone
-      });
+      }
 
       z.addEventListener('blur', function () {
         var n = normalizePostal(z.value);

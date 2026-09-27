@@ -136,7 +136,7 @@ async function tryIncrementQuota(userId, limit) {
         SET quotes_used = CASE WHEN quota_period = $2 THEN quotes_used + 1 ELSE 1 END,
             quota_period = $2
       WHERE id = $1
-        AND ($3 IS NULL OR quota_period IS DISTINCT FROM $2 OR quotes_used < $3)
+        AND ($3::int IS NULL OR quota_period IS DISTINCT FROM $2 OR quotes_used < $3::int)
       RETURNING quotes_used`,
     [userId, period, limit]
   );

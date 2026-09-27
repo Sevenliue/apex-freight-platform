@@ -36,7 +36,7 @@
           </button>
           <div class="nav-sub">
             <button class="tab sub" data-tab="dashboard" data-region="worldwide" data-loadtype="ltl" role="tab" aria-selected="false"><span>Quick Quote</span></button>
-            <button class="tab sub" data-tab="dashboard" role="tab" aria-selected="false"><span>Create Shipment</span></button>
+            <button class="tab sub" data-tab="dashboard" data-scroll="quote-form" role="tab" aria-selected="false"><span>Create Shipment</span></button>
             <button class="tab sub" data-tab="comingsoon" data-comingsoon="Claim Management" role="tab" aria-selected="false"><span>Claim Management</span></button>
             <button class="tab sub" data-tab="comingsoon" data-comingsoon="Schedule Pickup" role="tab" aria-selected="false"><span>Schedule Pickup</span></button>
             <button class="tab sub" data-tab="comingsoon" data-comingsoon="Import Excel" role="tab" aria-selected="false"><span>Import Excel</span></button>
@@ -51,7 +51,7 @@
           </button>
           <div class="nav-sub">
             <button class="tab sub" data-tab="dashboard" data-region="canada_usa" data-loadtype="ltl" role="tab" aria-selected="false"><span>Quick Quote</span></button>
-            <button class="tab sub" data-tab="dashboard" role="tab" aria-selected="false"><span>Create Shipment</span></button>
+            <button class="tab sub" data-tab="dashboard" data-scroll="quote-form" role="tab" aria-selected="false"><span>Create Shipment</span></button>
             <button class="tab sub" data-tab="comingsoon" data-comingsoon="Specialty Request" role="tab" aria-selected="false"><span>Specialty Request</span></button>
             <button class="tab sub" data-tab="comingsoon" data-comingsoon="Request List" role="tab" aria-selected="false"><span>Request List</span></button>
             <button class="tab sub" data-tab="dashboard" data-scroll="saved-quotes" role="tab" aria-selected="false"><span>Saved Quotes</span></button>
@@ -1796,11 +1796,12 @@
     async function saveCurrentQuote() {
       if (!currentQuote) return;
       const lane = `${lastQuoteParams.origin.city} → ${lastQuoteParams.destination.city}`;
-      const name = prompt('Name this quote:', `${lane} — ${currentQuote.total_weight_lbs} lb`);
-      if (name === null) return;
+      const suggested = `${lane} — ${currentQuote.total_weight_lbs} lb`;
+      const name = await askQuoteName(suggested);
+      if (name === null) return; // user cancelled
       try {
         const f = new FormData(document.querySelector('#quote-form'));
-        await api.saveQuote(currentQuote.shipment_id, name || `${lane}`, {
+        await api.saveQuote(currentQuote.shipment_id, name || suggested, {
           delivery_note_1: (f.get('delivery_note_1') || '').toString().trim().slice(0, 60),
           delivery_note_2: (f.get('delivery_note_2') || '').toString().trim().slice(0, 60),
           private_notes: (f.get('private_notes') || '').toString().trim().slice(0, 4000),
@@ -1810,6 +1811,39 @@
       } catch (err) {
         showAlert('Could not save quote: ' + err.message);
       }
+    }
+
+    /* In-page name prompt for saving a quote. The native prompt() dialog is
+       auto-dismissed by some browsers/automation and gives no feedback, so a
+       real modal is used instead. Resolves to the typed name ('' when left
+       blank) or null when cancelled. */
+    function askQuoteName(suggested) {
+      return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML = `
+        <div class="modal card" role="dialog" aria-modal="true" aria-label="Save quote">
+          <h2>Save this quote</h2>
+          <div class="form-grid single">
+            <label>Quote name
+              <input type="text" id="sq-name" maxlength="255" value="${esc(suggested)}">
+            </label>
+          </div>
+          <div class="actions" style="margin-top:12px">
+            <button class="btn" id="sq-cancel">Cancel</button>
+            <button class="btn primary" id="sq-ok">Save quote</button>
+          </div>
+        </div>`;
+        const done = (v) => { overlay.remove(); resolve(v); };
+        const input = overlay.querySelector('#sq-name');
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
+        overlay.querySelector('#sq-cancel').addEventListener('click', () => done(null));
+        overlay.querySelector('#sq-ok').addEventListener('click', () => done(input.value.trim()));
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(input.value.trim()); });
+        document.body.appendChild(overlay);
+        input.focus();
+        input.select();
+      });
     }
 
     /* Shipping-approval gate: new accounts are quote-only until an admin
