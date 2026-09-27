@@ -207,6 +207,11 @@
           </fieldset>
         </div>
         <fieldset>
+          <legend>Pickup</legend>
+          <label>Requested pickup date * <input type="date" name="pickup_date" id="pickup-date" required></label>
+          <p class="note">The carrier is asked to collect the freight on this date.</p>
+        </fieldset>
+        <fieldset>
           <legend>Packages</legend>
           <div class="units-row">
             <span class="note">Units:</span>
@@ -540,6 +545,7 @@
       <div id="admin-cards" class="cards"></div>
       <div id="admin-note"></div>
       <div id="tender-queue" style="margin-top:16px"></div>
+      <div id="dg-queue" style="margin-top:16px"></div>
     </section>
       </main>
     </div><!-- /.content -->
@@ -1144,6 +1150,27 @@
         btn.textContent = 'Get rates';
         return;
       }
+      // Dangerous goods: TDG classification (UN number + class) is required
+      // on every DG line before rating.
+      if (packages.some((p) => p.dg && !(p.un_number && p.freight_class))) {
+        showAlert('Dangerous goods need a UN number and class on every DG package line.');
+        btn.disabled = false;
+        btn.textContent = 'Get rates';
+        return;
+      }
+      const pickupDate = (f.get('pickup_date') || '').toString();
+      if (!pickupDate) {
+        showAlert('Choose a requested pickup date.');
+        btn.disabled = false;
+        btn.textContent = 'Get rates';
+        return;
+      }
+      if (pickupDate < new Date().toISOString().slice(0, 10)) {
+        showAlert('The pickup date cannot be in the past.');
+        btn.disabled = false;
+        btn.textContent = 'Get rates';
+        return;
+      }
       const billToNeeded = syncBillToBlock();
       const bill_to = collectBillTo();
       if (billToNeeded && !(bill_to.name && bill_to.city && bill_to.state)) {
@@ -1156,6 +1183,7 @@
         region: currentRegion(),
         direction: currentDirection(),
         freight_charges: (document.querySelector('#freight-charges') || {}).value || 'prepaid',
+        pickup_date: pickupDate,
         bill_to: billToNeeded ? bill_to : {},
         depot_dropoff: f.get('depot_dropoff') === 'on',
         depot_pickup: f.get('depot_pickup') === 'on',
@@ -1273,6 +1301,11 @@
 
       box.innerHTML = `
         <h2>Best Available Freight Rates and Service Options for this shipment</h2>
+        ${data.has_dg ? `<div class="card dg-notice">
+          <h3>⚠ Dangerous goods — review required</h3>
+          <p>This shipment contains dangerous goods. Under Canada's <em>Transportation of Dangerous Goods Regulations</em> the shipper must provide a proper shipping document with the correct shipping name, UN number, class, and packing group, and the goods must be properly packaged, marked, and placarded. Only trained personnel may handle them.</p>
+          <p>Rates above include the dangerous-goods surcharge, but <strong>the carrier can still refuse the load</strong>. Your shipment will be held for our review after you complete it — no payment is collected until we confirm acceptance.</p>
+        </div>` : ''}
         ${data.total_weight_lbs != null ? `<p class="lede">Total weight: <strong>${esc(pkgUnits === 'metric' ? String(round1(data.total_weight_lbs * LB_TO_KG)) + ' kg' : String(data.total_weight_lbs) + ' lb')}</strong>${accLine ? ' · Services: ' + accLine : ''}</p>` : ''}
         <div class="table-wrap"><table class="data">
           <thead><tr><th></th><th>Carrier</th><th>Estimated Transit (Not Guaranteed)</th><th>Est. Total Cost (excl. tax) <span class="tip" title="Includes all freight charges / services / fuel surcharges. Excludes gov't taxes.">ⓘ</span></th></tr></thead>
@@ -1284,6 +1317,7 @@
             <label>Receiver's PO # * <input id="po-num" type="text" required placeholder="Receiver's PO number"></label>
           </div>
           <p class="note">* Required — both numbers are stored on every shipment for reporting.</p>
+          <label class="chk" style="margin-top:8px"><input type="checkbox" id="terms-accept"> I agree to the <a href="#" id="terms-link">Terms of Service</a> *</label>
           <div class="actions" style="margin-top:10px">
             <button class="btn" id="save-quote-btn">Save This Quote</button>
             <button class="btn primary" id="complete-shipment-btn">Complete This Shipment</button>
@@ -1293,6 +1327,33 @@
 
       $('#save-quote-btn').addEventListener('click', saveCurrentQuote);
       $('#complete-shipment-btn').addEventListener('click', completeCurrentShipment);
+      $('#terms-link').addEventListener('click', (e) => { e.preventDefault(); showTerms(); });
+    }
+
+    /* Terms of Service modal shown before a shipment can be completed. */
+    function showTerms() {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.innerHTML = `
+        <div class="modal card" role="dialog" aria-modal="true" aria-label="Terms of Service">
+          <h2>Terms of Service</h2>
+          <div class="terms-body">
+            <p><strong>1. What Apex does.</strong> Apex Freight &amp; Shipping Canada arranges transportation of your goods through third-party carriers. The carrier you select performs the actual pickup, transport, and delivery.</p>
+            <p><strong>2. Quotes and rates.</strong> Rates are estimates based on the weight, dimensions, and services you enter, and exclude government taxes. Final charges may change if the carrier re-weighs, re-measures, or re-classifies the freight. Accessorial services requested at pickup or delivery are billed at the carrier's published rates.</p>
+            <p><strong>3. Payment.</strong> The full freight amount is collected when you schedule the shipment. Prices are in Canadian dollars.</p>
+            <p><strong>4. Cancellation and refunds.</strong> You may cancel free of charge any time before the load is booked with the carrier, and paid amounts are refunded automatically. Once the carrier has the load, cancellation or changes may incur the carrier's charges, which are deducted from any refund.</p>
+            <p><strong>5. Dangerous goods.</strong> You must declare dangerous goods and provide the correct UN number and class. You warrant that the goods are properly classified, packaged, marked, and documented under Canada's <em>Transportation of Dangerous Goods Regulations</em>. Apex may refuse or hold any dangerous-goods shipment for review.</p>
+            <p><strong>6. Liability.</strong> Apex's liability for any shipment is limited to the freight charges you paid for that shipment. Carrier liability is governed by the carrier's bill of lading terms. Apex is not liable for indirect or consequential losses (lost profits, production downtime, spoilage beyond the carrier's terms). Claims for loss or damage must be reported within 7 days of delivery.</p>
+            <p><strong>7. Insurance.</strong> Cargo insurance is not included unless you request it and it is confirmed on your shipment. You are responsible for insuring goods beyond carrier liability limits.</p>
+            <p><strong>8. Your responsibilities.</strong> You warrant that weights, dimensions, piece counts, addresses, and access information are accurate, that goods are properly packaged for LTL transport, and that pickup and delivery sites are accessible. Extra charges caused by inaccurate information are your responsibility.</p>
+          </div>
+          <div class="actions" style="margin-top:12px">
+            <button class="btn primary" id="terms-close">Close</button>
+          </div>
+        </div>`;
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+      overlay.querySelector('#terms-close').addEventListener('click', () => overlay.remove());
+      document.body.appendChild(overlay);
     }
 
     function selectedRateId() {
@@ -1329,6 +1390,10 @@
         showAlert("Enter both the shipper's order # and the receiver's PO # — they're required on every shipment.");
         return;
       }
+      if (!$('#terms-accept').checked) {
+        showAlert('Please accept the Terms of Service to schedule this shipment.');
+        return;
+      }
       const btn = $('#complete-shipment-btn');
       btn.disabled = true;
       btn.textContent = 'Starting secure payment…';
@@ -1343,6 +1408,7 @@
           references: { 'Ref #': refNum, 'PO #': poNum },
           delivery_note_1: qv('delivery_note_1').slice(0, 60),
           delivery_note_2: qv('delivery_note_2').slice(0, 60),
+          terms_accepted: true,
           user_id: lastQuoteParams.user_id,
           region: lastQuoteParams.region,
           direction: lastQuoteParams.direction,
@@ -1374,6 +1440,20 @@
     function renderCompleteResult(res, testMode) {
       const label = res.label_url
         ? ` <a href="${esc(res.label_url)}" target="_blank" rel="noopener">Print label</a>` : '';
+      // Dangerous-goods hold: the load is parked for admin review.
+      if (res.status === 'dg_review') {
+        $('#complete-result').innerHTML = `
+          <div class="card dg-notice" style="margin-top:12px">
+            <h3>⚠ Under dangerous-goods review</h3>
+            <p><strong>${esc(res.carrier)}</strong>${res.service ? ' — ' + esc(res.service) : ''} · ${cad(res.charged_amount)}</p>
+            <p>${esc(res.payment_note || 'This shipment contains dangerous goods and is under review. We will confirm acceptance before any payment is collected.')}</p>
+            <div class="actions">
+              <a class="btn" href="${esc(res.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a>
+            </div>
+          </div>`;
+        $('#complete-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        return;
+      }
       const payNote = testMode
         ? '<p class="note">Test mode: Stripe is not connected, so no payment was collected for this load.</p>'
         : res.payment === 'unpaid'
@@ -1836,6 +1916,61 @@
           ').</div>';
       }
       loadTenders();
+      loadDgQueue();
+    }
+
+    /* Dangerous-goods review queue: DG loads held before completion. */
+    async function loadDgQueue() {
+      const box = $('#dg-queue');
+      if (!box) return;
+      box.innerHTML = '<div class="card empty">Loading dangerous-goods review queue…</div>';
+      try {
+        const { dg_queue } = await api.listDgQueue();
+        if (!dg_queue.length) {
+          box.innerHTML =
+            '<h2>Dangerous goods review</h2><p class="lede">DG loads held before completion or payment.</p>' +
+            '<div class="card empty">No dangerous-goods shipments awaiting review.</div>';
+          return;
+        }
+        box.innerHTML =
+          '<h2>Dangerous goods review</h2><p class="lede">These loads contain dangerous goods. ' +
+          'Verify the classification and confirm a carrier will accept them before approving — approval releases the shipment for payment and scheduling.</p>' +
+          `<div class="table-wrap"><table class="data"><thead><tr>
+            <th>Date</th><th>Route</th><th>Customer</th><th>DG details</th>
+            <th class="num">Charged</th><th></th><th></th>
+          </tr></thead><tbody>${dg_queue
+            .map(
+              (q) => `<tr>
+              <td>${esc((q.created_at || '').slice(0, 10))}</td>
+              <td>${esc(q.route || '—')}<br><a href="${esc(q.bol_url)}" target="_blank" rel="noopener">BOL</a></td>
+              <td>${esc(q.customer_email || '—')}</td>
+              <td>${(q.dg_lines || []).map((l) => `${esc(l.product)} — UN ${esc(l.un_number)}, Class ${esc(l.class)}${l.pkg_group && l.pkg_group !== '—' ? ', PG ' + esc(l.pkg_group) : ''} (${esc(String(l.qty))} × ${esc(String(l.weight_lb))} lb)`).join('<br>') || '—'}</td>
+              <td class="num">${cad(q.charged_amount)}</td>
+              <td><button class="btn primary" data-dg-approve="${esc(q.id)}">Approve</button></td>
+              <td><button class="btn danger" data-dg-reject="${esc(q.id)}">Reject</button></td>
+            </tr>`
+            )
+            .join('')}</tbody></table></div>`;
+        const reload = () => { loadDgQueue(); };
+        box.querySelectorAll('[data-dg-approve]').forEach((btn) =>
+          btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            try { await api.approveDg(btn.getAttribute('data-dg-approve')); reload(); }
+            catch (err) { showAlert('Could not approve: ' + err.message); btn.disabled = false; }
+          })
+        );
+        box.querySelectorAll('[data-dg-reject]').forEach((btn) =>
+          btn.addEventListener('click', async () => {
+            if (!confirm('Reject this dangerous-goods shipment? It will be cancelled.')) return;
+            btn.disabled = true;
+            try { await api.rejectDg(btn.getAttribute('data-dg-reject')); reload(); }
+            catch (err) { showAlert('Could not reject: ' + err.message); btn.disabled = false; }
+          })
+        );
+      } catch (err) {
+        // Not an admin (or DB off): hide the queue silently.
+        box.innerHTML = '';
+      }
     }
 
     /* Tender queue: paid loads still needing a manual carrier booking. */
@@ -1855,12 +1990,13 @@
           '<h2>Tender queue</h2><p class="lede">Paid loads awaiting manual carrier booking. ' +
           'Book each load with the carrier, enter the carrier\'s PRO #, then mark it tendered.</p>' +
           `<div class="table-wrap"><table class="data"><thead><tr>
-            <th>Date</th><th>PRO</th><th>Route</th><th>Carrier</th><th>Order #</th><th>PO #</th>
+            <th>Date</th><th>Pickup</th><th>PRO</th><th>Route</th><th>Carrier</th><th>Order #</th><th>PO #</th>
             <th>Customer</th><th class="num">Charged</th><th>Paid</th><th>Carrier PRO #</th><th></th>
           </tr></thead><tbody>${tenders
             .map(
               (t) => `<tr>
               <td>${esc((t.created_at || '').slice(0, 10))}</td>
+              <td><strong>${esc(t.pickup_date || '—')}</strong></td>
               <td><strong>${esc(t.tracking_code || '—')}</strong><br><a href="${esc(t.bol_url)}" target="_blank" rel="noopener">BOL</a></td>
               <td>${esc(t.route || '—')}</td>
               <td>${esc(t.carrier || '—')}</td>
@@ -2603,6 +2739,13 @@
               (r['Carrier PRO'] ? `<br><span class="muted">Carrier PRO: ${esc(r['Carrier PRO'])}</span>` : '') +
               (r["Shipper's order #"] ? `<br><span class="muted">Ref 1: ${esc(r["Shipper's order #"])}</span>` : '') +
               (r["Receiver's PO #"] ? `<br><span class="muted">Ref 2: ${esc(r["Receiver's PO #"])}</span>` : '');
+            // Cancel is offered on loads not yet carrier-booked; the server
+            // enforces the real rules.
+            const cancellable =
+              r['Order ID'] &&
+              (r.Status || '').toLowerCase() !== 'cancelled' &&
+              (r.Tendered || '').toLowerCase() !== 'yes' &&
+              ['awaiting_payment', 'dg_review', 'scheduled', 'purchased'].includes((r.Status || '').toLowerCase());
             return `<tr>
               <td>No. ${esc(r["Shipper's order #"] || '—')}<br><span class="muted">${esc(r.Date || '')}</span></td>
               <td>${esc(r.Origin || '—')}</td>
@@ -2611,12 +2754,26 @@
               <td>${esc(r.Carrier || '—')}</td>
               <td class="num">${r['Charged (CAD)'] == null ? '—' : cad(r['Charged (CAD)']) + ' CAD'}</td>
               <td>${statusPill(r)}</td>
-              <td><button type="button" class="btn small" data-track="${esc(r['PRO / Tracking'] || '')}">Track</button></td>
+              <td><button type="button" class="btn small" data-track="${esc(r['PRO / Tracking'] || '')}">Track</button>${cancellable ? ` <button type="button" class="btn small danger" data-cancel="${esc(r['Order ID'])}">Cancel</button>` : ''}</td>
             </tr>`;
           })
           .join('')}</tbody></table></div>`;
       box.querySelectorAll('[data-track]').forEach((b) =>
         b.addEventListener('click', () => trackOrder(b.dataset.track))
+      );
+      box.querySelectorAll('[data-cancel]').forEach((b) =>
+        b.addEventListener('click', async () => {
+          if (!confirm('Cancel this shipment? Paid loads are refunded automatically.')) return;
+          b.disabled = true;
+          try {
+            const res = await api.cancelShipment(b.getAttribute('data-cancel'));
+            showAlert(res.refunded ? 'Shipment cancelled and refunded.' : 'Shipment cancelled.');
+            await loadDashboard();
+          } catch (err) {
+            showAlert('Could not cancel: ' + err.message);
+            b.disabled = false;
+          }
+        })
       );
     }
 
@@ -2948,6 +3105,9 @@
 
     initAccount();
     initBilling();
+    // Pickup date can't be in the past.
+    const pd = $('#pickup-date');
+    if (pd) pd.min = new Date().toISOString().slice(0, 10);
   </script>
 </body>
 </html>

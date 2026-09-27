@@ -135,17 +135,21 @@ export function getQuote(id) {
 }
 
 /* Complete a shipment (book label or schedule pickup) + printable BOL. */
-export function completeShipment({ shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup }) {
-  return post('/api/shipments/complete', { shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup });
+export function completeShipment({ shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, terms_accepted, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup }) {
+  return post('/api/shipments/complete', { shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, terms_accepted, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup });
 }
 
 /* Pay-first scheduling: Stripe Checkout for the full freight amount. */
-export function checkoutShipment({ shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup }) {
-  return post('/api/shipments/checkout', { shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup });
+export function checkoutShipment({ shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, terms_accepted, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup }) {
+  return post('/api/shipments/checkout', { shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, terms_accepted, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup });
 }
 
 export function getShipmentOrder(id) {
   return get(`/api/shipments/order/${encodeURIComponent(id)}`);
+}
+
+export function cancelShipment(id) {
+  return post(`/api/shipments/${encodeURIComponent(id)}/cancel`, {});
 }
 
 /* Tender queue (admin): paid loads awaiting manual carrier booking. */
@@ -155,6 +159,19 @@ export function listTenders() {
 
 export function markTendered(id, carrier_pro) {
   return post(`/api/shipments/tenders/${encodeURIComponent(id)}`, { carrier_pro });
+}
+
+/* Dangerous-goods review queue (admin). */
+export function listDgQueue() {
+  return get('/api/shipments/dg-queue');
+}
+
+export function approveDg(id) {
+  return post(`/api/shipments/dg-queue/${encodeURIComponent(id)}/approve`, {});
+}
+
+export function rejectDg(id) {
+  return post(`/api/shipments/dg-queue/${encodeURIComponent(id)}/reject`, {});
 }
 
 /* Quote attachments (multipart — auth header, no JSON content type). */

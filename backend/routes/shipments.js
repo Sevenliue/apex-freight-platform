@@ -120,10 +120,11 @@ async function prepareOrder(body, effectiveUserId) {
     shipper = {}, consignee = {}, references = {},
     delivery_note_1 = null, delivery_note_2 = null, delivery_notes = '',
     region = null, direction = null, freight_charges = null, bill_to = null,
-    depot_dropoff = null, depot_pickup = null,
+    depot_dropoff = null, depot_pickup = null, terms_accepted = false,
   } = body || {};
 
   if (!shipment_id || !rate_id) fail(400, 'shipment_id and rate_id are required');
+  if (!terms_accepted) fail(400, 'You must accept the Terms of Service to schedule a shipment.');
   const quote = store.quotes.get(shipment_id);
   if (!quote) fail(404, 'Unknown shipment_id — request a fresh quote first');
   const rate = (quote.rates || []).find((r) => r.rate_id === rate_id);
@@ -138,6 +139,8 @@ async function prepareOrder(body, effectiveUserId) {
   // Depot flags: prefer the completion payload, fall back to the quote.
   const shipDepotDropoff = depot_dropoff != null ? !!depot_dropoff : !!quote.depot_dropoff;
   const shipDepotPickup = depot_pickup != null ? !!depot_pickup : !!quote.depot_pickup;
+  // Requested pickup date comes from the quote (required at rating time).
+  const shipPickupDate = quote.pickup_date || null;
   // Delivery notes: prefer the completion payload, fall back to the quote
   // (legacy single delivery_notes maps to Box 1).
   const pickNote = (v, fb) => (v === undefined || v === null) ? String(fb || '') : String(v).slice(0, 60);
@@ -165,7 +168,9 @@ async function prepareOrder(body, effectiveUserId) {
     cost_cad: rate.cost_cad,
     charged_amount: rate.retail_cad,
     currency: rate.currency || 'CAD',
-    status: 'awaiting_payment',
+    // Dangerous goods are held for admin review before the shipment can be
+    // completed or paid: status 'dg_review' instead of 'awaiting_payment'.
+    status: (quote.packages || []).some((p) => p.dg) ? 'dg_review' : 'awaiting_payment',
     payment_status: 'unpaid',
     tracking_code: null,
     label_url: null,
@@ -178,6 +183,7 @@ async function prepareOrder(body, effectiveUserId) {
     bill_to: shipBillTo,
     tendered: false,
     carrier_pro: null,
+    pickup_date: shipPickupDate,
     created_at: new Date().toISOString(),
   };
 
@@ -198,8 +204,11 @@ async function prepareOrder(body, effectiveUserId) {
     bill_to: shipBillTo,
     depot_dropoff: shipDepotDropoff,
     depot_pickup: shipDepotPickup,
+    pickup_date: shipPickupDate,
     insurance_declared_value: rate.insurance_declared_value || null,
     insurance_cad: rate.insurance_cad || null,
+    dg_hold: order.status === 'dg_review',
+    terms_accepted_at: new Date().toISOString(),
   };
   order.bol = bol;
 
@@ -234,6 +243,13 @@ async function prepareOrder(body, effectiveUserId) {
     console.error('address-book auto-save failed:', err && err.message);
   }
   store.orders.push(order);
+  // Notifications are best-effort and must never break order creation.
+  try {
+    const notifyLib = require('../lib/notify');
+    notifyLib.notify(order.status === 'dg_review' ? 'dg_review' : 'order_created', order, {
+      customerEmail: (shipper && shipper.email) || null,
+    });
+  } catch (err) { console.error('[notify] hook failed (non-fatal):', err.message); }
   return { order, quote, rate };
 }
 
@@ -277,6 +293,16 @@ async function finalizeShipmentPayment(dbOrderId, paymentIntentId) {
     mem.status = status; mem.tracking_code = tracking; mem.label_url = labelUrl;
     mem.payment_status = 'paid'; mem.carrier = carrier; mem.service = service;
   }
+  // Payment confirmation (best-effort).
+  try {
+    const notifyLib = require('../lib/notify');
+    let bol = {};
+    try { bol = typeof row.bol_json === 'object' ? row.bol_json || {} : JSON.parse(row.bol_json || '{}'); } catch { /* ignore */ }
+    notifyLib.notify('payment_succeeded', {
+      carrier, charged_amount: row.charged_amount, tracking_code: tracking,
+      shipper_order_no: row.shipper_order_no, bol,
+    });
+  } catch (err) { console.error('[notify] hook failed (non-fatal):', err.message); }
   return {
     id: dbOrderId,
     status,
@@ -310,6 +336,10 @@ router.post('/checkout', async (req, res) => {
     return res.status(e.status || 500).json({ error: e.message });
   }
   const { order } = prepared;
+  // Dangerous-goods hold: payment cannot start until an admin approves.
+  if (order.status === 'dg_review') {
+    return res.status(409).json({ error: 'This shipment contains dangerous goods and is under review. Payment opens after we confirm acceptance.' });
+  }
   try {
     const stripe = require('stripe')(stripeKey);
     // Reuse the subscriber's Stripe customer so receipts thread together.
@@ -358,8 +388,16 @@ router.post('/checkout', async (req, res) => {
 });
 
 // POST /api/shipments/complete — legacy direct scheduling, no payment.
-// Kept for test mode (Stripe not configured). The order is recorded unpaid.
+// Admin-only: ordinary users must pay through /checkout. This closes the
+// hole where anyone could schedule a load unpaid while Stripe is unset.
 router.post('/complete', async (req, res) => {
+  let isAdmin = false;
+  if (req.user) {
+    try { isAdmin = !!((await billing.getBillingState(req.user.id) || {}).isAdmin); } catch { /* ignore */ }
+  }
+  if (!isAdmin) {
+    return res.status(403).json({ error: 'Scheduling without payment is restricted to staff. Please pay online to schedule this shipment.' });
+  }
   const effectiveUserId = (req.user && req.user.id) || (req.body || {}).user_id || null;
   let prepared;
   try {
@@ -368,6 +406,23 @@ router.post('/complete', async (req, res) => {
     return res.status(e.status || 500).json({ error: e.message });
   }
   const { order, quote, rate } = prepared;
+
+  // Dangerous-goods hold: the load stays in admin review — it is not
+  // scheduled, no label is bought, and no PRO is minted until approved.
+  if (order.status === 'dg_review') {
+    return res.json({
+      order_id: order.id,
+      status: 'dg_review',
+      carrier: order.carrier,
+      service: order.service,
+      tracking_code: null,
+      label_url: null,
+      charged_amount: order.charged_amount,
+      payment: 'unpaid',
+      payment_note: 'This shipment contains dangerous goods and is under review. We will confirm acceptance before any payment is collected.',
+      bol_url: `/api/shipments/bol/${encodeURIComponent(order.id)}`,
+    });
+  }
 
   if (rate.source === 'easypost' && quote.easypost_shipment_id && easypost.isEnabled()) {
     try {
@@ -410,6 +465,78 @@ router.post('/complete', async (req, res) => {
     payment_note: 'Stripe is not configured — this load was scheduled without payment (test mode).',
     bol_url: `/api/shipments/bol/${encodeURIComponent(order.id)}`,
   });
+});
+
+// POST /api/shipments/:id/cancel — the customer cancels their own pending
+// load; an admin can cancel any non-final load. Paid loads are refunded
+// through Stripe; unpaid loads are simply cancelled.
+router.post('/:id/cancel', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Sign in required.' });
+  const id = req.params.id;
+  let row = null;
+  if (db.isEnabled()) {
+    try {
+      const r = await db.query('SELECT * FROM orders WHERE id = $1', [id]);
+      row = r.rows[0] || null;
+    } catch (err) {
+      return res.status(502).json({ error: 'Could not load shipment: ' + err.message });
+    }
+  } else {
+    row = (store.orders || []).find((o) => String(o.id) === String(id)) || null;
+  }
+  if (!row) return res.status(404).json({ error: 'Shipment not found.' });
+  let isAdmin = false;
+  try { isAdmin = !!((await billing.getBillingState(req.user.id) || {}).isAdmin); } catch { /* ignore */ }
+  const isOwner = row.user_id && String(row.user_id) === String(req.user.id);
+  if (!isOwner && !isAdmin) return res.status(403).json({ error: 'Not your shipment.' });
+
+  if (row.status === 'cancelled') return res.status(409).json({ error: 'Already cancelled.' });
+  if (row.tendered && !isAdmin) {
+    return res.status(403).json({ error: 'This load is already booked with the carrier — contact us to cancel.' });
+  }
+  const cancellable = ['awaiting_payment', 'dg_review', 'scheduled', 'purchased'];
+  if (!cancellable.includes(row.status) && !isAdmin) {
+    return res.status(409).json({ error: `Cannot cancel a shipment with status "${row.status}".` });
+  }
+
+  let refunded = false;
+  if (row.payment_status === 'paid') {
+    if (!config.stripeKey) {
+      return res.status(502).json({ error: 'Refunds need online payments configured — contact us and we will refund you manually.' });
+    }
+    if (!row.stripe_payment_intent_id) {
+      return res.status(502).json({ error: 'No payment record found — contact us for a manual refund.' });
+    }
+    try {
+      const stripe = require('stripe')(config.stripeKey);
+      await stripe.refunds.create({ payment_intent: row.stripe_payment_intent_id });
+      refunded = true;
+    } catch (err) {
+      return res.status(502).json({ error: 'Refund failed: ' + err.message });
+    }
+  }
+  const newPayment = refunded ? 'refunded' : row.payment_status;
+  if (db.isEnabled()) {
+    try {
+      await db.query('UPDATE orders SET status = $2, payment_status = $3 WHERE id = $1', [id, 'cancelled', newPayment]);
+    } catch (err) {
+      return res.status(502).json({ error: 'Could not cancel: ' + err.message });
+    }
+  }
+  const mem = (store.orders || []).find((o) => String(o.id) === String(id));
+  if (mem) { mem.status = 'cancelled'; mem.payment_status = newPayment; }
+  // Cancellation notice (best-effort).
+  try {
+    const notifyLib = require('../lib/notify');
+    let bol = {};
+    const bj = row.bol_json !== undefined ? row.bol_json : (row.bol || {});
+    try { bol = typeof bj === 'object' ? bj || {} : JSON.parse(bj || '{}'); } catch { /* ignore */ }
+    notifyLib.notify('cancelled', {
+      carrier: row.carrier, charged_amount: row.charged_amount,
+      shipper_order_no: row.shipper_order_no, bol,
+    }, { refunded });
+  } catch (err) { console.error('[notify] hook failed (non-fatal):', err.message); }
+  return res.json({ ok: true, status: 'cancelled', payment_status: newPayment, refunded });
 });
 
 // GET /api/shipments/order/:id — payment/scheduling status, for the
@@ -477,6 +604,7 @@ router.get('/tenders', async (req, res) => {
         receiver_po_no: row.receiver_po_no,
         customer_email: row.customer_email,
         created_at: row.created_at,
+        pickup_date: bol.pickup_date || null,
         bol_url: `/api/shipments/bol/${row.id}`,
       };
     });
@@ -497,9 +625,102 @@ router.post('/tenders/:id', async (req, res) => {
     if (!r.rows.length) return res.status(404).json({ error: 'Order not found.' });
     const mem = store.orders.find((o) => o.id === req.params.id);
     if (mem) { mem.tendered = true; mem.carrier_pro = carrierPro; }
+    // Tell the customer their load is booked (best-effort).
+    try {
+      const notifyLib = require('../lib/notify');
+      const or = await db.query('SELECT carrier, charged_amount, shipper_order_no, bol_json FROM orders WHERE id = $1', [req.params.id]);
+      const trow = or.rows[0] || {};
+      let bol = {};
+      try { bol = typeof trow.bol_json === 'object' ? trow.bol_json || {} : JSON.parse(trow.bol_json || '{}'); } catch { /* ignore */ }
+      notifyLib.notify('tendered', {
+        carrier: trow.carrier, charged_amount: trow.charged_amount,
+        carrier_pro: carrierPro, shipper_order_no: trow.shipper_order_no, bol,
+      });
+    } catch (err) { console.error('[notify] hook failed (non-fatal):', err.message); }
     return res.json({ ok: true });
   } catch (err) {
     return res.status(502).json({ error: 'Could not update tender: ' + err.message });
+  }
+});
+
+// Dangerous-goods review queue (admin only): DG loads held before
+// completion. Approve releases the shipment to awaiting_payment so the
+// customer can pay/schedule; reject cancels it.
+function dgRow(row) {
+  let bol = {};
+  try { bol = typeof row.bol_json === 'object' ? row.bol_json || {} : JSON.parse(row.bol_json || '{}'); } catch { /* ignore */ }
+  const city = (p) => [p && p.city, p && (p.province || p.state)].filter(Boolean).join(', ');
+  const dgLines = ((bol.packages || []).filter((p) => p.dg) || []).map((p) => ({
+    product: p.product_name || p.package_type || 'DG line',
+    qty: p.qty,
+    weight_lb: p.weight_lb,
+    un_number: p.un_number || '—',
+    class: p.freight_class || '—',
+    pkg_group: p.pkg_group || '—',
+  }));
+  return {
+    id: row.id,
+    route: `${city(bol.shipper) || '?'} → ${city(bol.consignee) || '?'}`,
+    carrier: row.carrier,
+    service: row.service_level,
+    charged_amount: row.charged_amount != null ? Number(row.charged_amount) : null,
+    shipper_order_no: row.shipper_order_no,
+    receiver_po_no: row.receiver_po_no,
+    customer_email: row.customer_email,
+    created_at: row.created_at,
+    dg_lines: dgLines,
+    bol_url: `/api/shipments/bol/${row.id}`,
+  };
+}
+
+router.get('/dg-queue', async (req, res) => {
+  if (!(await needAdmin(req, res))) return;
+  try {
+    const r = await db.query(
+      `SELECT o.id, o.carrier, o.service_level, o.charged_amount,
+              o.shipper_order_no, o.receiver_po_no, o.created_at, o.bol_json,
+              u.email AS customer_email
+       FROM orders o LEFT JOIN users u ON u.id = o.user_id
+       WHERE o.status = 'dg_review'
+       ORDER BY o.created_at DESC LIMIT 200`
+    );
+    const mem = (store.orders || []).filter((o) => o.status === 'dg_review').map((o) => ({
+      id: o.id, carrier: o.carrier, service_level: o.service, charged_amount: o.charged_amount,
+      shipper_order_no: o.shipper_order_no, receiver_po_no: o.receiver_po_no,
+      created_at: o.created_at, bol_json: o.bol, customer_email: null,
+    }));
+    return res.json({ dg_queue: [...r.rows.map(dgRow), ...mem.map(dgRow)] });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not load DG review queue: ' + err.message });
+  }
+});
+
+async function setDgStatus(id, status) {
+  const r = await db.query('UPDATE orders SET status = $2 WHERE id = $1 RETURNING id', [id, status]);
+  const mem = (store.orders || []).find((o) => String(o.id) === String(id));
+  if (mem) mem.status = status;
+  return r.rows.length > 0 || !!mem;
+}
+
+router.post('/dg-queue/:id/approve', async (req, res) => {
+  if (!(await needAdmin(req, res))) return;
+  try {
+    const ok = await setDgStatus(req.params.id, 'awaiting_payment');
+    if (!ok) return res.status(404).json({ error: 'Order not found.' });
+    return res.json({ ok: true, status: 'awaiting_payment' });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not approve: ' + err.message });
+  }
+});
+
+router.post('/dg-queue/:id/reject', async (req, res) => {
+  if (!(await needAdmin(req, res))) return;
+  try {
+    const ok = await setDgStatus(req.params.id, 'cancelled');
+    if (!ok) return res.status(404).json({ error: 'Order not found.' });
+    return res.json({ ok: true, status: 'cancelled' });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not reject: ' + err.message });
   }
 });
 
@@ -581,6 +802,7 @@ router.get('/bol/:id', async (req, res) => {
   const depotRows = [
     b.depot_dropoff ? '<tr><td>Pick-up</td><td><strong>Drop off at depot — do not dispatch</strong></td></tr>' : '',
     b.depot_pickup ? '<tr><td>Delivery</td><td><strong>Pick up at depot — no carrier delivery</strong></td></tr>' : '',
+    b.pickup_date ? `<tr><td>Requested pickup date</td><td><strong>${escHtml(b.pickup_date)}</strong></td></tr>` : '',
   ].join('');
 
   res.send(`<!doctype html><html><head><meta charset="utf-8">

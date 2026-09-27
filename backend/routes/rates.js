@@ -67,6 +67,14 @@ function normalizePackages(packages, parcel) {
     if (!Number.isFinite(weight) || weight <= 0) {
       throw new Error(`packages[${i}].weight_lb must be a positive number`);
     }
+    const dg = !!p.dg;
+    const un_number = String(p.un_number || '').slice(0, 20).trim();
+    const freight_class = String(p.freight_class || p.class || '').slice(0, 20).trim();
+    // Dangerous goods must be identified before they can be rated: TDG
+    // classification (UN number + class) is required on every DG line.
+    if (dg && (!un_number || !freight_class)) {
+      throw new Error(`packages[${i}]: dangerous goods require a UN number and class`);
+    }
     return {
       qty,
       package_type: String(p.package_type || 'Pallet').slice(0, 40),
@@ -76,9 +84,9 @@ function normalizePackages(packages, parcel) {
       width: p.width != null && p.width !== '' ? round2(num(p.width)) : null,
       height: p.height != null && p.height !== '' ? round2(num(p.height)) : null,
       stackable: !!p.stackable,
-      dg: !!p.dg,
-      un_number: String(p.un_number || '').slice(0, 20),
-      freight_class: String(p.freight_class || p.class || '').slice(0, 20),
+      dg,
+      un_number,
+      freight_class,
       pkg_group: String(p.pkg_group || '').slice(0, 20),
     };
   });
@@ -150,6 +158,7 @@ router.post('/', async (req, res) => {
     delivery_note_1: rawNote1 = '',
     delivery_note_2: rawNote2 = '',
     private_notes: rawPrivateNotes = '',
+    pickup_date: rawPickupDate = '',
   } = req.body || {};
 
   // The logged-in account wins over the optional guest user_id label.
@@ -185,6 +194,16 @@ router.post('/', async (req, res) => {
   const insurance_cad = add_insurance && declared_value > 0
     ? Math.max(INSURANCE_MIN_CAD, round2(declared_value * INSURANCE_RATE))
     : 0;
+
+  // Requested pickup date: required, YYYY-MM-DD, not in the past.
+  const pickup_date = String(rawPickupDate || '').slice(0, 10);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(pickup_date)) {
+    return bad(res, 400, 'pickup_date is required (YYYY-MM-DD)');
+  }
+  if (pickup_date < todayStr) {
+    return bad(res, 400, 'pickup_date cannot be in the past');
+  }
 
   if (region === 'worldwide') {
     if (!origin.city || !origin.country || !destination.city || !destination.country) {
@@ -224,6 +243,7 @@ router.post('/', async (req, res) => {
       origin, destination, shipper, consignee,
       packages, accessorials: accessorialCodes,
       region, direction, freight_charges, bill_to: billTo,
+      pickup_date,
       depot_dropoff, depot_pickup,
       parcel: { weight: totalWeightLbs },
       total_weight_lbs: totalWeightLbs,
@@ -240,6 +260,8 @@ router.post('/', async (req, res) => {
       packages,
       region, direction, freight_charges, bill_to: billTo,
       worldwide_notice: true,
+      has_dg: hasDG,
+      pickup_date,
       message: 'Worldwide rates need live carrier connection — add your EasyPost key in Render (EASYPOST_API_KEY).',
     });
   }
@@ -317,6 +339,7 @@ router.post('/', async (req, res) => {
     direction,
     freight_charges,
     bill_to: billTo,
+    pickup_date,
     depot_dropoff,
     depot_pickup,
     delivery_note_1,
@@ -450,6 +473,8 @@ router.post('/', async (req, res) => {
     depot_dropoff,
     depot_pickup,
     accessorials_applied: rates[0] ? rates[0].accessorials_applied || [] : [],
+    has_dg: hasDG,
+    pickup_date,
   };
   if (db_quote_id != null) body.db_quote_id = db_quote_id;
   if (warnings.length) body.warnings = warnings;

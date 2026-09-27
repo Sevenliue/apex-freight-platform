@@ -114,7 +114,7 @@ router.get('/shipments', async (req, res) => {
     if (end) { params.push(end); where += ` AND o.created_at <= $${params.length}`; }
     if (!admin) { params.push(req.user.id); where += ` AND o.user_id = $${params.length}`; }
     const r = await db.query(
-      `SELECT o.created_at, o.tracking_code, o.shipper_order_no, o.receiver_po_no,
+      `SELECT o.id, o.created_at, o.tracking_code, o.shipper_order_no, o.receiver_po_no,
               o.carrier, o.service_level, o.cost_amount, o.charged_amount,
               o.status, o.payment_status, o.tendered, o.carrier_pro, o.bol_json,
               u.email AS customer_email
@@ -128,6 +128,7 @@ router.get('/shipments', async (req, res) => {
       const cost = num(row.cost_amount);
       const charged = num(row.charged_amount);
       return {
+        'Order ID': row.id,
         Date: row.created_at ? new Date(row.created_at).toISOString().slice(0, 10) : '',
         'PRO / Tracking': row.tracking_code || '',
         "Shipper's order #": row.shipper_order_no || '',

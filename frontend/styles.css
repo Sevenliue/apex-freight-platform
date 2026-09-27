@@ -348,6 +348,10 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 
 .modal { position: fixed; inset: 0; background: rgba(15,36,54,.55); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
 .modal.hidden { display: none; }
+/* terms of service overlay */
+.modal-overlay { position: fixed; inset: 0; background: rgba(15,36,54,.55); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
+.modal-overlay .modal { max-width: 640px; max-height: 85vh; overflow-y: auto; }
+.terms-body p { font-size: 14px; margin: 10px 0; line-height: 1.55; }
 .modal-card { background: var(--card); border-radius: var(--radius); box-shadow: 0 16px 48px rgba(0,0,0,.25); width: 100%; max-width: 400px; padding: 24px; position: relative; }
 .modal-close { position: absolute; top: 10px; right: 14px; border: 0; background: none; font-size: 22px; line-height: 1; color: var(--muted); cursor: pointer; }
 .modal-close:hover { color: var(--ink); }
@@ -387,6 +391,10 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 .pitch-points { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 18px; }
 .pitch-points li { font-size: 13.5px; color: #33414d; line-height: 1.45; padding-left: 22px; position: relative; }
 .pitch-points li::before { content: "\2713"; position: absolute; left: 2px; color: var(--green); font-weight: 800; }
+/* dangerous-goods notice */
+.dg-notice { border-left: 4px solid #c2410c; background: #fff7ed; }
+.dg-notice h3 { color: #9a3412; margin: 0 0 8px; font-size: 16px; }
+.dg-notice p { margin: 6px 0; font-size: 14px; color: #431407; }
 .badge.save { background: var(--amber); color: var(--navy-dark); }
 .plan-badge {
   background: rgba(255, 255, 255, 0.16); color: #fff;
