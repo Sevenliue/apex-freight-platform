@@ -19,6 +19,21 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
           <span>Dashboard</span>
         </button>
+        <div class="nav-group" data-group="package">
+          <button class="tab group-toggle" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            <span>Package</span>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="nav-sub">
+            <button class="tab sub" data-tab="quote" data-region="worldwide" role="tab" aria-selected="false"><span>Quick Quote</span></button>
+            <button class="tab sub" data-tab="quote" role="tab" aria-selected="false"><span>Create Shipment</span></button>
+            <button class="tab sub" data-tab="comingsoon" data-comingsoon="Claim Management" role="tab" aria-selected="false"><span>Claim Management</span></button>
+            <button class="tab sub" data-tab="comingsoon" data-comingsoon="Schedule Pickup" role="tab" aria-selected="false"><span>Schedule Pickup</span></button>
+            <button class="tab sub" data-tab="comingsoon" data-comingsoon="Import Excel" role="tab" aria-selected="false"><span>Import Excel</span></button>
+            <button class="tab sub" data-tab="dashboard" data-scroll="dash-orders" role="tab" aria-selected="false"><span>Shipping Orders</span></button>
+          </div>
+        </div>
         <div class="nav-group" data-group="freight">
           <button class="tab group-toggle" aria-expanded="true">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
@@ -26,19 +41,46 @@
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
           <div class="nav-sub">
-            <button class="tab sub" data-tab="quote" role="tab" aria-selected="false"><span>Quick Quote</span></button>
+            <button class="tab sub" data-tab="quote" data-region="canada_usa" role="tab" aria-selected="false"><span>Quick Quote</span></button>
+            <button class="tab sub" data-tab="quote" role="tab" aria-selected="false"><span>Create Shipment</span></button>
+            <button class="tab sub" data-tab="comingsoon" data-comingsoon="Specialty Request" role="tab" aria-selected="false"><span>Specialty Request</span></button>
+            <button class="tab sub" data-tab="comingsoon" data-comingsoon="Request List" role="tab" aria-selected="false"><span>Request List</span></button>
             <button class="tab sub" data-tab="quote" data-scroll="saved-quotes" role="tab" aria-selected="false"><span>Saved Quotes</span></button>
-            <button class="tab sub" data-tab="dashboard" data-scroll="dash-orders" role="tab" aria-selected="false"><span>My Orders</span></button>
+            <button class="tab sub" data-tab="dashboard" data-scroll="dash-orders" role="tab" aria-selected="false"><span>My LTL Orders</span></button>
           </div>
         </div>
-        <button class="tab" data-tab="tracking" role="tab" aria-selected="false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-          <span>Tracking</span>
-        </button>
-        <button class="tab" data-tab="pricing" role="tab" aria-selected="false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
-          <span>Billing Center</span>
-        </button>
+        <div class="nav-group" data-group="ecommerce">
+          <button class="tab group-toggle" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+            <span>E-Commerce</span>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="nav-sub">
+            <button class="tab sub" data-tab="comingsoon" data-comingsoon="Store List" role="tab" aria-selected="false"><span>Store List</span></button>
+            <button class="tab sub" data-tab="comingsoon" data-comingsoon="Order List" role="tab" aria-selected="false"><span>Order List</span></button>
+          </div>
+        </div>
+        <div class="nav-group" data-group="trackingnav">
+          <button class="tab group-toggle" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            <span>Tracking</span>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="nav-sub">
+            <button class="tab sub" data-tab="tracking" role="tab" aria-selected="false"><span>Tracking Shipment</span></button>
+            <button class="tab sub" data-tab="tracking" role="tab" aria-selected="false"><span>Tracking Dashboard</span></button>
+          </div>
+        </div>
+        <div class="nav-group" data-group="billingnav">
+          <button class="tab group-toggle" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            <span>Billing Center</span>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="nav-sub">
+            <button class="tab sub" data-tab="pricing" role="tab" aria-selected="false"><span>Billing &amp; Invoices</span></button>
+          </div>
+        </div>
         <div class="nav-group" data-group="resources">
           <button class="tab group-toggle" aria-expanded="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
@@ -52,6 +94,10 @@
             <button class="tab sub" data-tab="reports" role="tab" aria-selected="false"><span>Reports</span></button>
           </div>
         </div>
+        <button class="tab" data-tab="comingsoon" data-comingsoon="Settings" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.2 4.2l2.8 2.8M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8l2.8-2.8M17 7l2.8-2.8"/></svg>
+          <span>Settings</span>
+        </button>
         <button class="tab" data-tab="admin" role="tab" aria-selected="false" id="nav-admin" style="display:none">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a2 2 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a2 2 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a2 2 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           <span>Admin</span>
@@ -432,6 +478,15 @@
       </div>
     </section>
 
+    <!-- COMING SOON -->
+    <section id="tab-comingsoon" class="panel" role="tabpanel">
+      <h1 id="cs-title">Coming soon</h1>
+      <div class="card">
+        <p class="lede" id="cs-desc">This feature is on the Apex roadmap and is not available yet.</p>
+        <p class="muted">Need it sooner? Tell us and we will prioritize it.</p>
+      </div>
+    </section>
+
     <!-- TRACKING -->
     <section id="tab-tracking" class="panel" role="tabpanel">
       <h1>Track a shipment</h1>
@@ -657,6 +712,17 @@
         g.querySelector('.group-toggle').classList.toggle('active-child', hasActive);
       });
       $$('.panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + btn.dataset.tab));
+      if (btn.dataset.tab === 'comingsoon') {
+        const nm = btn.dataset.comingsoon || 'This feature';
+        const t = document.getElementById('cs-title');
+        const d = document.getElementById('cs-desc');
+        if (t) t.textContent = nm;
+        if (d) d.textContent = nm + ' is on the Apex roadmap and is not available yet.';
+      }
+      if (btn.dataset.tab === 'quote' && btn.dataset.region) {
+        const r = document.querySelector(`#quote-form input[name="region"][value="${btn.dataset.region}"]`);
+        if (r && !r.checked) { r.checked = true; r.dispatchEvent(new Event('change', { bubbles: true })); }
+      }
       if (btn.dataset.tab === 'loads') loadOpenLoads();
       if (btn.dataset.tab === 'admin') loadAdmin();
       if (btn.dataset.tab === 'addressbook') loadAddressBook();
