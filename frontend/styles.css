@@ -65,6 +65,20 @@ body {
 .tab:hover { color: #fff; background: rgba(255, 255, 255, 0.07); }
 .tab.active { color: #fff; background: rgba(255, 255, 255, 0.12); }
 .tab.active svg { color: var(--amber); opacity: 1; }
+/* Quick Quote CTA: top-left button under the brand + matching menu item */
+.tab.side-cta {
+  width: calc(100% - 24px); margin: 0 12px 12px; justify-content: center;
+  background: var(--amber); border: 1px solid var(--amber-dark); color: var(--navy-dark);
+  font-weight: 800; font-size: 16px; padding: 13px 12px; border-radius: 12px;
+}
+.tab.side-cta svg { width: 20px; height: 20px; flex: 0 0 20px; opacity: 1; }
+.tab.side-cta:hover { background: var(--amber); border-color: var(--amber-dark); color: var(--navy-dark); filter: brightness(1.06); }
+.tab.side-cta.active { background: var(--amber); border-color: var(--amber-dark); color: var(--navy-dark); }
+.tab.side-cta.active svg { color: var(--navy-dark); }
+.tab.nav-qq { color: #fff; font-weight: 700; }
+.tab.nav-qq svg { color: var(--amber); opacity: 1; }
+.tab.nav-qq.active { color: var(--navy-dark); background: var(--amber); border: 1px solid var(--amber-dark); }
+.tab.nav-qq.active svg { color: var(--navy-dark); }
 /* sidebar dropdown groups */
 .nav-group { display: flex; flex-direction: column; }
 .group-toggle .chev { margin-left: auto; width: 16px; height: 16px; flex: 0 0 16px; opacity: 0.7; transition: transform 0.18s ease; }
@@ -274,6 +288,15 @@ details form { margin-top: 10px; }
   }
   .topbar .brand-name { font-size: 15px; }
   .topbar .brand-mark { width: 30px; height: 30px; font-size: 12px; flex-basis: 30px; }
+  .topbar .top-qq {
+    margin-left: auto; width: auto; flex: 0 0 auto;
+    background: var(--amber); border: 1px solid var(--amber-dark); color: var(--navy-dark);
+    font-weight: 800; font-size: 13.5px; padding: 8px 14px; border-radius: 9px;
+  }
+  .topbar .top-qq svg { width: 16px; height: 16px; flex: 0 0 16px; opacity: 1; }
+  .topbar .top-qq:hover { color: var(--navy-dark); background: var(--amber); filter: brightness(1.06); }
+  .topbar .top-qq.active { color: var(--navy-dark); background: var(--amber); border-color: var(--amber-dark); }
+  .topbar .top-qq.active svg { color: var(--navy-dark); }
 }
 @media (max-width: 640px) {
   .form-grid { grid-template-columns: 1fr; }
