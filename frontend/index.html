@@ -338,6 +338,9 @@
         </div>
       </form>
       <p class="note">Instant rates come from uploaded carrier tariffs; live rates need carrier API keys. Transit times are estimates, not guaranteed.</p>
+      <div id="rate-loading" class="hidden" role="status" aria-live="polite">
+        <div class="rl-pill"><span class="rl-spin"></span>Assembling your best shipping options&hellip;</div>
+      </div>
       <div id="quote-results"></div>
       <h2>Saved quotes</h2>
       <div id="saved-quotes"><p class="note">Loading…</p></div>
@@ -1411,6 +1414,7 @@
         accessorials: collectAccessorials(),
         user_id: txt('user_id') || undefined,
       };
+        $('#rate-loading').classList.remove('hidden');
         const data = await api.getRates(params);
         lastQuoteParams = params;
         renderBoard(data);
@@ -1427,6 +1431,7 @@
           showAlert('Could not get rates: ' + err.message);
         }
       } finally {
+        $('#rate-loading').classList.add('hidden');
         btn.disabled = false;
         btn.textContent = 'Get rates';
       }
