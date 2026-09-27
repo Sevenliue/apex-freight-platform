@@ -38,7 +38,7 @@
             <button class="tab sub" data-tab="dashboard" data-region="worldwide" data-loadtype="ltl" role="tab" aria-selected="false"><span>Quick Quote</span></button>
             <button class="tab sub" data-tab="dashboard" data-scroll="quote-form" role="tab" aria-selected="false"><span>Create Shipment</span></button>
             <button class="tab sub" data-tab="comingsoon" data-comingsoon="Claim Management" role="tab" aria-selected="false"><span>Claim Management</span></button>
-            <button class="tab sub" data-tab="comingsoon" data-comingsoon="Schedule Pickup" role="tab" aria-selected="false"><span>Schedule Pickup</span></button>
+            <button class="tab sub" data-tab="pickups" role="tab" aria-selected="false"><span>Schedule Pickup</span></button>
             <button class="tab sub" data-tab="comingsoon" data-comingsoon="Import Excel" role="tab" aria-selected="false"><span>Import Excel</span></button>
             <button class="tab sub" data-tab="dashboard" data-scroll="dash-orders" role="tab" aria-selected="false"><span>Shipping Orders</span></button>
           </div>
@@ -166,7 +166,7 @@
           <span class="dash-ico">🚚</span>
           <span class="dash-txt"><strong>LTL Freight</strong><small>Efficient freight shipping for large, heavy or palletized loads</small></span>
         </button>
-        <button type="button" class="dash-card" data-dash-goto="comingsoon" data-comingsoon="Schedule Pickup">
+        <button type="button" class="dash-card" data-dash-goto="pickups">
           <span class="dash-ico">🗓️</span>
           <span class="dash-txt"><strong>Schedule Pickup</strong><small>Book a convenient pickup time for your carrier shipments</small></span>
         </button>
@@ -575,6 +575,50 @@
       <div id="track-results"></div>
     </section>
 
+    <!-- SCHEDULE PICKUP -->
+    <section id="tab-pickups" class="panel" role="tabpanel">
+      <h1>Schedule Pickup</h1>
+      <p class="lede">Book a carrier pickup for one of your shipments. We confirm it with the carrier.</p>
+      <div class="two-col">
+        <div>
+          <h2>Book a pickup</h2>
+          <form id="pickup-form" class="card form-grid single">
+            <label>Shipment
+              <select name="order_id" id="pickup-order" required>
+                <option value="">Loading your shipments…</option>
+              </select>
+            </label>
+            <label>Pickup date
+              <input name="pickup_date" type="date" id="pickup-date" required>
+            </label>
+            <label>Time window
+              <select name="time_window">
+                <option value="morning">Morning (8am–12pm)</option>
+                <option value="afternoon">Afternoon (12–5pm)</option>
+                <option value="evening">Evening (5–9pm)</option>
+              </select>
+            </label>
+            <label>Contact name
+              <input name="contact_name" type="text" placeholder="Who meets the driver" maxlength="120">
+            </label>
+            <label>Contact phone
+              <input name="contact_phone" type="tel" placeholder="Driver can call" maxlength="40">
+            </label>
+            <label>Notes for the driver (optional)
+              <textarea name="notes" rows="3" maxlength="2000" placeholder="Dock door, liftgate, access details…"></textarea>
+            </label>
+            <div class="actions">
+              <button type="submit" class="btn primary">Book pickup</button>
+            </div>
+          </form>
+        </div>
+        <div>
+          <h2>Your pickup requests</h2>
+          <div id="pickup-list"><div class="card empty">Loading…</div></div>
+        </div>
+      </div>
+    </section>
+
     <!-- LOAD BOARD -->
     <section id="tab-loads" class="panel" role="tabpanel">
       <h1>Load board</h1>
@@ -760,6 +804,7 @@
       <div id="account-queue" style="margin-top:16px"></div>
       <div id="tender-queue" style="margin-top:16px"></div>
       <div id="dg-queue" style="margin-top:16px"></div>
+      <div id="pickup-queue" style="margin-top:16px"></div>
       <div id="store-admin" style="margin-top:16px"></div>
     </section>
       </main>
@@ -893,6 +938,7 @@
       if (btn.dataset.tab === 'library') loadLibrary();
       if (btn.dataset.tab === 'inventory') loadInventory();
       if (btn.dataset.tab === 'pricing') loadBillingCenter();
+      if (btn.dataset.tab === 'pickups') loadPickups();
       closeSidebar();
       const target = btn.dataset.scroll ? document.getElementById(btn.dataset.scroll) : null;
       if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -2119,6 +2165,86 @@
       }
     });
 
+    /* ---------- SCHEDULE PICKUP ---------- */
+    const PICKUP_STATUS_LABELS = { requested: 'Requested', confirmed: 'Confirmed', completed: 'Completed', cancelled: 'Cancelled' };
+
+    async function loadPickups() {
+      const listBox = $('#pickup-list');
+      const orderSel = $('#pickup-order');
+      const dateInput = $('#pickup-date');
+      if (dateInput && !dateInput.min) dateInput.min = new Date().toISOString().slice(0, 10);
+      try {
+        const { orders } = await api.listPickupOrders();
+        if (!orders.length) {
+          orderSel.innerHTML = '<option value="">No shipments yet — create one first</option>';
+        } else {
+          orderSel.innerHTML = '<option value="">Choose a shipment…</option>' +
+            orders.map((o) => `<option value="${esc(o.id)}">${esc(o.ref)}${o.carrier ? ' · ' + esc(o.carrier) : ''} · ${esc(o.status || '')}</option>`).join('');
+        }
+      } catch {
+        orderSel.innerHTML = '<option value="">Could not load shipments</option>';
+      }
+      try {
+        const { pickups } = await api.listPickups();
+        renderPickups(listBox, pickups || []);
+      } catch {
+        listBox.innerHTML = '<div class="card empty">Could not load pickup requests.</div>';
+      }
+    }
+
+    function renderPickups(box, pickups) {
+      if (!pickups.length) {
+        box.innerHTML = '<div class="card empty">No pickup requests yet.</div>';
+        return;
+      }
+      box.innerHTML = pickups.map((p) => `
+        <div class="card" style="margin-bottom:10px">
+          <div><strong>${esc(p.order_ref || 'Shipment')}</strong>
+            <span class="badge">${esc(PICKUP_STATUS_LABELS[p.status] || p.status)}</span></div>
+          <div class="muted">${esc(p.pickup_date || '')} · ${esc(p.time_window_label || p.time_window || '')}</div>
+          ${p.contact_name ? `<div>Contact: ${esc(p.contact_name)}${p.contact_phone ? ' · ' + esc(p.contact_phone) : ''}</div>` : ''}
+          ${p.notes ? `<div class="muted">${esc(p.notes)}</div>` : ''}
+          ${p.status === 'requested' ? `<div class="actions" style="margin-top:8px"><button type="button" class="btn" data-pickup-cancel="${esc(p.id)}">Cancel request</button></div>` : ''}
+        </div>`).join('');
+      box.querySelectorAll('[data-pickup-cancel]').forEach((b) =>
+        b.addEventListener('click', async () => {
+          b.disabled = true;
+          try {
+            await api.cancelPickup(b.dataset.pickupCancel);
+            showAlert('Pickup request cancelled.');
+            loadPickups();
+          } catch (err) {
+            showAlert('Could not cancel: ' + err.message);
+            b.disabled = false;
+          }
+        })
+      );
+    }
+
+    $('#pickup-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const btn = e.target.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      try {
+        await api.bookPickup({
+          order_id: (f.get('order_id') || '').toString(),
+          pickup_date: (f.get('pickup_date') || '').toString(),
+          time_window: (f.get('time_window') || '').toString(),
+          contact_name: (f.get('contact_name') || '').toString(),
+          contact_phone: (f.get('contact_phone') || '').toString(),
+          notes: (f.get('notes') || '').toString(),
+        });
+        showAlert('Pickup booked — we will confirm it with the carrier.');
+        e.target.reset();
+        loadPickups();
+      } catch (err) {
+        showAlert('Could not book pickup: ' + err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
     function renderTracking(box, t) {
       const ev = t.events || t.timeline || t.history || [];
       const items = ev
@@ -2444,8 +2570,63 @@
       }
       loadTenders();
       loadDgQueue();
+      loadPickupQueue();
       loadAccountQueue();
       loadStoreAdmin();
+    }
+
+    /* Pickup requests: customer-booked carrier pickups awaiting admin confirmation. */
+    async function loadPickupQueue() {
+      const box = $('#pickup-queue');
+      if (!box) return;
+      box.innerHTML = '<div class="card empty">Loading pickup requests…</div>';
+      try {
+        const { pickups } = await api.listPickupQueue();
+        if (!pickups.length) {
+          box.innerHTML =
+            '<h2>Pickup requests</h2><p class="lede">Customer-booked carrier pickups.</p>' +
+            '<div class="card empty">No pickup requests awaiting confirmation.</div>';
+          return;
+        }
+        const winLabel = { morning: 'Morning (8am–12pm)', afternoon: 'Afternoon (12–5pm)', evening: 'Evening (5–9pm)' };
+        box.innerHTML =
+          '<h2>Pickup requests</h2><p class="lede">Confirm each pickup with the carrier, then mark it confirmed here.</p>' +
+          `<div class="table-wrap"><table class="data"><thead><tr>
+            <th>Pickup date</th><th>Window</th><th>Shipment</th><th>Customer</th><th>Contact</th><th>Notes</th><th>Status</th><th></th><th></th>
+          </tr></thead><tbody>${pickups
+            .map(
+              (p) => `<tr>
+              <td>${esc(p.pickup_date || '—')}</td>
+              <td>${esc(winLabel[p.time_window] || p.time_window || '—')}</td>
+              <td>${esc(p.order_ref || '—')}${p.carrier ? '<br>' + esc(p.carrier) : ''}</td>
+              <td>${esc(p.user_email || '—')}</td>
+              <td>${esc(p.contact_name || '—')}${p.contact_phone ? '<br>' + esc(p.contact_phone) : ''}</td>
+              <td>${esc(p.notes || '—')}</td>
+              <td><span class="badge">${esc(PICKUP_STATUS_LABELS[p.status] || p.status)}</span></td>
+              <td>${p.status === 'requested' ? `<button class="btn primary" data-pickup-confirm="${esc(p.id)}">Confirm</button>` : ''}</td>
+              <td>${p.status !== 'completed' ? `<button class="btn" data-pickup-done="${esc(p.id)}">Done</button>` : ''}</td>
+            </tr>`
+            )
+            .join('')}</tbody></table></div>`;
+        const reload = () => { loadPickupQueue(); };
+        box.querySelectorAll('[data-pickup-confirm]').forEach((btn) =>
+          btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            try { await api.setPickupStatus(btn.getAttribute('data-pickup-confirm'), 'confirmed'); reload(); }
+            catch (err) { showAlert('Could not confirm: ' + err.message); btn.disabled = false; }
+          })
+        );
+        box.querySelectorAll('[data-pickup-done]').forEach((btn) =>
+          btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            try { await api.setPickupStatus(btn.getAttribute('data-pickup-done'), 'completed'); reload(); }
+            catch (err) { showAlert('Could not update: ' + err.message); btn.disabled = false; }
+          })
+        );
+      } catch (err) {
+        // Not an admin (or DB off): hide the queue silently.
+        box.innerHTML = '';
+      }
     }
 
     /* Account approvals: every new account starts quote-only. Approving an
@@ -4159,6 +4340,19 @@
     if (seeEd) seeEd.addEventListener('click', () => {
       const t = $('#store-editions');
       if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    /* Brand (sidebar + topbar) doubles as the home button: the dashboard
+       is the app's home page. */
+    $$('.brand').forEach((b) => {
+      b.setAttribute('role', 'button');
+      b.setAttribute('tabindex', '0');
+      b.setAttribute('title', 'Home');
+      const goHome = () => showTab('dashboard');
+      b.addEventListener('click', goHome);
+      b.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goHome(); }
+      });
     });
 
     /* ---------- DASHBOARD + BILLING CENTER wiring ---------- */

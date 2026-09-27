@@ -131,6 +131,14 @@ async function notify(event, order, opts = {}) {
         });
         break;
       }
+      case 'pickup_requested': {
+        const p = opts.pickup || {};
+        await sendEmail({
+          to: admin, event, subject: `Pickup requested — ${p.pickup_date || '?'} (${p.time_window || '?'})`,
+          text: `A customer booked a carrier pickup.\nOrder: ${p.order_ref || '—'}\nRoute: ${p.route || '—'}\nPickup date: ${p.pickup_date || '—'}\nTime window: ${p.time_window || '—'}\nContact: ${p.contact_name || '—'} ${p.contact_phone || ''}\nNotes: ${p.notes || '—'}\nCustomer: ${p.user_email || '—'}\n\nConfirm it with the carrier, then update the status in Admin → Pickup requests.`,
+        });
+        break;
+      }
       default:
         break;
     }

@@ -448,3 +448,25 @@ CREATE TABLE IF NOT EXISTS full_load_requests (
   status          text NOT NULL DEFAULT 'new',
   created_at      timestamptz NOT NULL DEFAULT now()
 );
+
+-- ---------------------------------------------------------------------------
+-- pickup_requests: customer-booked carrier pickups. A request is tied to one
+-- of the customer's orders (shipments); the admin confirms it with the
+-- carrier and updates the status. Customers can cancel their own requests
+-- while still in 'requested' status.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS pickup_requests (
+  id              uuid            PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         uuid            REFERENCES users(id) ON DELETE SET NULL,
+  order_id        uuid            REFERENCES orders(id) ON DELETE SET NULL,
+  pickup_date     date            NOT NULL,
+  time_window     varchar(40)     NOT NULL DEFAULT 'morning',
+  contact_name    varchar(120),
+  contact_phone   varchar(40),
+  notes           text,
+  status          varchar(40)     NOT NULL DEFAULT 'requested',
+  created_at      timestamptz     NOT NULL DEFAULT now(),
+  decided_at      timestamptz
+);
+CREATE INDEX IF NOT EXISTS idx_pickup_requests_user_id ON pickup_requests(user_id);
+CREATE INDEX IF NOT EXISTS idx_pickup_requests_status ON pickup_requests(status);

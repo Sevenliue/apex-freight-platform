@@ -510,3 +510,23 @@ export function scanInventory(sku, direction, qty, name) {
 export function listInventoryMovements(limit) {
   return request('GET', '/api/inventory/movements' + (limit ? '?limit=' + limit : ''));
 }
+
+/* Schedule Pickup — customer-booked carrier pickups. */
+export function listPickups() {
+  return get('/api/pickups');
+}
+export function listPickupOrders() {
+  return get('/api/pickups/orders');
+}
+export function bookPickup({ order_id, pickup_date, time_window, contact_name, contact_phone, notes }) {
+  return post('/api/pickups', { order_id, pickup_date, time_window, contact_name, contact_phone, notes });
+}
+export function cancelPickup(id) {
+  return post(`/api/pickups/${encodeURIComponent(id)}/cancel`, {});
+}
+export function listPickupQueue() {
+  return get('/api/pickups/admin/queue');
+}
+export function setPickupStatus(id, status) {
+  return request('PATCH', `/api/pickups/${encodeURIComponent(id)}`, { status });
+}
