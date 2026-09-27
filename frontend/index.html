@@ -30,43 +30,70 @@
     <section id="tab-quote" class="panel active" role="tabpanel">
       <h1>Get a rate</h1>
       <p class="lede">Compare carrier rates instantly. All amounts in CAD.</p>
-      <form id="quote-form" class="card form-grid">
+      <form id="quote-form" class="card">
+        <div class="form-grid">
+          <fieldset>
+            <legend>Shipper / From</legend>
+            <label>Shipper name <input name="s_name" type="text" placeholder="Company name"></label>
+            <label>Street <input name="o_street" type="text" required placeholder="123 Industrial Ave"></label>
+            <label>City <input name="o_city" type="text" required placeholder="Edmonton"></label>
+            <div class="row-2">
+              <label>Province <input name="o_state" type="text" required placeholder="AB" maxlength="2"></label>
+              <label>Postal code <input name="o_zip" type="text" required placeholder="T5S 1A1"></label>
+            </div>
+            <div class="row-2">
+              <label>Phone <input name="o_phone" type="tel" placeholder="780-555-0100"></label>
+              <label>Email <input name="o_email" type="email" placeholder="ship@example.com"></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Consignee / To</legend>
+            <label>Consignee name <input name="c_name" type="text" placeholder="Company name"></label>
+            <label>Street <input name="d_street" type="text" required placeholder="456 Warehouse Rd"></label>
+            <label>City <input name="d_city" type="text" required placeholder="Calgary"></label>
+            <div class="row-2">
+              <label>Province <input name="d_state" type="text" required placeholder="AB" maxlength="2"></label>
+              <label>Postal code <input name="d_zip" type="text" required placeholder="T2P 3G8"></label>
+            </div>
+            <div class="row-2">
+              <label>Phone <input name="d_phone" type="tel" placeholder="403-555-0100"></label>
+              <label>Email <input name="d_email" type="email" placeholder="receive@example.com"></label>
+            </div>
+          </fieldset>
+        </div>
         <fieldset>
-          <legend>Origin</legend>
-          <label>Street <input name="o_street" type="text" required placeholder="123 Industrial Ave"></label>
-          <label>City <input name="o_city" type="text" required placeholder="Edmonton"></label>
-          <div class="row-2">
-            <label>Province <input name="o_state" type="text" required placeholder="AB" maxlength="2"></label>
-            <label>Postal code <input name="o_zip" type="text" required placeholder="T5S 1A1"></label>
-          </div>
+          <legend>Packages</legend>
+          <div class="table-wrap"><table class="data pkg-table" id="pkg-table">
+            <thead><tr>
+              <th>Qty</th><th>Package Type</th><th>Product Name</th><th>Weight (lb)</th>
+              <th>Length (in)</th><th>Width (in)</th><th>Height (in)</th>
+              <th>Stackable</th><th>DG?</th><th>UN #</th><th>Class</th><th>Pkg Grp</th><th></th>
+            </tr></thead>
+            <tbody id="pkg-rows"></tbody>
+          </table></div>
+          <div class="actions"><button type="button" class="btn small" id="add-pkg">+ Add package</button></div>
         </fieldset>
-        <fieldset>
-          <legend>Destination</legend>
-          <label>Street <input name="d_street" type="text" required placeholder="456 Warehouse Rd"></label>
-          <label>City <input name="d_city" type="text" required placeholder="Calgary"></label>
-          <div class="row-2">
-            <label>Province <input name="d_state" type="text" required placeholder="AB" maxlength="2"></label>
-            <label>Postal code <input name="d_zip" type="text" required placeholder="T2P 3G8"></label>
-          </div>
-        </fieldset>
-        <fieldset class="span-2">
-          <legend>Shipment</legend>
-          <div class="row-4">
-            <label>Weight (lbs) <input name="weight" type="number" min="0.1" step="0.1" required placeholder="500"></label>
-            <label>Length (in) <input name="length" type="number" min="0" step="0.1" placeholder="48"></label>
-            <label>Width (in) <input name="width" type="number" min="0" step="0.1" placeholder="40"></label>
-            <label>Height (in) <input name="height" type="number" min="0" step="0.1" placeholder="36"></label>
-          </div>
-          <label class="inline">User ID (optional)
-            <input name="user_id" type="text" placeholder="paste your user UUID (auth coming later)">
-          </label>
-        </fieldset>
-        <div class="span-2 actions">
+        <div class="form-grid">
+          <fieldset>
+            <legend>Pick-up Services</legend>
+            <div class="check-grid" id="acc-pickup"><span class="note">Loading…</span></div>
+          </fieldset>
+          <fieldset>
+            <legend>Delivery Services</legend>
+            <div class="check-grid" id="acc-delivery"><span class="note">Loading…</span></div>
+          </fieldset>
+        </div>
+        <label class="inline">User ID (optional)
+          <input name="user_id" type="text" placeholder="paste your user UUID (auth coming later)">
+        </label>
+        <div class="actions">
           <button type="submit" class="btn primary" id="quote-btn">Get rates</button>
         </div>
       </form>
-      <p class="note">Instant rates come from uploaded carrier tariffs; live rates need carrier API keys.</p>
+      <p class="note">Instant rates come from uploaded carrier tariffs; live rates need carrier API keys. Transit times are estimates, not guaranteed.</p>
       <div id="quote-results"></div>
+      <h2>Saved quotes</h2>
+      <div id="saved-quotes"><p class="note">Loading…</p></div>
     </section>
 
     <!-- TRACKING -->
@@ -232,7 +259,81 @@
       });
     });
 
-    /* ---------- QUOTE ---------- */
+    /* ---------- QUOTE (Smart Shipping-style flow) ---------- */
+    let currentQuote = null; // last rated {shipment_id, rates, packages, ...}
+    let lastQuoteParams = null; // form params for save/complete
+
+    const PKG_TYPES = ['Pallet', 'Skid', 'Box', 'Crate', 'Drum', 'Barrel', 'Roll', 'Tote', 'Gaylord', 'Other'];
+
+    function addPkgRow(data = {}) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><input type="number" name="qty" min="1" step="1" value="${esc(data.qty ?? 1)}" required></td>
+        <td><select name="package_type">${PKG_TYPES.map((t) => `<option${t === (data.package_type || 'Pallet') ? ' selected' : ''}>${t}</option>`).join('')}</select></td>
+        <td><input type="text" name="product_name" value="${esc(data.product_name || '')}" placeholder="Tires"></td>
+        <td><input type="number" name="weight_lb" min="0.1" step="0.1" value="${esc(data.weight_lb ?? '')}" required placeholder="500"></td>
+        <td><input type="number" name="length" min="0" step="0.1" value="${esc(data.length ?? '')}" placeholder="48"></td>
+        <td><input type="number" name="width" min="0" step="0.1" value="${esc(data.width ?? '')}" placeholder="40"></td>
+        <td><input type="number" name="height" min="0" step="0.1" value="${esc(data.height ?? '')}" placeholder="36"></td>
+        <td class="chk"><input type="checkbox" name="stackable"${data.stackable ? ' checked' : ''}></td>
+        <td class="chk"><input type="checkbox" name="dg"${data.dg ? ' checked' : ''}></td>
+        <td><input type="text" name="un_number" value="${esc(data.un_number || '')}" placeholder="UN1202"></td>
+        <td><input type="text" name="freight_class" value="${esc(data.freight_class || '')}" placeholder="150"></td>
+        <td><input type="text" name="pkg_group" value="${esc(data.pkg_group || '')}" placeholder="II"></td>
+        <td><button type="button" class="btn small danger pkg-del" title="Delete row">×</button></td>`;
+      tr.querySelector('.pkg-del').addEventListener('click', () => {
+        if ($('#pkg-rows').rows.length > 1) tr.remove();
+        else showAlert('At least one package line is required.');
+      });
+      $('#pkg-rows').appendChild(tr);
+    }
+
+    function collectPackages() {
+      return [...$('#pkg-rows').rows].map((tr) => {
+        const v = (n) => tr.querySelector(`[name="${n}"]`).value;
+        const c = (n) => tr.querySelector(`[name="${n}"]`).checked;
+        return {
+          qty: Math.max(1, parseInt(v('qty'), 10) || 1),
+          package_type: v('package_type'),
+          product_name: v('product_name').trim(),
+          weight_lb: parseFloat(v('weight_lb')) || 0,
+          length: v('length') === '' ? null : parseFloat(v('length')),
+          width: v('width') === '' ? null : parseFloat(v('width')),
+          height: v('height') === '' ? null : parseFloat(v('height')),
+          stackable: c('stackable'),
+          dg: c('dg'),
+          un_number: v('un_number').trim(),
+          freight_class: v('freight_class').trim(),
+          pkg_group: v('pkg_group').trim(),
+        };
+      });
+    }
+
+    async function loadAccessorials() {
+      try {
+        const { accessorials } = await api.getAccessorialCatalog();
+        const mk = (a) =>
+          `<label class="check"><input type="checkbox" name="acc" value="${esc(a.code)}"> ${esc(a.label)}</label>`;
+        $('#acc-pickup').innerHTML = accessorials.filter((a) => a.group === 'pickup').map(mk).join('');
+        $('#acc-delivery').innerHTML = accessorials.filter((a) => a.group === 'delivery').map(mk).join('');
+      } catch (err) {
+        $('#acc-pickup').innerHTML = $('#acc-delivery').innerHTML =
+          '<span class="note">Could not load services.</span>';
+      }
+    }
+
+    function collectAccessorials() {
+      return $$('#quote-form input[name="acc"]:checked').map((el) => el.value);
+    }
+
+    function setAccessorials(codes) {
+      const set = new Set(codes || []);
+      $$('#quote-form input[name="acc"]').forEach((el) => { el.checked = set.has(el.value); });
+    }
+
+    $('#add-pkg').addEventListener('click', () => addPkgRow());
+    addPkgRow();
+
     $('#quote-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const f = new FormData(e.target);
@@ -240,31 +341,40 @@
       btn.disabled = true;
       btn.textContent = 'Getting rates…';
       $('#quote-results').innerHTML = '';
+      const packages = collectPackages();
+      if (packages.some((p) => !(p.weight_lb > 0))) {
+        showAlert('Each package line needs a weight in lbs.');
+        btn.disabled = false;
+        btn.textContent = 'Get rates';
+        return;
+      }
+      const params = {
+        origin: {
+          street1: f.get('o_street').trim(), city: f.get('o_city').trim(),
+          state: f.get('o_state').trim(), zip: f.get('o_zip').trim(), country: 'CA',
+        },
+        destination: {
+          street1: f.get('d_street').trim(), city: f.get('d_city').trim(),
+          state: f.get('d_state').trim(), zip: f.get('d_zip').trim(), country: 'CA',
+        },
+        shipper: {
+          name: f.get('s_name').trim(), street1: f.get('o_street').trim(),
+          city: f.get('o_city').trim(), state: f.get('o_state').trim(),
+          zip: f.get('o_zip').trim(), phone: f.get('o_phone').trim(), email: f.get('o_email').trim(),
+        },
+        consignee: {
+          name: f.get('c_name').trim(), street1: f.get('d_street').trim(),
+          city: f.get('d_city').trim(), state: f.get('d_state').trim(),
+          zip: f.get('d_zip').trim(), phone: f.get('d_phone').trim(), email: f.get('d_email').trim(),
+        },
+        packages,
+        accessorials: collectAccessorials(),
+        user_id: f.get('user_id').trim() || undefined,
+      };
       try {
-        const data = await api.getRates({
-          origin: {
-            street1: f.get('o_street').trim(),
-            city: f.get('o_city').trim(),
-            state: f.get('o_state').trim(),
-            zip: f.get('o_zip').trim(),
-            country: 'CA',
-          },
-          destination: {
-            street1: f.get('d_street').trim(),
-            city: f.get('d_city').trim(),
-            state: f.get('d_state').trim(),
-            zip: f.get('d_zip').trim(),
-            country: 'CA',
-          },
-          parcel: {
-            length: Number(f.get('length')) || undefined,
-            width: Number(f.get('width')) || undefined,
-            height: Number(f.get('height')) || undefined,
-            weight: Number(f.get('weight')),
-          },
-          user_id: f.get('user_id').trim() || undefined,
-        });
-        renderRates(data);
+        const data = await api.getRates(params);
+        lastQuoteParams = params;
+        renderBoard(data);
       } catch (err) {
         showAlert('Could not get rates: ' + err.message);
       } finally {
@@ -279,7 +389,7 @@
         : '<span class="badge instant">Instant</span>';
     }
 
-    function renderRates(data) {
+    function renderBoard(data) {
       const box = $('#quote-results');
       const rates = (data && data.rates) || [];
       if (!rates.length) {
@@ -313,92 +423,164 @@
         return;
       }
 
-      // Rate-sheet quotes and live carrier rates render as separate
-      // sections; only live rates are purchasable here.
-      const sheetRates = rates.filter((r) => r.source !== 'easypost');
-      const liveRates = rates.filter((r) => r.source === 'easypost');
-
-      const sheetRows = sheetRates
+      currentQuote = data;
+      const accLine = (data.accessorials_applied || [])
+        .map((a) => `${esc(a.label)} (${cad(a.fee_cad)})`)
+        .join(', ');
+      const rows = rates
         .map(
-          (r) => `<tr>
-            <td>${esc(r.carrier)}</td>
-            <td>${esc(r.service)}</td>
-            <td class="num">${cad(r.cost_cad)}</td>
-            <td class="num">${r.fsc_percent != null ? esc(String(r.fsc_percent)) + '%' : '—'}</td>
-            <td class="num">${cad(r.cost_cad)}</td>
-            <td class="num">${cad(r.retail_cad)}</td>
-            <td>${sourceBadge(r.source)}</td>
-            <td class="num">${r.delivery_days != null ? esc(String(r.delivery_days)) : '—'}</td>
+          (r, i) => `<tr>
+            <td class="chk"><input type="radio" name="rate-pick" value="${esc(r.rate_id)}"${i === 0 ? ' checked' : ''}></td>
+            <td>${esc(r.carrier)}${r.service ? '<br><span class="note">' + esc(r.service) + '</span>' : ''} ${sourceBadge(r.source)}</td>
+            <td>${r.delivery_days != null ? esc(String(r.delivery_days)) : '—'}</td>
+            <td class="num"><strong>${cad(r.retail_cad)}</strong></td>
           </tr>`
         )
         .join('');
 
-      const liveRows = liveRates
-        .map(
-          (r) => `<tr>
-            <td>${esc(r.carrier)}</td>
-            <td>${esc(r.service)}</td>
-            <td class="num">${cad(r.cost_cad)}</td>
-            <td class="num">${cad(r.retail_cad)}</td>
-            <td class="num">${r.delivery_days != null ? esc(String(r.delivery_days)) : '—'}</td>
-            <td>${r.delivery_date ? esc(dateStr(r.delivery_date)) : '—'}</td>
-            <td><button class="btn small" data-buy="${esc(r.rate_id)}" data-shipment="${esc(data.shipment_id)}">Buy</button></td>
-          </tr>`
-        )
-        .join('');
+      box.innerHTML = `
+        <h2>Best Available Freight Rates and Service Options for this shipment</h2>
+        ${data.total_weight_lbs != null ? `<p class="lede">Total weight: <strong>${esc(String(data.total_weight_lbs))} lb</strong>${accLine ? ' · Services: ' + accLine : ''}</p>` : ''}
+        <div class="table-wrap"><table class="data">
+          <thead><tr><th></th><th>Carrier</th><th>Estimated Transit (Not Guaranteed)</th><th>Est. Total Cost (excl. tax)</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table></div>
+        <div class="card" style="margin-top:12px">
+          <div class="row-2">
+            <label>Ref # <input id="ref-num" type="text" placeholder="Reference number"></label>
+            <label>PO # <input id="po-num" type="text" placeholder="Purchase order"></label>
+          </div>
+          <label>Delivery notes <input id="del-notes" type="text" placeholder="Notes for the driver / BOL"></label>
+          <div class="actions" style="margin-top:10px">
+            <button class="btn" id="save-quote-btn">Save This Quote</button>
+            <button class="btn primary" id="complete-shipment-btn">Complete This Shipment</button>
+          </div>
+        </div>
+        <div id="complete-result"></div>`;
 
-      let html = '';
-      if (sheetRates.length) {
-        html += `
-        <h2>Available rates</h2>
-        <div class="table-wrap"><table class="data">
-          <thead><tr>
-            <th>Carrier</th><th>Service</th><th>Base $</th><th>FSC %</th>
-            <th>Total $</th><th>Your price $</th><th>Source</th><th>Days</th>
-          </tr></thead>
-          <tbody>${sheetRows}</tbody>
-        </table></div>`;
-      }
-      if (liveRates.length) {
-        html += `
-        <h2>Live carrier rates</h2>
-        <p class="lede">Real-time parcel rates. Buying a label charges the carrier cost; your price includes the platform markup.</p>
-        <div class="table-wrap"><table class="data">
-          <thead><tr>
-            <th>Carrier</th><th>Service</th><th>Cost $</th>
-            <th>Your price $</th><th>Days</th><th>Est. delivery</th><th></th>
-          </tr></thead>
-          <tbody>${liveRows}</tbody>
-        </table></div>`;
-      }
-      box.innerHTML = html;
-      $$('#quote-results [data-buy]').forEach((b) =>
-        b.addEventListener('click', () => buyRate(b.dataset.buy, b.dataset.shipment, b))
-      );
+      $('#save-quote-btn').addEventListener('click', saveCurrentQuote);
+      $('#complete-shipment-btn').addEventListener('click', completeCurrentShipment);
     }
 
-    async function buyRate(rateId, shipmentId, btn) {
+    function selectedRateId() {
+      const el = document.querySelector('input[name="rate-pick"]:checked');
+      return el ? el.value : null;
+    }
+
+    async function saveCurrentQuote() {
+      if (!currentQuote) return;
+      const lane = `${lastQuoteParams.origin.city} → ${lastQuoteParams.destination.city}`;
+      const name = prompt('Name this quote:', `${lane} — ${currentQuote.total_weight_lbs} lb`);
+      if (name === null) return;
+      try {
+        await api.saveQuote(currentQuote.shipment_id, name || `${lane}`);
+        showAlert('Quote saved.');
+        loadSavedQuotes();
+      } catch (err) {
+        showAlert('Could not save quote: ' + err.message);
+      }
+    }
+
+    async function completeCurrentShipment() {
+      if (!currentQuote) return;
+      const rateId = selectedRateId();
+      if (!rateId) { showAlert('Pick a carrier rate first.'); return; }
+      const btn = $('#complete-shipment-btn');
+      btn.disabled = true;
+      btn.textContent = 'Completing…';
+      try {
+        const res = await api.completeShipment({
+          shipment_id: currentQuote.shipment_id,
+          rate_id: rateId,
+          shipper: lastQuoteParams.shipper,
+          consignee: lastQuoteParams.consignee,
+          references: { 'Ref #': $('#ref-num').value.trim(), 'PO #': $('#po-num').value.trim() },
+          delivery_notes: $('#del-notes').value.trim(),
+          user_id: lastQuoteParams.user_id,
+        });
+        const label = res.label_url
+          ? ` <a href="${esc(res.label_url)}" target="_blank" rel="noopener">Print label</a>` : '';
+        $('#complete-result').innerHTML = `
+          <div class="card" style="margin-top:12px">
+            <h3>Shipment ${res.status === 'purchased' ? 'booked' : 'scheduled'}</h3>
+            <p><strong>${esc(res.carrier)}</strong>${res.service ? ' — ' + esc(res.service) : ''}</p>
+            <p>PRO / Tracking: <strong>${esc(res.tracking_code || '—')}</strong></p>
+            <p>Total charged: <strong>${cad(res.charged_amount)}</strong></p>
+            <div class="actions">
+              <a class="btn" href="${esc(res.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a>${label}
+            </div>
+          </div>`;
+        $('#complete-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch (err) {
+        showAlert('Could not complete shipment: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Complete This Shipment';
+      }
+    }
+
+    /* ---------- SAVED QUOTES ---------- */
+    async function loadSavedQuotes() {
+      const box = $('#saved-quotes');
+      try {
+        const userId = ($('#quote-form [name="user_id"]') || {}).value || '';
+        const { quotes } = await api.listSavedQuotes(userId.trim() || undefined);
+        if (!quotes.length) {
+          box.innerHTML = '<p class="note">No saved quotes yet. Rate a shipment above, then press “Save This Quote”.</p>';
+          return;
+        }
+        box.innerHTML = `<div class="table-wrap"><table class="data"><thead><tr>
+          <th>Name</th><th>Lane</th><th>Weight</th><th>Best total</th><th>Saved</th><th></th>
+        </tr></thead><tbody>${quotes
+          .map((q) => {
+            const best = (q.rates || []).reduce((m, r) => (m == null || r.retail_cad < m ? r.retail_cad : m), null);
+            return `<tr>
+              <td>${esc(q.quote_name || 'Untitled quote')}</td>
+              <td>${esc(q.origin.city || '')}, ${esc(q.origin.state || '')} → ${esc(q.destination.city || '')}, ${esc(q.destination.state || '')}</td>
+              <td class="num">${q.total_weight_lbs != null ? esc(String(q.total_weight_lbs)) + ' lb' : '—'}</td>
+              <td class="num">${best != null ? cad(best) : '—'}</td>
+              <td>${esc(dateStr(q.created_at))}</td>
+              <td><button class="btn small" data-reload="${esc(q.id)}">Reload</button></td>
+            </tr>`;
+          })
+          .join('')}</tbody></table></div>`;
+        box.querySelectorAll('[data-reload]').forEach((b) =>
+          b.addEventListener('click', () => reloadQuote(b.dataset.reload, b))
+        );
+      } catch (err) {
+        box.innerHTML = '<p class="note">Could not load saved quotes.</p>';
+      }
+    }
+
+    async function reloadQuote(id, btn) {
       btn.disabled = true;
       const orig = btn.textContent;
-      btn.textContent = 'Buying…';
+      btn.textContent = 'Loading…';
       try {
-        const res = await api.buyLabel(rateId, shipmentId);
-        const extra = res.tracking_code ? ` Tracking: ${res.tracking_code}.` : '';
-        const label = res.label_url ? ` <a href="${esc(res.label_url)}" target="_blank" rel="noopener">Print label</a>` : '';
-        showAlert('Label purchased.' + extra + ' ' + (res.message || ''));
-        const box = $('#quote-results');
-        if (label && box) {
-          const p = document.createElement('p');
-          p.innerHTML = label;
-          box.prepend(p);
-        }
+        const { quote } = await api.getQuote(id);
+        const set = (n, v) => { const el = document.querySelector(`#quote-form [name="${n}"]`); if (el && v != null) el.value = v; };
+        set('s_name', quote.shipper.name); set('o_street', quote.origin.street1);
+        set('o_city', quote.origin.city); set('o_state', quote.origin.state); set('o_zip', quote.origin.zip);
+        set('o_phone', quote.shipper.phone); set('o_email', quote.shipper.email);
+        set('c_name', quote.consignee.name); set('d_street', quote.destination.street1);
+        set('d_city', quote.destination.city); set('d_state', quote.destination.state); set('d_zip', quote.destination.zip);
+        set('d_phone', quote.consignee.phone); set('d_email', quote.consignee.email);
+        $('#pkg-rows').innerHTML = '';
+        (quote.packages && quote.packages.length ? quote.packages : [{}]).forEach((p) => addPkgRow(p));
+        setAccessorials(quote.accessorials);
+        // One tap: refill the form and re-rate fresh.
+        document.querySelector('#quote-form').requestSubmit();
+        document.querySelector('#tab-quote').scrollIntoView({ behavior: 'smooth' });
       } catch (err) {
-        showAlert('Purchase failed: ' + err.message);
+        showAlert('Could not reload quote: ' + err.message);
       } finally {
         btn.disabled = false;
         btn.textContent = orig;
       }
     }
+
+    loadAccessorials();
+    loadSavedQuotes();
 
     /* ---------- TRACKING ---------- */
     $('#track-form').addEventListener('submit', async (e) => {

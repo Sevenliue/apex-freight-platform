@@ -38,6 +38,7 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api/rates', require('./routes/rates'));
+app.use('/api/quotes', require('./routes/quotes'));
 app.use('/api/shipments', require('./routes/shipments'));
 app.use('/api/tracking', require('./routes/tracking'));
 app.use('/api/easypost', require('./routes/easypost'));

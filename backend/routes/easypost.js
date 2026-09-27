@@ -232,3 +232,11 @@ router.get('/track/:code', async (req, res) => {
 });
 
 module.exports = router;
+
+// buyEasypostLabel(epShipmentId, rateId): shared label-purchase helper used by
+// POST /api/shipments/complete so matrix and live rates complete through one
+// code path. Throws on EasyPost errors (err.code === 'NOT_CONFIGURED' when
+// the key is missing).
+module.exports.buyEasypostLabel = async function buyEasypostLabel(epShipmentId, rateId) {
+  return easypost.buyLabel(epShipmentId, rateId);
+};

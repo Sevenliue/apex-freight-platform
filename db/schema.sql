@@ -232,3 +232,18 @@ SELECT
 FROM marketplace_transactions t
 LEFT JOIN shipment_postings sp ON sp.id = t.shipment_id
 LEFT JOIN carrier_bids b       ON b.id = t.bid_id;
+
+-- ---------------------------------------------------------------------------
+-- Smart-shipping quote flow: saved quotes, full quote payloads, BOL data.
+-- Idempotent: safe to re-run on existing databases.
+-- ---------------------------------------------------------------------------
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS is_saved        boolean      NOT NULL DEFAULT false;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS quote_name      varchar(255);
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS shipper_json    jsonb;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS consignee_json  jsonb;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS packages_json   jsonb;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS accessorials_json jsonb;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS rates_json       jsonb;
+CREATE INDEX IF NOT EXISTS idx_quotes_is_saved ON quotes(is_saved);
+
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS bol_json jsonb;

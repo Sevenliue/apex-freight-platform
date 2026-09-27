@@ -234,3 +234,13 @@ details form { margin-top: 10px; }
   .tab { white-space: nowrap; }
   input.wide { min-width: 0; }
 }
+
+/* Smart-shipping quote flow additions */
+.pkg-table input[type="number"], .pkg-table input[type="text"] { width: 100%; min-width: 52px; box-sizing: border-box; }
+.pkg-table select { width: 100%; min-width: 76px; }
+.pkg-table td.chk, .data td.chk { text-align: center; width: 34px; }
+.check-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+.check-grid .check { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; cursor: pointer; }
+.check-grid .check input { margin-top: 3px; }
+.btn.danger { background: var(--red-bg, #fdecec); color: var(--red, #b3261e); }
+@media (max-width: 720px) { .check-grid { grid-template-columns: 1fr; } }

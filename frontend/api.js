@@ -41,9 +41,32 @@ export function getHealth() {
   return get('/api/health');
 }
 
-/* Rates — parcel.weight in LBS. */
-export function getRates({ origin, destination, parcel, user_id }) {
-  return post('/api/rates', { origin, destination, parcel, user_id });
+/* Rates — packages[] in LBS; accessorials[] are catalog codes. Legacy
+   single-parcel {weight, length, width, height} still accepted. */
+export function getRates({ origin, destination, parcel, packages, accessorials, shipper, consignee, user_id }) {
+  return post('/api/rates', { origin, destination, parcel, packages, accessorials, shipper, consignee, user_id });
+}
+
+/* Saved quotes + accessorial catalog. */
+export function getAccessorialCatalog() {
+  return get('/api/quotes/accessorials');
+}
+
+export function saveQuote(id, name) {
+  return post(`/api/quotes/${encodeURIComponent(id)}/save`, { name });
+}
+
+export function listSavedQuotes(user_id) {
+  return get('/api/quotes/saved' + (user_id ? `?user_id=${encodeURIComponent(user_id)}` : ''));
+}
+
+export function getQuote(id) {
+  return get(`/api/quotes/${encodeURIComponent(id)}`);
+}
+
+/* Complete a shipment (book label or schedule pickup) + printable BOL. */
+export function completeShipment({ shipment_id, rate_id, shipper, consignee, references, delivery_notes, user_id }) {
+  return post('/api/shipments/complete', { shipment_id, rate_id, shipper, consignee, references, delivery_notes, user_id });
 }
 
 /* Buy a label for a rated shipment. */

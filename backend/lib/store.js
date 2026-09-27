@@ -8,6 +8,7 @@ const { randomUUID } = require('crypto');
 
 const store = {
   quotes: new Map(), // shipment_id -> { shipment_id, origin, destination, parcel, user_id, rates, easypost_shipment_id, created_at }
+  savedQuotes: new Map(), // shipment_id -> saved quote record (in-memory mode)
   loads: new Map(), // load id -> load posting
   bids: new Map(), // bid id -> bid
   transactions: [], // accepted bid transactions
