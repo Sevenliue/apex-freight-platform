@@ -65,6 +65,18 @@ body {
 .tab:hover { color: #fff; background: rgba(255, 255, 255, 0.07); }
 .tab.active { color: #fff; background: rgba(255, 255, 255, 0.12); }
 .tab.active svg { color: var(--amber); opacity: 1; }
+/* sidebar dropdown groups */
+.nav-group { display: flex; flex-direction: column; }
+.group-toggle .chev { margin-left: auto; width: 16px; height: 16px; flex: 0 0 16px; opacity: 0.7; transition: transform 0.18s ease; }
+.nav-group.open .group-toggle .chev { transform: rotate(180deg); }
+.group-toggle.active-child { color: #fff; }
+.nav-sub { display: none; flex-direction: column; gap: 2px; padding: 2px 0 4px; }
+.nav-group.open .nav-sub { display: flex; }
+.tab.sub { padding: 9px 12px 9px 50px; font-size: 14px; font-weight: 500; position: relative; }
+.tab.sub::before { content: ""; position: absolute; left: 32px; top: 9px; bottom: 9px; width: 3px; border-radius: 2px; background: transparent; }
+.tab.sub:hover::before { background: rgba(255, 255, 255, 0.25); }
+.tab.sub.active::before { background: var(--amber); }
+.tab.sub.active { color: #fff; background: rgba(255, 255, 255, 0.12); }
 .side-account {
   padding: 14px 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.12);

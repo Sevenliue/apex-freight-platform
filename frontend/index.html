@@ -14,15 +14,23 @@
         <span class="brand-mark">AF</span>
         <span class="brand-name">Apex Freight</span>
       </div>
-      <nav class="side-nav" role="tablist" aria-label="Sections">
+            <nav class="side-nav" role="tablist" aria-label="Sections">
         <button class="tab active" data-tab="dashboard" role="tab" aria-selected="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
           <span>Dashboard</span>
         </button>
-        <button class="tab" data-tab="quote" role="tab" aria-selected="false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.4"/></svg>
-          <span>Get a Rate</span>
-        </button>
+        <div class="nav-group" data-group="freight">
+          <button class="tab group-toggle" aria-expanded="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+            <span>LTL Freight</span>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="nav-sub">
+            <button class="tab sub" data-tab="quote" role="tab" aria-selected="false"><span>Quick Quote</span></button>
+            <button class="tab sub" data-tab="quote" data-scroll="saved-quotes" role="tab" aria-selected="false"><span>Saved Quotes</span></button>
+            <button class="tab sub" data-tab="dashboard" data-scroll="dash-orders" role="tab" aria-selected="false"><span>My Orders</span></button>
+          </div>
+        </div>
         <button class="tab" data-tab="tracking" role="tab" aria-selected="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
           <span>Tracking</span>
@@ -31,24 +39,21 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
           <span>Billing Center</span>
         </button>
-        <button class="tab" data-tab="addressbook" role="tab" aria-selected="false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-          <span>Address Book</span>
-        </button>
-        <button class="tab" data-tab="carriers" role="tab" aria-selected="false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-          <span>Carriers</span>
-        </button>
-        <button class="tab" data-tab="loads" role="tab" aria-selected="false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
-          <span>Load Board</span>
-        </button>
-        <button class="tab" data-tab="reports" role="tab" aria-selected="false">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
-          <span>Reports</span>
-        </button>
+        <div class="nav-group" data-group="resources">
+          <button class="tab group-toggle" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+            <span>Resources</span>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="nav-sub">
+            <button class="tab sub" data-tab="addressbook" role="tab" aria-selected="false"><span>Address Book</span></button>
+            <button class="tab sub" data-tab="carriers" role="tab" aria-selected="false"><span>Carriers</span></button>
+            <button class="tab sub" data-tab="loads" role="tab" aria-selected="false"><span>Load Board</span></button>
+            <button class="tab sub" data-tab="reports" role="tab" aria-selected="false"><span>Reports</span></button>
+          </div>
+        </div>
         <button class="tab" data-tab="admin" role="tab" aria-selected="false" id="nav-admin" style="display:none">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a2 2 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a2 2 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a2 2 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           <span>Admin</span>
         </button>
       </nav>
@@ -631,22 +636,53 @@
     const dateStr = (d) => (d ? new Date(d).toLocaleDateString('en-CA') : '—');
 
     /* ---------- tabs ---------- */
-    $$('.tab').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        $$('.tab').forEach((b) => {
-          b.classList.toggle('active', b === btn);
-          b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
-        });
-        $$('.panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + btn.dataset.tab));
-        if (btn.dataset.tab === 'loads') loadOpenLoads();
-        if (btn.dataset.tab === 'admin') loadAdmin();
-        if (btn.dataset.tab === 'addressbook') loadAddressBook();
-        if (btn.dataset.tab === 'carriers') loadCarriers();
-        if (btn.dataset.tab === 'dashboard') loadDashboard();
-        if (btn.dataset.tab === 'pricing') loadBillingCenter();
-        closeSidebar();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+    function activateTab(btn) {
+      $$('.tab[data-tab]').forEach((b) => {
+        const on = b === btn;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
       });
+      $$('.nav-group').forEach((g) => {
+        const hasActive = !!g.querySelector('.tab[data-tab].active');
+        if (hasActive) setGroupOpen(g, true, true);
+        g.querySelector('.group-toggle').classList.toggle('active-child', hasActive);
+      });
+      $$('.panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + btn.dataset.tab));
+      if (btn.dataset.tab === 'loads') loadOpenLoads();
+      if (btn.dataset.tab === 'admin') loadAdmin();
+      if (btn.dataset.tab === 'addressbook') loadAddressBook();
+      if (btn.dataset.tab === 'carriers') loadCarriers();
+      if (btn.dataset.tab === 'dashboard') loadDashboard();
+      if (btn.dataset.tab === 'pricing') loadBillingCenter();
+      closeSidebar();
+      const target = btn.dataset.scroll ? document.getElementById(btn.dataset.scroll) : null;
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    $$('.tab[data-tab]').forEach((btn) => {
+      btn.addEventListener('click', () => activateTab(btn));
+    });
+
+    /* ---------- sidebar dropdown groups ---------- */
+    function setGroupOpen(g, open, save) {
+      g.classList.toggle('open', open);
+      g.querySelector('.group-toggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (save) { try { localStorage.setItem('apex-nav-' + g.dataset.group, open ? '1' : '0'); } catch (e) {} }
+    }
+    $$('.group-toggle').forEach((t) => {
+      t.addEventListener('click', () => {
+        const g = t.closest('.nav-group');
+        setGroupOpen(g, !g.classList.contains('open'), true);
+      });
+    });
+    // Restore saved group state (LTL Freight open by default).
+    $$('.nav-group').forEach((g) => {
+      let open = g.dataset.group === 'freight';
+      try {
+        const v = localStorage.getItem('apex-nav-' + g.dataset.group);
+        if (v !== null) open = v === '1';
+      } catch (e) {}
+      setGroupOpen(g, open, false);
     });
 
     function showTab(name) {
