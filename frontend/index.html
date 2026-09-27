@@ -94,6 +94,10 @@
             <button class="tab sub" data-tab="pricing" role="tab" aria-selected="false"><span>Billing &amp; Invoices</span></button>
           </div>
         </div>
+        <button class="tab" data-tab="pricing" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+          <span>My Plan</span>
+        </button>
         <div class="nav-group" data-group="resources">
           <button class="tab group-toggle" aria-expanded="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
@@ -2990,10 +2994,8 @@
         area.innerHTML =
           `<span class="account-name">${esc(currentUser.name || currentUser.email || 'Account')}</span>` +
           badge + usage +
-          `<button class="btn small account-btn" id="plan-btn" type="button">Plan</button>` +
           `<button class="btn small account-btn" id="logout-btn" type="button">Log out</button>`;
         $('#logout-btn').addEventListener('click', signOut);
-        $('#plan-btn').addEventListener('click', () => showTab('pricing'));
       } else {
         area.innerHTML =
           `<button class="btn small account-btn" id="login-btn" type="button">Log in</button>` +
