@@ -397,6 +397,10 @@ CREATE INDEX IF NOT EXISTS idx_users_stripe_customer_id ON users(stripe_customer
 -- ---------------------------------------------------------------------------
 ALTER TABLE users ADD COLUMN IF NOT EXISTS shipping_approved boolean NOT NULL DEFAULT false;
 
+-- Per-customer freight markup override (percent). NULL = use the global
+-- MARKUP_PERCENT default. Admin-managed via POST /api/admin/users/:id/markup.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS markup_percent numeric;
+
 -- ---------------------------------------------------------------------------
 -- Full-load pricing requests (added 2026-09-27): a customer can ask for custom
 -- pricing on a full truckload instead of instant LTL rates. An admin is

@@ -6,11 +6,11 @@
 'use strict';
 
 const express = require('express');
-const config = require('../config');
 const db = require('../db');
 const stripeLib = require('../lib/stripe');
 const { store, id } = require('../lib/store');
 const { round2 } = require('../lib/money');
+const markupLib = require('../lib/markup');
 
 const router = express.Router();
 const now = () => new Date().toISOString();
@@ -101,8 +101,10 @@ router.post('/accept', async (req, res) => {
   }
 
   // Arbitrage math: shipper pays bid + markup; platform keeps the spread.
+  // The accepting shipper's per-account markup override applies when set.
   const carrierBid = round2(bid.bid_amount);
-  const shipperPrice = round2(carrierBid * (1 + config.markupPercent / 100));
+  const acceptMarkup = await markupLib.effectiveMarkup(acceptShipperId);
+  const shipperPrice = round2(carrierBid * (1 + acceptMarkup / 100));
   const platformProfit = round2(shipperPrice - carrierBid);
 
   let payment_status = 'pending_payment';

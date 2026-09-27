@@ -2395,7 +2395,8 @@
       if (!box) return;
       box.innerHTML = '<div class="card empty">Loading accounts…</div>';
       try {
-        const { users } = await api.listUsers();
+        const { users, default_markup } = await api.listUsers();
+        const defaultMarkup = default_markup == null ? 15 : Number(default_markup);
         if (!users.length) {
           box.innerHTML =
             '<h2>Account approvals</h2><p class="lede">New accounts can quote right away; approve them to unlock scheduling.</p>' +
@@ -2405,12 +2406,13 @@
         const pending = users.filter((u) => !u.is_admin && !u.shipping_approved);
         box.innerHTML =
           '<h2>Account approvals</h2><p class="lede">New accounts can get quotes right away. ' +
-          'Approve an account to let them schedule and pay for shipments.</p>' +
+          'Approve an account to let them schedule and pay for shipments.<br>' +
+          `Freight markup defaults to <strong>${defaultMarkup}%</strong>; use Edit to set a per-customer markup (blank resets to the default).</p>` +
           (pending.length
             ? `<div class="card warn" style="margin-bottom:10px">⏳ ${pending.length} account${pending.length === 1 ? '' : 's'} waiting for approval.</div>`
             : '') +
           `<div class="table-wrap"><table class="data"><thead><tr>
-            <th>Registered</th><th>Name</th><th>Company</th><th>Email</th><th>Status</th><th></th>
+            <th>Registered</th><th>Name</th><th>Company</th><th>Email</th><th>Markup</th><th>Status</th><th></th>
           </tr></thead><tbody>${users
             .map(
               (u) => `<tr>
@@ -2418,6 +2420,12 @@
               <td>${esc(u.name || '—')}</td>
               <td>${esc(u.company || '—')}</td>
               <td>${esc(u.email || '—')}</td>
+              <td>${u.is_admin
+                ? '—'
+                : `<span>${u.markup_percent == null
+                    ? `${defaultMarkup}% <span class="note">(default)</span>`
+                    : `${esc(String(u.markup_percent))}%`}</span>
+                   <button class="btn small" data-acct-markup="${esc(u.id)}" data-current="${u.markup_percent == null ? '' : esc(String(u.markup_percent))}">Edit</button>`}</td>
               <td>${u.is_admin
                 ? '<span class="badge staff">Staff</span>'
                 : u.shipping_approved
@@ -2432,6 +2440,30 @@
             )
             .join('')}</tbody></table></div>`;
         const reload = () => loadAccountQueue();
+        box.querySelectorAll('[data-acct-markup]').forEach((btn) =>
+          btn.addEventListener('click', async () => {
+            const current = btn.getAttribute('data-current') || '';
+            const input = prompt(
+              `Freight markup % for this customer (leave blank to use the ${defaultMarkup}% default):`,
+              current
+            );
+            if (input === null) return; // cancelled
+            const trimmed = input.trim();
+            const value = trimmed === '' ? null : Number(trimmed);
+            if (value !== null && (!Number.isFinite(value) || value < 0 || value > 100)) {
+              showAlert('Enter a number between 0 and 100, or leave it blank for the default.');
+              return;
+            }
+            btn.disabled = true;
+            try {
+              await api.setUserMarkup(btn.getAttribute('data-acct-markup'), value);
+              reload();
+            } catch (err) {
+              showAlert('Could not update markup: ' + err.message);
+              btn.disabled = false;
+            }
+          })
+        );
         box.querySelectorAll('[data-acct-approve]').forEach((btn) =>
           btn.addEventListener('click', async () => {
             btn.disabled = true;

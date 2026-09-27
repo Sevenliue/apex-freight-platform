@@ -371,6 +371,12 @@ export function revokeUser(id) {
   return post(`/api/admin/users/${encodeURIComponent(id)}/revoke`, {});
 }
 
+/* Admin — per-customer freight markup override. markupPercent is a number
+   0–100, or null/'' to reset the account to the global default. */
+export function setUserMarkup(id, markupPercent) {
+  return post(`/api/admin/users/${encodeURIComponent(id)}/markup`, { markup_percent: markupPercent });
+}
+
 /* Address book */
 export function listAddresses() {
   return get('/api/address-book');

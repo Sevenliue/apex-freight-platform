@@ -6,7 +6,9 @@
 
 const express = require('express');
 const db = require('../db');
+const config = require('../config');
 const { round2 } = require('../lib/money');
+const { sanitizeMarkup } = require('../lib/markup');
 
 const router = express.Router();
 
@@ -93,7 +95,7 @@ router.get('/users', async (req, res) => {
   if (!(await requireAdmin(req, res))) return;
   try {
     const r = await db.query(
-      `SELECT id, email, full_name, company_name, phone, shipping_approved, created_at
+      `SELECT id, email, full_name, company_name, phone, shipping_approved, markup_percent, created_at
          FROM users ORDER BY created_at DESC LIMIT 500`
     );
     const users = r.rows.map((u) => ({
@@ -103,10 +105,11 @@ router.get('/users', async (req, res) => {
       company: u.company_name,
       phone: u.phone,
       shipping_approved: !!u.shipping_approved,
+      markup_percent: u.markup_percent == null ? null : Number(u.markup_percent),
       is_admin: billing.isAdminEmail(u.email),
       created_at: u.created_at,
     }));
-    return res.json({ users });
+    return res.json({ users, default_markup: config.markupPercent });
   } catch (err) {
     return res.status(502).json({ error: 'Could not list accounts: ' + err.message });
   }
@@ -129,6 +132,32 @@ router.post('/users/:id/approve', async (req, res) => {
     return res.json({ approved: true, id: u.id });
   } catch (err) {
     return res.status(502).json({ error: 'Could not approve account: ' + err.message });
+  }
+});
+
+// POST /api/admin/users/:id/markup — set a per-customer freight markup
+// override (percent). Body {markup_percent}: a number 0–100, or null/blank
+// to reset the account to the global default.
+router.post('/users/:id/markup', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  const markup = sanitizeMarkup(req.body && req.body.markup_percent);
+  if (markup === undefined) {
+    return res.status(400).json({ error: 'markup_percent must be a number between 0 and 100, or blank to use the default.' });
+  }
+  try {
+    const r = await db.query(
+      'UPDATE users SET markup_percent = $1 WHERE id = $2 RETURNING id, markup_percent',
+      [markup, req.params.id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Unknown account.' });
+    return res.json({
+      id: r.rows[0].id,
+      markup_percent: r.rows[0].markup_percent == null ? null : Number(r.rows[0].markup_percent),
+      default_markup: config.markupPercent,
+    });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not update markup: ' + err.message });
   }
 });
 

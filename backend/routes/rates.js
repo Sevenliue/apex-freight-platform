@@ -29,6 +29,7 @@ const easypost = require('../lib/easypost');
 const { store, id } = require('../lib/store');
 const { getExcludedNames } = require('./carriers');
 const { round2, applyMarkup } = require('../lib/money');
+const markupLib = require('../lib/markup');
 const acc = require('../lib/accessorials');
 const billingLib = require('../lib/billing');
 
@@ -240,6 +241,10 @@ router.post('/', async (req, res) => {
 
   const shipment_id = id('q');
   const transit = acc.estimateTransit(origin.state, destination.state);
+  // Freight markup for this quote: the signed-in customer's per-account
+  // override when the admin set one, else the global MARKUP_PERCENT default.
+  const markup = await markupLib.effectiveMarkup(req.user && req.user.id);
+
   const worldwide = region === 'worldwide';
 
   // Worldwide: the matrix is Canada lanes only, so rating is EasyPost-only.
@@ -317,7 +322,7 @@ router.post('/', async (req, res) => {
       carrier: q.carrier_label,
       service: q.service,
       cost_cad: cost,
-      retail_cad: applyMarkup(cost, config.markupPercent),
+      retail_cad: applyMarkup(cost, markup),
       currency: 'CAD',
       fsc_percent: q.fsc_percent,
       delivery_days: transit,
@@ -395,7 +400,7 @@ router.post('/', async (req, res) => {
           carrier: r.carrier,
           service: r.service,
           cost_cad: freight,
-          retail_cad: applyMarkup(freight, config.markupPercent),
+          retail_cad: applyMarkup(freight, markup),
           currency: r.currency || 'CAD',
           delivery_days: r.delivery_days != null ? String(r.delivery_days) : transit,
           transit_estimate: r.delivery_days == null,
