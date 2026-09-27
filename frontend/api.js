@@ -82,6 +82,10 @@ export function getPaymentHistory() {
   return get('/api/billing/payments');
 }
 
+export function getPaymentMethod() {
+  return get('/api/billing/payment-method');
+}
+
 /* Health */
 export function getHealth() {
   return get('/api/health');

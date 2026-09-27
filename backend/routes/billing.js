@@ -156,6 +156,42 @@ router.post('/portal', async (req, res) => {
   }
 });
 
+// GET /api/billing/payment-method — the signed-in shipper's saved card on
+// file (from Stripe), if any. Stripe unconfigured or no customer yet returns
+// { configured: false } / { card: null } instead of an error so the
+// Billing Center can render an honest "no card on file" state.
+router.get('/payment-method', async (req, res) => {
+  if (needAuth(req, res)) return;
+  if (needDb(res)) return;
+  const stripe = stripeClient();
+  if (!stripe) return res.json({ configured: false, card: null });
+  try {
+    const state = await billing.getBillingState(req.user.id);
+    if (!state || !state.stripeCustomerId) {
+      return res.json({ configured: true, card: null });
+    }
+    const pms = await stripe.paymentMethods.list({
+      customer: state.stripeCustomerId,
+      type: 'card',
+      limit: 1,
+    });
+    const pm = pms.data[0];
+    if (!pm || !pm.card) return res.json({ configured: true, card: null });
+    return res.json({
+      configured: true,
+      card: {
+        brand: pm.card.brand || 'card',
+        last4: pm.card.last4 || '••••',
+        exp_month: pm.card.exp_month,
+        exp_year: pm.card.exp_year,
+      },
+    });
+  } catch (err) {
+    console.error('[billing/payment-method]', err.message);
+    return bad(res, 502, 'Could not load the payment method: ' + err.message);
+  }
+});
+
 // GET /api/billing/payments — the signed-in shipper's freight payment history
 // (one row per scheduled load: date, PRO, route, amount, payment status).
 router.get('/payments', async (req, res) => {
