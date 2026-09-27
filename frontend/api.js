@@ -131,6 +131,24 @@ export function completeShipment({ shipment_id, rate_id, shipper, consignee, ref
   return post('/api/shipments/complete', { shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup });
 }
 
+/* Pay-first scheduling: Stripe Checkout for the full freight amount. */
+export function checkoutShipment({ shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup }) {
+  return post('/api/shipments/checkout', { shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup });
+}
+
+export function getShipmentOrder(id) {
+  return get(`/api/shipments/order/${encodeURIComponent(id)}`);
+}
+
+/* Tender queue (admin): paid loads awaiting manual carrier booking. */
+export function listTenders() {
+  return get('/api/shipments/tenders');
+}
+
+export function markTendered(id, carrier_pro) {
+  return post(`/api/shipments/tenders/${encodeURIComponent(id)}`, { carrier_pro });
+}
+
 /* Quote attachments (multipart — auth header, no JSON content type). */
 export function listAttachments(quoteId) {
   return get(`/api/quotes/${encodeURIComponent(quoteId)}/attachments`);
@@ -242,23 +260,56 @@ export function getAccessorials(carrier_id) {
   return get(`/api/carrier-rates/accessorials/${encodeURIComponent(carrier_id)}`);
 }
 
-/* Reports */
-export function getShipperReport(shipperId, { start_date, end_date, q } = {}) {
+/* Reports — run on screen (JSON) or download as Excel. */
+function reportQuery({ start_date, end_date, q, format } = {}) {
   const p = new URLSearchParams();
   if (start_date) p.set('start_date', start_date);
   if (end_date) p.set('end_date', end_date);
   if (q) p.set('q', q);
+  if (format) p.set('format', format);
   const qs = p.toString();
-  return get(`/api/reports/shipper/${encodeURIComponent(shipperId)}${qs ? `?${qs}` : ''}`);
+  return qs ? `?${qs}` : '';
 }
 
-export function getCarrierReport(carrierId, { start_date, end_date, q } = {}) {
-  const p = new URLSearchParams();
-  if (start_date) p.set('start_date', start_date);
-  if (end_date) p.set('end_date', end_date);
-  if (q) p.set('q', q);
-  const qs = p.toString();
-  return get(`/api/reports/carrier/${encodeURIComponent(carrierId)}${qs ? `?${qs}` : ''}`);
+export function getShipmentsReport(opts = {}) {
+  return get(`/api/reports/shipments${reportQuery(opts)}`);
+}
+
+export function getQuotesReport(opts = {}) {
+  return get(`/api/reports/quotes${reportQuery(opts)}`);
+}
+
+export function getRevenueReport(opts = {}) {
+  return get(`/api/reports/revenue${reportQuery(opts)}`);
+}
+
+/* Excel download: same report endpoints with format=xlsx (auth header). */
+export async function downloadReport(kind, opts = {}) {
+  const token = getAuthToken();
+  const res = await fetch(`/api/reports/${kind}${reportQuery({ ...opts, format: 'xlsx' })}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    let msg = `Download failed (${res.status})`;
+    try {
+      const d = await res.json();
+      if (d && d.error) msg = d.error;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  const blob = await res.blob();
+  const cd = res.headers.get('content-disposition') || '';
+  const m = cd.match(/filename="([^"]+)"/);
+  const name = m ? m[1] : `apex-${kind}.xlsx`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(a.href);
+    a.remove();
+  }, 1000);
 }
 
 /* Admin */

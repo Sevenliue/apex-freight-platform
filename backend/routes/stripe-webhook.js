@@ -70,6 +70,17 @@ async function handleEvent(stripe, event) {
   const obj = event.data && event.data.object ? event.data.object : {};
 
   if (type === 'checkout.session.completed') {
+    // Shipment freight payment (pay-at-scheduling): finalize the order —
+    // buy the EasyPost label or mint the internal PRO — then mark paid.
+    const meta = obj.metadata || {};
+    if (meta.type === 'shipment_payment' && meta.order_id) {
+      const shipments = require('./shipments');
+      const pi = obj.payment_intent;
+      const paymentIntentId = typeof pi === 'string' ? pi : (pi && pi.id) || null;
+      const done = await shipments.finalizeShipmentPayment(meta.order_id, paymentIntentId);
+      console.log(`[stripe-webhook] shipment paid → order ${meta.order_id} (${done.status})`);
+      return;
+    }
     // Prefer the subscription object when present (most reliable); fall
     // back to checkout metadata + line items.
     let subscriptionId = obj.subscription || null;

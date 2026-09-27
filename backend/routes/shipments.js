@@ -89,41 +89,45 @@ router.post('/buy', async (req, res) => {
 module.exports = router;
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // POST /api/shipments/complete — "Complete This Shipment".
 // Body: shipment_id (quote id from POST /api/rates), rate_id, plus
-//   shipper {}, consignee {}, references {}, delivery_notes, user_id.
+//   shipper {}, consignee {}, references {}, delivery notes, user_id,
+//   region/direction/freight_charges/bill_to/depot flags.
 //
-// - Live (EasyPost) rate + key configured → buys the label via EasyPost.
-// - Matrix rate (or no EasyPost key) → records the shipment as "scheduled"
-//   with the chosen rate-sheet carrier and an internal PRO reference.
-// Always persists to the orders table when a database is configured.
+// Two paths:
+// - POST /api/shipments/checkout (new, pay-first): creates the pending order,
+//   then a Stripe Checkout Session for the full retail freight amount. The
+//   Stripe webhook finalizes the order (label buy / PRO mint) on payment.
+// - POST /api/shipments/complete (legacy): direct scheduling with no payment,
+//   used when Stripe is not configured (test mode). The order is recorded
+//   unpaid so the tender queue can tell it apart.
 // ---------------------------------------------------------------------------
 const easypostRoute = require('./easypost');
+const billing = require('../lib/billing');
 
-router.post('/complete', async (req, res) => {
+function fail(status, message) {
+  const e = new Error(message);
+  e.status = status;
+  throw e;
+}
+
+// prepareOrder(): validate quote+rate, build the order and BOL, persist as
+// awaiting_payment/unpaid. Shared by /complete and /checkout.
+async function prepareOrder(body, effectiveUserId) {
   const {
     shipment_id, rate_id,
     shipper = {}, consignee = {}, references = {},
     delivery_note_1 = null, delivery_note_2 = null, delivery_notes = '',
-    user_id = null,
     region = null, direction = null, freight_charges = null, bill_to = null,
     depot_dropoff = null, depot_pickup = null,
-  } = req.body || {};
+  } = body || {};
 
-  // The logged-in account wins over the optional guest user_id label.
-  const effectiveUserId = (req.user && req.user.id) || user_id || null;
-
-  if (!shipment_id || !rate_id) {
-    return res.status(400).json({ error: 'shipment_id and rate_id are required' });
-  }
+  if (!shipment_id || !rate_id) fail(400, 'shipment_id and rate_id are required');
   const quote = store.quotes.get(shipment_id);
-  if (!quote) {
-    return res.status(404).json({ error: 'Unknown shipment_id — request a fresh quote first' });
-  }
+  if (!quote) fail(404, 'Unknown shipment_id — request a fresh quote first');
   const rate = (quote.rates || []).find((r) => r.rate_id === rate_id);
-  if (!rate) {
-    return res.status(404).json({ error: 'Unknown rate_id for this shipment' });
-  }
+  if (!rate) fail(404, 'Unknown rate_id for this shipment');
 
   // Shipment type + freight charges: prefer the completion payload, fall back
   // to what was stored on the quote.
@@ -140,8 +144,18 @@ router.post('/complete', async (req, res) => {
   const shipNote1 = pickNote(delivery_note_1, quote.delivery_note_1 || delivery_notes);
   const shipNote2 = pickNote(delivery_note_2, quote.delivery_note_2);
 
+  // Shipper's order # + receiver's PO #: required on every shipment so
+  // reports can be run against them later. Stored as real columns (not just
+  // inside the BOL JSON) for querying.
+  const refs = references || {};
+  const shipper_order_no = String(refs['Ref #'] || refs.ref_number || refs.shipper_order_no || '').trim().slice(0, 255);
+  const receiver_po_no = String(refs['PO #'] || refs.po_number || refs.receiver_po_no || '').trim().slice(0, 255);
+  if (!shipper_order_no || !receiver_po_no) {
+    fail(400, "Shipper's order number and receiver's PO number are both required.");
+  }
+
   const order = {
-    id: id('ord'),
+    id: null,
     quote_id: quote.db_quote_id || null,
     shipment_id,
     rate_id,
@@ -151,33 +165,21 @@ router.post('/complete', async (req, res) => {
     cost_cad: rate.cost_cad,
     charged_amount: rate.retail_cad,
     currency: rate.currency || 'CAD',
-    status: 'scheduled',
+    status: 'awaiting_payment',
+    payment_status: 'unpaid',
     tracking_code: null,
     label_url: null,
+    shipper_order_no,
+    receiver_po_no,
     easypost_shipment_id: quote.easypost_shipment_id || null,
     region: shipRegion,
     direction: shipDirection,
     freight_charges: shipFreight,
     bill_to: shipBillTo,
+    tendered: false,
+    carrier_pro: null,
     created_at: new Date().toISOString(),
   };
-
-  // Live rate + EasyPost connected → buy the label for real.
-  if (rate.source === 'easypost' && quote.easypost_shipment_id && easypost.isEnabled()) {
-    try {
-      const bought = await easypostRoute.buyEasypostLabel(quote.easypost_shipment_id, rate_id);
-      order.status = 'purchased';
-      order.tracking_code = bought.tracking_code || null;
-      order.label_url = (bought.postage_label && bought.postage_label.label_url) || null;
-      order.carrier = bought.carrier || rate.carrier;
-      order.service = bought.service || rate.service;
-    } catch (err) {
-      return res.status(502).json({ error: 'Label purchase failed', detail: err.message });
-    }
-  } else {
-    // Matrix rate-sheet carrier: schedule the shipment, mint an internal PRO.
-    order.tracking_code = 'APX-' + Math.random().toString(36).slice(2, 8).toUpperCase();
-  }
 
   const bol = {
     shipper, consignee, references, delivery_note_1: shipNote1, delivery_note_2: shipNote2,
@@ -201,23 +203,187 @@ router.post('/complete', async (req, res) => {
   };
   order.bol = bol;
 
-  store.orders.push(order);
-
   if (db.isEnabled()) {
+    const userUuid = effectiveUserId ? await db.ensureUser(effectiveUserId, 'shipper') : null;
+    const r = await db.query(
+      `INSERT INTO orders (quote_id, user_id, easypost_shipment_id, easypost_rate_id,
+                           tracking_code, carrier, service_level, cost_amount,
+                           charged_amount, currency, label_url, status, payment_status,
+                           shipper_order_no, receiver_po_no, bol_json)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
+      [order.quote_id, userUuid, order.easypost_shipment_id, rate.source === 'easypost' ? rate_id : null,
+       order.tracking_code, order.carrier, order.service, order.cost_cad,
+       order.charged_amount, order.currency, order.label_url, order.status, order.payment_status,
+       order.shipper_order_no, order.receiver_po_no,
+       JSON.stringify(bol)]
+    );
+    order.id = r.rows[0].id;
+    order.user_id = userUuid || effectiveUserId;
+  } else {
+    order.id = id('ord');
+  }
+  store.orders.push(order);
+  return { order, quote, rate };
+}
+
+// finalizeShipmentPayment(dbOrderId, paymentIntentId): the Stripe webhook
+// calls this after a successful shipment Checkout. Idempotent — replaying a
+// paid order is a no-op. Parcel (EasyPost): buys the label now that the
+// customer has paid. Matrix LTL: mints the internal PRO and marks scheduled.
+async function finalizeShipmentPayment(dbOrderId, paymentIntentId) {
+  if (!db.isEnabled()) throw new Error('finalizeShipmentPayment requires a database');
+  const r = await db.query('SELECT * FROM orders WHERE id = $1', [dbOrderId]);
+  if (!r.rows.length) throw new Error('order not found: ' + dbOrderId);
+  const row = r.rows[0];
+  if (row.payment_status === 'paid') {
+    return { already: true, id: row.id, status: row.status, tracking_code: row.tracking_code };
+  }
+  let status = 'scheduled';
+  let tracking = row.tracking_code;
+  let labelUrl = row.label_url;
+  let carrier = row.carrier;
+  let service = row.service_level;
+  const epShipment = row.easypost_shipment_id;
+  const epRate = row.easypost_rate_id;
+  if (epShipment && epRate && easypost.isEnabled()) {
+    const bought = await easypostRoute.buyEasypostLabel(epShipment, epRate);
+    status = 'purchased';
+    tracking = bought.tracking_code || null;
+    labelUrl = (bought.postage_label && bought.postage_label.label_url) || null;
+    carrier = bought.carrier || carrier;
+    service = bought.service || service;
+  } else if (!tracking) {
+    tracking = 'APX-' + Math.random().toString(36).slice(2, 8).toUpperCase();
+  }
+  await db.query(
+    `UPDATE orders SET status = $2, tracking_code = $3, label_url = $4, payment_status = 'paid',
+                      stripe_payment_intent_id = $5, carrier = $6, service_level = $7
+     WHERE id = $1`,
+    [dbOrderId, status, tracking, labelUrl, paymentIntentId || null, carrier, service]
+  );
+  const mem = store.orders.find((o) => o.id === dbOrderId);
+  if (mem) {
+    mem.status = status; mem.tracking_code = tracking; mem.label_url = labelUrl;
+    mem.payment_status = 'paid'; mem.carrier = carrier; mem.service = service;
+  }
+  return {
+    id: dbOrderId,
+    status,
+    tracking_code: tracking,
+    carrier,
+    service,
+    charged_amount: row.charged_amount != null ? Number(row.charged_amount) : null,
+    label_url: labelUrl,
+    bol_url: `/api/shipments/bol/${encodeURIComponent(dbOrderId)}`,
+  };
+}
+
+// POST /api/shipments/checkout — pay-first scheduling.
+// Creates the pending order, then a Stripe Checkout Session for the full
+// retail freight amount. 501 when Stripe (or the database) is not configured.
+router.post('/checkout', async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Sign in to schedule a shipment.' });
+  }
+  if (!db.isEnabled()) {
+    return res.status(501).json({ error: 'Shipment payment requires a database. Set DATABASE_URL.' });
+  }
+  const stripeKey = config.stripeKey;
+  if (!stripeKey) {
+    return res.status(501).json({ error: 'Stripe is not configured: set STRIPE_SECRET_KEY on the server.' });
+  }
+  let prepared;
+  try {
+    prepared = await prepareOrder(req.body || {}, req.user.id);
+  } catch (e) {
+    return res.status(e.status || 500).json({ error: e.message });
+  }
+  const { order } = prepared;
+  try {
+    const stripe = require('stripe')(stripeKey);
+    // Reuse the subscriber's Stripe customer so receipts thread together.
+    let customerId = null;
+    try { customerId = (await billing.getBillingState(req.user.id) || {}).stripeCustomerId || null; } catch { /* ignore */ }
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: req.user.email,
+        name: req.user.name || undefined,
+        metadata: { user_id: req.user.id, company: req.user.company || '' },
+      });
+      customerId = customer.id;
+      try { await billing.setSubscription(req.user.id, { stripe_customer_id: customerId }); } catch { /* ignore */ }
+    }
+    const cents = Math.max(50, Math.round(Number(order.charged_amount) * 100));
+    const b = order.bol || {};
+    const city = (p) => [p && p.city, p && (p.province || p.state)].filter(Boolean).join(', ');
+    const routeDesc = `${city(b.shipper) || '?'} → ${city(b.consignee) || '?'}`;
+    const origin = `${req.protocol}://${req.get('host')}`;
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      customer: customerId,
+      client_reference_id: req.user.id,
+      line_items: [{
+        price_data: {
+          currency: 'cad',
+          unit_amount: cents,
+          product_data: {
+            name: `Freight shipment — ${order.carrier}${order.service ? ' · ' + order.service : ''}`,
+            description: routeDesc,
+          },
+        },
+        quantity: 1,
+      }],
+      metadata: { type: 'shipment_payment', order_id: order.id, user_id: req.user.id },
+      payment_intent_data: { metadata: { type: 'shipment_payment', order_id: order.id } },
+      success_url: `${origin}/?shipment=paid&order_id=${encodeURIComponent(order.id)}`,
+      cancel_url: `${origin}/?shipment=cancelled`,
+    });
+    await db.query('UPDATE orders SET stripe_checkout_session_id = $2 WHERE id = $1', [order.id, session.id]);
+    return res.json({ url: session.url, order_id: order.id });
+  } catch (err) {
+    console.error('[shipments/checkout]', err.message);
+    return res.status(502).json({ error: 'Could not start payment: ' + err.message });
+  }
+});
+
+// POST /api/shipments/complete — legacy direct scheduling, no payment.
+// Kept for test mode (Stripe not configured). The order is recorded unpaid.
+router.post('/complete', async (req, res) => {
+  const effectiveUserId = (req.user && req.user.id) || (req.body || {}).user_id || null;
+  let prepared;
+  try {
+    prepared = await prepareOrder(req.body || {}, effectiveUserId);
+  } catch (e) {
+    return res.status(e.status || 500).json({ error: e.message });
+  }
+  const { order, quote, rate } = prepared;
+
+  if (rate.source === 'easypost' && quote.easypost_shipment_id && easypost.isEnabled()) {
     try {
-      const userUuid = effectiveUserId ? await db.ensureUser(effectiveUserId, 'shipper') : null;
+      const bought = await easypostRoute.buyEasypostLabel(quote.easypost_shipment_id, rate.rate_id);
+      order.status = 'purchased';
+      order.tracking_code = bought.tracking_code || null;
+      order.label_url = (bought.postage_label && bought.postage_label.label_url) || null;
+      order.carrier = bought.carrier || rate.carrier;
+      order.service = bought.service || rate.service;
+    } catch (err) {
+      return res.status(502).json({ error: 'Label purchase failed', detail: err.message });
+    }
+  } else {
+    // Matrix rate-sheet carrier: schedule the shipment, mint an internal PRO.
+    order.status = 'scheduled';
+    order.tracking_code = 'APX-' + Math.random().toString(36).slice(2, 8).toUpperCase();
+  }
+
+  if (db.isEnabled() && /^[0-9a-f-]{36}$/i.test(order.id || '')) {
+    try {
       await db.query(
-        `INSERT INTO orders (quote_id, user_id, easypost_shipment_id, easypost_rate_id,
-                             tracking_code, carrier, service_level, cost_amount,
-                             charged_amount, currency, label_url, status, bol_json)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-        [order.quote_id, userUuid, order.easypost_shipment_id, rate.source === 'easypost' ? rate_id : null,
-         order.tracking_code, order.carrier, order.service, order.cost_cad,
-         order.charged_amount, order.currency, order.label_url, order.status,
-         JSON.stringify(bol)]
+        `UPDATE orders SET status = $2, tracking_code = $3, label_url = $4,
+                            carrier = $5, service_level = $6 WHERE id = $1`,
+        [order.id, order.status, order.tracking_code, order.label_url, order.carrier, order.service]
       );
     } catch (err) {
-      console.error('[shipments/complete] order DB insert failed (non-fatal):', err.message);
+      console.error('[shipments/complete] order update failed (non-fatal):', err.message);
     }
   }
 
@@ -229,11 +395,103 @@ router.post('/complete', async (req, res) => {
     tracking_code: order.tracking_code,
     label_url: order.label_url,
     charged_amount: order.charged_amount,
+    payment: 'unpaid',
+    payment_note: 'Stripe is not configured — this load was scheduled without payment (test mode).',
     bol_url: `/api/shipments/bol/${encodeURIComponent(order.id)}`,
   });
 });
 
-// ---------------------------------------------------------------------------
+// GET /api/shipments/order/:id — payment/scheduling status, for the
+// post-checkout confirmation page. The id is an unguessable uuid; when the
+// caller is signed in as someone else (and not admin), access is denied.
+router.get('/order/:id', async (req, res) => {
+  const order = await findOrder(req.params.id);
+  if (!order) return res.status(404).json({ error: 'Shipment not found.' });
+  if (req.user && order.user_id && order.user_id !== req.user.id) {
+    let isAdmin = false;
+    try { isAdmin = !!((await billing.getBillingState(req.user.id) || {}).isAdmin); } catch { /* ignore */ }
+    if (!isAdmin) return res.status(403).json({ error: 'Not your shipment.' });
+  }
+  return res.json({
+    order_id: order.id,
+    status: order.status,
+    payment_status: order.payment_status || (order.status === 'awaiting_payment' ? 'unpaid' : 'paid'),
+    carrier: order.carrier,
+    service: order.service,
+    tracking_code: order.tracking_code,
+    charged_amount: order.charged_amount,
+    label_url: order.label_url,
+    shipper_order_no: order.shipper_order_no || (order.bol && (order.bol.references || {})['Ref #']) || null,
+    receiver_po_no: order.receiver_po_no || (order.bol && (order.bol.references || {})['PO #']) || null,
+    bol_url: `/api/shipments/bol/${encodeURIComponent(order.id)}`,
+  });
+});
+
+// Tender queue (admin only): paid loads still needing a manual carrier booking.
+async function needAdmin(req, res) {
+  if (!req.user) { res.status(401).json({ error: 'Sign in required.' }); return false; }
+  if (!db.isEnabled()) { res.status(501).json({ error: 'Database required.' }); return false; }
+  let isAdmin = false;
+  try { isAdmin = !!((await billing.getBillingState(req.user.id) || {}).isAdmin); } catch { /* ignore */ }
+  if (!isAdmin) { res.status(403).json({ error: 'Admin access required.' }); return false; }
+  return true;
+}
+
+router.get('/tenders', async (req, res) => {
+  if (!(await needAdmin(req, res))) return;
+  try {
+    const r = await db.query(
+      `SELECT o.id, o.tracking_code, o.carrier, o.service_level, o.charged_amount,
+              o.status, o.payment_status, o.tendered, o.carrier_pro, o.created_at, o.bol_json,
+              o.shipper_order_no, o.receiver_po_no,
+              u.email AS customer_email
+       FROM orders o LEFT JOIN users u ON u.id = o.user_id
+       WHERE o.status IN ('scheduled', 'purchased') AND o.tendered = false
+       ORDER BY o.created_at DESC LIMIT 200`
+    );
+    const tenders = r.rows.map((row) => {
+      let bol = {};
+      try { bol = typeof row.bol_json === 'object' ? row.bol_json || {} : JSON.parse(row.bol_json || '{}'); } catch { /* ignore */ }
+      const city = (p) => [p && p.city, p && (p.province || p.state)].filter(Boolean).join(', ');
+      return {
+        id: row.id,
+        tracking_code: row.tracking_code,
+        route: `${city(bol.shipper) || '?'} → ${city(bol.consignee) || '?'}`,
+        carrier: row.carrier,
+        service: row.service_level,
+        charged_amount: row.charged_amount != null ? Number(row.charged_amount) : null,
+        status: row.status,
+        payment_status: row.payment_status,
+        shipper_order_no: row.shipper_order_no,
+        receiver_po_no: row.receiver_po_no,
+        customer_email: row.customer_email,
+        created_at: row.created_at,
+        bol_url: `/api/shipments/bol/${row.id}`,
+      };
+    });
+    return res.json({ tenders });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not load tender queue: ' + err.message });
+  }
+});
+
+router.post('/tenders/:id', async (req, res) => {
+  if (!(await needAdmin(req, res))) return;
+  const carrierPro = String((req.body || {}).carrier_pro || '').slice(0, 255) || null;
+  try {
+    const r = await db.query(
+      'UPDATE orders SET tendered = true, carrier_pro = $2 WHERE id = $1 RETURNING id',
+      [req.params.id, carrierPro]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Order not found.' });
+    const mem = store.orders.find((o) => o.id === req.params.id);
+    if (mem) { mem.tendered = true; mem.carrier_pro = carrierPro; }
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not update tender: ' + err.message });
+  }
+});
+
 // GET /api/shipments/bol/:id — printable bill of lading for a completed
 // shipment. Self-contained HTML with a Print button.
 // ---------------------------------------------------------------------------
@@ -257,9 +515,13 @@ async function findOrder(id) {
       return {
         id: row.id, status: row.status, carrier: row.carrier, service: row.service_level,
         tracking_code: row.tracking_code, label_url: row.label_url,
+        user_id: row.user_id, payment_status: row.payment_status,
         cost_cad: row.cost_amount != null ? Number(row.cost_amount) : null,
         charged_amount: row.charged_amount != null ? Number(row.charged_amount) : null,
-        created_at: row.created_at, bol,
+        created_at: row.created_at,
+        shipper_order_no: row.shipper_order_no || null,
+        receiver_po_no: row.receiver_po_no || null,
+        bol,
       };
     } catch { return null; }
   }
@@ -359,4 +621,6 @@ ${(() => { const n = [b.delivery_note_1, b.delivery_note_2].filter(Boolean).map(
 <p class="note">Generated by Apex Freight &amp; Shipping Canada. Transit times are estimates, not guaranteed.</p>
 </body></html>`);
 });
-module.exports = router;
+
+// Exported for the Stripe webhook: finalize a paid shipment order.
+module.exports.finalizeShipmentPayment = finalizeShipmentPayment;

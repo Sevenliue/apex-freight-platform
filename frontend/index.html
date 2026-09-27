@@ -34,6 +34,7 @@
     <section id="tab-quote" class="panel active" role="tabpanel">
       <h1>Get a rate</h1>
       <p class="lede">Compare carrier rates instantly. All amounts in CAD.</p>
+      <div id="payment-result"></div>
       <div id="quote-gate" class="card empty hidden">
         <strong>Sign in to get a quote.</strong><br>
         <span class="note">Quoting needs a free account — it takes less than a minute.</span>
@@ -373,22 +374,21 @@
     <!-- REPORTS -->
     <section id="tab-reports" class="panel" role="tabpanel">
       <h1>Reports</h1>
-      <p class="lede">Billing and payout history for your shipments.</p>
+      <p class="lede">Run any report on screen, or download it as an Excel file.</p>
       <form id="report-form" class="card form-inline">
-        <div class="segmented" role="radiogroup" aria-label="Role">
-          <label class="seg active"><input type="radio" name="role" value="shipper" checked> Shipper</label>
-          <label class="seg"><input type="radio" name="role" value="carrier"> Carrier</label>
+        <div class="segmented" role="radiogroup" aria-label="Report">
+          <label class="seg active"><input type="radio" name="report" value="shipments" checked> Shipments</label>
+          <label class="seg"><input type="radio" name="report" value="quotes"> Quotes</label>
+          <label class="seg"><input type="radio" name="report" value="revenue"> Revenue</label>
         </div>
-        <label>User ID
-          <input name="user_id" type="text" required placeholder="paste your user UUID (auth coming later)" class="wide">
-        </label>
         <label>From <input name="start_date" type="date"></label>
         <label>To <input name="end_date" type="date"></label>
-        <label>Search PO# / PRO#
-          <input name="q" type="text" placeholder="PO-1001">
+        <label>Search
+          <input name="q" type="text" placeholder="Order #, PO #, PRO, carrier…">
         </label>
         <div class="actions">
           <button type="submit" class="btn primary">Run report</button>
+          <button type="button" class="btn" id="report-download">Download Excel</button>
         </div>
       </form>
       <div id="report-summary" class="cards"></div>
@@ -404,6 +404,7 @@
       </div>
       <div id="admin-cards" class="cards"></div>
       <div id="admin-note"></div>
+      <div id="tender-queue" style="margin-top:16px"></div>
     </section>
   </main>
 
@@ -1074,9 +1075,10 @@
         </table></div>
         <div class="card" style="margin-top:12px">
           <div class="row-2">
-            <label>Ref # <input id="ref-num" type="text" placeholder="Reference number"></label>
-            <label>PO # <input id="po-num" type="text" placeholder="Purchase order"></label>
+            <label>Shipper's order # * <input id="ref-num" type="text" required placeholder="Your order number"></label>
+            <label>Receiver's PO # * <input id="po-num" type="text" required placeholder="Receiver's PO number"></label>
           </div>
+          <p class="note">* Required — both numbers are stored on every shipment for reporting.</p>
           <div class="actions" style="margin-top:10px">
             <button class="btn" id="save-quote-btn">Save This Quote</button>
             <button class="btn primary" id="complete-shipment-btn">Complete This Shipment</button>
@@ -1116,18 +1118,24 @@
       if (!currentQuote) return;
       const rateId = selectedRateId();
       if (!rateId) { showAlert('Pick a carrier rate first.'); return; }
+      const refNum = $('#ref-num').value.trim();
+      const poNum = $('#po-num').value.trim();
+      if (!refNum || !poNum) {
+        showAlert("Enter both the shipper's order # and the receiver's PO # — they're required on every shipment.");
+        return;
+      }
       const btn = $('#complete-shipment-btn');
       btn.disabled = true;
-      btn.textContent = 'Completing…';
+      btn.textContent = 'Starting secure payment…';
       try {
         const qf = document.querySelector('#quote-form');
         const qv = (n) => ((qf.querySelector(`[name="${n}"]`) || {}).value || '').trim();
-        const res = await api.completeShipment({
+        const payload = {
           shipment_id: currentQuote.shipment_id,
           rate_id: rateId,
           shipper: lastQuoteParams.shipper,
           consignee: lastQuoteParams.consignee,
-          references: { 'Ref #': $('#ref-num').value.trim(), 'PO #': $('#po-num').value.trim() },
+          references: { 'Ref #': refNum, 'PO #': poNum },
           delivery_note_1: qv('delivery_note_1').slice(0, 60),
           delivery_note_2: qv('delivery_note_2').slice(0, 60),
           user_id: lastQuoteParams.user_id,
@@ -1137,26 +1145,47 @@
           bill_to: lastQuoteParams.bill_to,
           depot_dropoff: lastQuoteParams.depot_dropoff,
           depot_pickup: lastQuoteParams.depot_pickup,
-        });
-        const label = res.label_url
-          ? ` <a href="${esc(res.label_url)}" target="_blank" rel="noopener">Print label</a>` : '';
-        $('#complete-result').innerHTML = `
-          <div class="card" style="margin-top:12px">
-            <h3>Shipment ${res.status === 'purchased' ? 'booked' : 'scheduled'}</h3>
-            <p><strong>${esc(res.carrier)}</strong>${res.service ? ' — ' + esc(res.service) : ''}</p>
-            <p>PRO / Tracking: <strong>${esc(res.tracking_code || '—')}</strong></p>
-            <p>Total charged: <strong>${cad(res.charged_amount)}</strong></p>
-            <div class="actions">
-              <a class="btn" href="${esc(res.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a>${label}
-            </div>
-          </div>`;
-        $('#complete-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        };
+        // Pay-first: customer pays the full freight amount at scheduling via
+        // Stripe Checkout, then the load is scheduled on payment success.
+        try {
+          const co = await api.checkoutShipment(payload);
+          window.location.href = co.url;
+          return;
+        } catch (payErr) {
+          if (payErr.status !== 501) throw payErr;
+          // Stripe not configured (test mode): schedule directly, unpaid.
+          const res = await api.completeShipment(payload);
+          renderCompleteResult(res, true);
+        }
       } catch (err) {
         showAlert('Could not complete shipment: ' + err.message);
       } finally {
         btn.disabled = false;
         btn.textContent = 'Complete This Shipment';
       }
+    }
+
+    function renderCompleteResult(res, testMode) {
+      const label = res.label_url
+        ? ` <a href="${esc(res.label_url)}" target="_blank" rel="noopener">Print label</a>` : '';
+      const payNote = testMode
+        ? '<p class="note">Test mode: Stripe is not connected, so no payment was collected for this load.</p>'
+        : res.payment === 'unpaid'
+          ? `<p class="note">${esc(res.payment_note || 'No payment collected.')}</p>`
+          : '<p class="note">Payment received — load scheduled.</p>';
+      $('#complete-result').innerHTML = `
+        <div class="card" style="margin-top:12px">
+          <h3>Shipment ${res.status === 'purchased' ? 'booked' : 'scheduled'}</h3>
+          <p><strong>${esc(res.carrier)}</strong>${res.service ? ' — ' + esc(res.service) : ''}</p>
+          <p>PRO / Tracking: <strong>${esc(res.tracking_code || '—')}</strong></p>
+          <p>Total charged: <strong>${cad(res.charged_amount)}</strong></p>
+          ${payNote}
+          <div class="actions">
+            <a class="btn" href="${esc(res.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a>${label}
+          </div>
+        </div>`;
+      $('#complete-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
     /* ---------- SAVED QUOTES ---------- */
@@ -1486,28 +1515,53 @@
       })
     );
 
-    $('#report-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const f = new FormData(e.target);
-      const role = f.get('role');
-      const opts = {
+    function reportOpts() {
+      const f = new FormData($('#report-form'));
+      return {
+        kind: f.get('report'),
         start_date: f.get('start_date') || undefined,
         end_date: f.get('end_date') || undefined,
-        q: f.get('q').trim() || undefined,
+        q: (f.get('q') || '').trim() || undefined,
       };
+    }
+
+    async function runReport() {
+      const { kind, start_date, end_date, q } = reportOpts();
       const sumBox = $('#report-summary');
       const resBox = $('#report-results');
       sumBox.innerHTML = '';
       resBox.innerHTML = '<div class="card empty">Loading…</div>';
       try {
         const data =
-          role === 'shipper'
-            ? await api.getShipperReport(f.get('user_id').trim(), opts)
-            : await api.getCarrierReport(f.get('user_id').trim(), opts);
+          kind === 'quotes'
+            ? await api.getQuotesReport({ start_date, end_date, q })
+            : kind === 'revenue'
+              ? await api.getRevenueReport({ start_date, end_date, q })
+              : await api.getShipmentsReport({ start_date, end_date, q });
         renderReport(sumBox, resBox, data);
       } catch (err) {
         resBox.innerHTML = '';
         showAlert('Report failed: ' + err.message);
+      }
+    }
+
+    $('#report-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      runReport();
+    });
+
+    $('#report-download').addEventListener('click', async () => {
+      const { kind, start_date, end_date, q } = reportOpts();
+      const btn = $('#report-download');
+      btn.disabled = true;
+      btn.textContent = 'Preparing…';
+      try {
+        await api.downloadReport(kind, { start_date, end_date, q });
+      } catch (err) {
+        showAlert('Download failed: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Download Excel';
       }
     });
 
@@ -1524,25 +1578,27 @@
 
     function renderReport(sumBox, resBox, data) {
       sumBox.innerHTML = statCards(data.summary);
-      const rows = data.shipments || data.loads || [];
+      const rows = data.rows || [];
       if (!rows.length) {
         resBox.innerHTML = '<div class="card empty">No records found.</div>';
         return;
       }
+      const cols = Object.keys(rows[0]);
+      const moneyish = (k) => /cad|amount|revenue|profit|payout|cost|charged|margin|gross/i.test(k);
       resBox.innerHTML = `
         <div class="table-wrap"><table class="data">
-          <thead><tr>
-            <th>Date</th><th>PO #</th><th>PRO #</th><th>Route</th><th>Amounts</th>
-          </tr></thead>
+          <thead><tr>${cols.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>
           <tbody>${rows
             .map(
-              (r) => `<tr>
-                <td>${esc(dateStr(r.shipment_date))}</td>
-                <td>${esc(r.shipper_order_number || '—')}</td>
-                <td>${esc(r.carrier_probill_number || '—')}</td>
-                <td>${esc([r.origin, r.destination].filter(Boolean).join(' → ') || '—')}</td>
-                <td class="num">${cad(r.charged_to_shipper ?? r.bid_amount ?? r.total ?? r.amount)}</td>
-              </tr>`
+              (r) => `<tr>${cols
+                .map((c) => {
+                  const v = r[c];
+                  const txt = v == null || v === '' ? '—' : String(v);
+                  return moneyish(c) && v != null && v !== ''
+                    ? `<td class="num">${esc(txt)}</td>`
+                    : `<td>${esc(txt)}</td>`;
+                })
+                .join('')}</tr>`
             )
             .join('')}</tbody>
         </table></div>`;
@@ -1573,6 +1629,63 @@
           '<div class="card empty">Admin overview is unavailable right now (' +
           esc(err.message) +
           ').</div>';
+      }
+      loadTenders();
+    }
+
+    /* Tender queue: paid loads still needing a manual carrier booking. */
+    async function loadTenders() {
+      const box = $('#tender-queue');
+      if (!box) return;
+      box.innerHTML = '<div class="card empty">Loading tender queue…</div>';
+      try {
+        const { tenders } = await api.listTenders();
+        if (!tenders.length) {
+          box.innerHTML =
+            '<h2>Tender queue</h2><p class="lede">Paid loads awaiting manual carrier booking.</p>' +
+            '<div class="card empty">Queue is clear — nothing awaiting carrier booking.</div>';
+          return;
+        }
+        box.innerHTML =
+          '<h2>Tender queue</h2><p class="lede">Paid loads awaiting manual carrier booking. ' +
+          'Book each load with the carrier, enter the carrier\'s PRO #, then mark it tendered.</p>' +
+          `<div class="table-wrap"><table class="data"><thead><tr>
+            <th>Date</th><th>PRO</th><th>Route</th><th>Carrier</th><th>Order #</th><th>PO #</th>
+            <th>Customer</th><th class="num">Charged</th><th>Paid</th><th>Carrier PRO #</th><th></th>
+          </tr></thead><tbody>${tenders
+            .map(
+              (t) => `<tr>
+              <td>${esc((t.created_at || '').slice(0, 10))}</td>
+              <td><strong>${esc(t.tracking_code || '—')}</strong><br><a href="${esc(t.bol_url)}" target="_blank" rel="noopener">BOL</a></td>
+              <td>${esc(t.route || '—')}</td>
+              <td>${esc(t.carrier || '—')}</td>
+              <td>${esc(t.shipper_order_no || '—')}</td>
+              <td>${esc(t.receiver_po_no || '—')}</td>
+              <td>${esc(t.customer_email || '—')}</td>
+              <td class="num">${cad(t.charged_amount)}</td>
+              <td>${esc(t.payment_status || '—')}</td>
+              <td><input type="text" data-tender-pro="${esc(t.id)}" placeholder="Carrier PRO #" style="width:130px"></td>
+              <td><button class="btn" data-tender-done="${esc(t.id)}">Mark tendered</button></td>
+            </tr>`
+            )
+            .join('')}</tbody></table></div>`;
+        box.querySelectorAll('[data-tender-done]').forEach((btn) =>
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-tender-done');
+            const proInput = box.querySelector(`[data-tender-pro="${id}"]`);
+            btn.disabled = true;
+            try {
+              await api.markTendered(id, (proInput && proInput.value.trim()) || '');
+              await loadTenders();
+            } catch (err) {
+              showAlert('Could not update tender: ' + err.message);
+              btn.disabled = false;
+            }
+          })
+        );
+      } catch (err) {
+        // Not an admin (or DB off): hide the queue silently.
+        box.innerHTML = '';
       }
     }
 
@@ -2215,6 +2328,59 @@
       }
     }
 
+    /* Post-payment return (?shipment=paid&order_id=… / ?shipment=cancelled).
+       The Stripe webhook finalizes the order; poll until it lands. */
+    function handleShipmentReturn() {
+      const q = new URLSearchParams(location.search);
+      const kind = q.get('shipment');
+      if (!kind) return;
+      const orderId = q.get('order_id');
+      q.delete('shipment');
+      q.delete('order_id');
+      history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q.toString() : ''));
+      const box = $('#payment-result');
+      if (!box) return;
+      if (kind === 'cancelled') {
+        box.innerHTML =
+          '<div class="card"><h3>Payment cancelled</h3>' +
+          '<p class="note">No charge was made. Your quote is still here — pick a rate and complete the shipment when ready.</p></div>';
+        return;
+      }
+      if (kind !== 'paid' || !orderId) return;
+      box.innerHTML =
+        '<div class="card"><h3>Payment received</h3>' +
+        '<p class="note">Confirming your scheduled load…</p></div>';
+      let tries = 0;
+      const poll = async () => {
+        tries += 1;
+        try {
+          const o = await api.getShipmentOrder(orderId);
+          if (o.payment_status === 'paid' || o.status !== 'awaiting_payment') {
+            const label = o.label_url
+              ? ` <a class="btn" href="${esc(o.label_url)}" target="_blank" rel="noopener">Print label</a>` : '';
+            box.innerHTML =
+              `<div class="card"><h3>Load scheduled — payment received</h3>` +
+              `<p><strong>${esc(o.carrier)}</strong>${o.service ? ' — ' + esc(o.service) : ''}</p>` +
+              `<p>PRO / Tracking: <strong>${esc(o.tracking_code || '—')}</strong></p>` +
+              (o.shipper_order_no ? `<p>Shipper's order #: <strong>${esc(o.shipper_order_no)}</strong></p>` : '') +
+              (o.receiver_po_no ? `<p>Receiver's PO #: <strong>${esc(o.receiver_po_no)}</strong></p>` : '') +
+              `<p>Total charged: <strong>${cad(o.charged_amount)}</strong></p>` +
+              `<div class="actions"><a class="btn primary" href="${esc(o.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a>${label}</div></div>`;
+            box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            return;
+          }
+        } catch { /* keep polling */ }
+        if (tries < 20) {
+          setTimeout(poll, 3000);
+        } else {
+          box.innerHTML =
+            '<div class="card"><h3>Payment received</h3>' +
+            '<p class="note">Confirmation is taking longer than usual — your load will appear under Tracking shortly.</p></div>';
+        }
+      };
+      poll();
+    }
+
     function initBilling() {
       $$('input[name="billing-cycle"]').forEach((r) =>
         r.addEventListener('change', () => {
@@ -2232,6 +2398,7 @@
       renderPricing();
       gateQuoteForm();
       handleBillingReturn();
+      handleShipmentReturn();
     }
 
     /* ---------- ADDRESS BOOK + CARRIERS wiring ---------- */

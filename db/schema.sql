@@ -137,6 +137,13 @@ CREATE INDEX IF NOT EXISTS idx_quotes_user_id ON quotes(user_id);
 
 -- ---------------------------------------------------------------------------
 -- orders: purchased parcel shipments (label bought via rate provider)
+-- + scheduled LTL loads (paid at scheduling via Stripe Checkout).
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tendered boolean NOT NULL DEFAULT false;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS carrier_pro varchar(255);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS stripe_checkout_session_id varchar(255);
+-- Shipper's order # + receiver's PO #: required on every shipment, for reporting.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipper_order_no varchar(255);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS receiver_po_no varchar(255);
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS orders (
     id                     uuid            PRIMARY KEY DEFAULT gen_random_uuid(),
