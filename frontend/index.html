@@ -166,7 +166,7 @@
           <span class="dash-ico">🚚</span>
           <span class="dash-txt"><strong>LTL Freight</strong><small>Efficient freight shipping for large, heavy or palletized loads</small></span>
         </button>
-        <button type="button" class="dash-card" data-dash-goto="quote">
+        <button type="button" class="dash-card" data-dash-goto="comingsoon" data-comingsoon="Schedule Pickup">
           <span class="dash-ico">🗓️</span>
           <span class="dash-txt"><strong>Schedule Pickup</strong><small>Book a convenient pickup time for your carrier shipments</small></span>
         </button>
@@ -4165,8 +4165,20 @@
     $$('[data-dash-goto]').forEach((c) =>
       c.addEventListener('click', () => {
         const tab = c.dataset.dashGoto;
-        if (tab === 'quote') goQuote(c.dataset.region || null, c.dataset.loadtype || null);
-        else showTab(tab);
+        if (tab === 'quote') {
+          goQuote(c.dataset.region || null, c.dataset.loadtype || null);
+          // The dashboard is the landing tab, so without a scroll the click
+          // looks dead. Move visibly to the quote form.
+          const qf = document.getElementById('quote-form');
+          if (qf) qf.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else if (tab === 'comingsoon') {
+          const nm = c.dataset.comingsoon || 'This feature';
+          const t = document.getElementById('cs-title');
+          const d = document.getElementById('cs-desc');
+          if (t) t.textContent = nm;
+          if (d) d.textContent = nm + ' is on the Apex roadmap and is not available yet.';
+          showTab('comingsoon');
+        } else showTab(tab);
       })
     );
     $('#dash-create').addEventListener('click', () => goQuote());
