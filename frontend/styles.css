@@ -1,5 +1,5 @@
 /* Apex Freight & Shipping Canada — professional logistics theme.
-   Palette: deep pine green, gold accent, light gray surfaces. */
+   Palette: deep pine green chrome, orange CTAs, gold details, light gray surfaces. */
 
 :root {
   --brand: #14402f;
@@ -169,7 +169,7 @@ input.wide { min-width: 260px; }
   cursor: pointer; transition: filter 0.12s ease;
 }
 .btn:hover { filter: brightness(0.96); }
-.btn.primary { background: var(--accent); border-color: var(--accent-dark); color: var(--brand-dark); }
+.btn.primary { background: #e8590c; border-color: #c74a08; color: #fff; }
 .btn.primary:hover { filter: brightness(0.94); }
 .btn.small { padding: 6px 12px; font-size: 13.5px; }
 .btn:disabled { opacity: 0.6; cursor: progress; }
@@ -369,8 +369,8 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 .account-name { color: #fff; font-size: 13.5px; font-weight: 600; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .btn.account-btn { background: transparent; border: 1px solid rgba(255,255,255,.45); color: #fff; }
 .btn.account-btn:hover { background: rgba(255,255,255,.12); filter: none; }
-.btn.account-btn.solid { background: var(--accent); border-color: var(--accent-dark); color: var(--brand-dark); font-weight: 700; }
-.btn.account-btn.solid:hover { background: var(--accent); filter: brightness(.94); }
+.btn.account-btn.solid { background: #e8590c; border-color: #c74a08; color: #fff; font-weight: 700; }
+.btn.account-btn.solid:hover { background: #d14e0a; filter: none; }
 
 .modal { position: fixed; inset: 0; background: rgba(15,36,54,.55); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
 .modal.hidden { display: none; }
@@ -678,11 +678,11 @@ dl.kv dd { margin: 0; font-weight: 600; }
 .rate-empty { text-align: center; padding: 26px 16px; }
 .rate-empty .note { margin-bottom: 14px; }
 .fetch-btn {
-  background: #1a7a4c; border: 1px solid #0f4c2d; color: #fff;
+  background: #e8590c; border: 1px solid #c74a08; color: #fff;
   font-size: 16px; font-weight: 800; padding: 14px 30px; border-radius: 8px;
   cursor: pointer; white-space: normal; line-height: 1.35;
 }
-.fetch-btn:hover { background: #146038; }
+.fetch-btn:hover { background: #d14e0a; }
 .fetch-btn:disabled { opacity: 0.7; cursor: wait; }
 .fetch-btn-left { width: 100%; }
 .rate-actions-card { padding: 16px; }
@@ -692,10 +692,10 @@ dl.kv dd { margin: 0; font-weight: 600; }
 .qq-split-right .qq-panel { margin-bottom: 0; }
 
 /* Selected rate row (cheapest) highlighted like the reference board */
-#tab-dashboard #quote-results table.data tbody tr.picked { background: #1a7a4c; color: #fff; }
+#tab-dashboard #quote-results table.data tbody tr.picked { background: #e8590c; color: #fff; }
 #tab-dashboard #quote-results table.data tbody tr.picked td strong { color: #fff; }
 #tab-dashboard #quote-results table.data tbody tr.picked .note { color: #ffe8d6; }
-#tab-dashboard #quote-results table.data tbody tr.picked:hover { background: #146038; }
+#tab-dashboard #quote-results table.data tbody tr.picked:hover { background: #d14e0a; }
 
 /* ---- Service toggles: label left, switch right, two columns (reference style) ---- */
 #acc-pickup.check-grid, #acc-delivery.check-grid {
@@ -713,7 +713,7 @@ dl.kv dd { margin: 0; font-weight: 600; }
   position: relative; transition: background 0.15s;
 }
 #acc-pickup .check input[type="checkbox"]:checked, #acc-delivery .check input[type="checkbox"]:checked {
-  background: #1a7a4c;
+  background: #e8590c;
 }
 #acc-pickup .check input[type="checkbox"]::after, #acc-delivery .check input[type="checkbox"]::after {
   content: ""; position: absolute; top: 3px; left: 3px;
@@ -740,4 +740,4 @@ dl.kv dd { margin: 0; font-weight: 600; }
 #complete-modal .modal-card input[type="text"] { width: 100%; margin-top: 4px; }
 #complete-modal .modal-card .chk { font-weight: 500; }
 #complete-modal .modal-card h3 { margin-top: 0; }
-.badge.primary { background: #e6f2ec; color: #0f4c2d; border: 1px solid #a8d4bc; }
+.badge.primary { background: #fff3e6; color: #c74a08; border: 1px solid #f0b27a; }
