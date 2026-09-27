@@ -65,6 +65,9 @@ CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 -- logged-in account when one is present; guest-created rows stay unowned.
 ALTER TABLE address_book ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS idx_address_book_user_id ON address_book(user_id);
+-- Prime shipping location (added 2026-09-27): one address per account auto-fills
+-- the shipper block on outbound quotes and the consignee block on inbound.
+ALTER TABLE address_book ADD COLUMN IF NOT EXISTS is_primary boolean NOT NULL DEFAULT false;
 
 -- Depot service flags on quotes (added 2026-09-27): shipper drops off at the
 -- origin depot (no pickup dispatch); consignee collects at the destination

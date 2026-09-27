@@ -1427,6 +1427,57 @@
       document.body.appendChild(overlay);
     }
 
+    /* Prime shipping location: the account's default address. On outbound it
+       auto-fills the shipper block, on inbound the consignee block. Fields
+       stay changeable — a manual edit stops future prime fills for that field. */
+    let primeAddress = null;
+
+    async function loadPrimeAddress() {
+      primeAddress = null;
+      if (!currentUser) return;
+      try {
+        const d = await api.getPrimaryAddress();
+        primeAddress = d.address || null;
+      } catch (err) { primeAddress = null; }
+    }
+
+    function applyPrimeLocation() {
+      if (!primeAddress) return;
+      const dir = currentDirection();
+      const displayName =
+        primeAddress.company || primeAddress.contact_name || primeAddress.label || '';
+      const base = {
+        name: displayName, street: primeAddress.street, city: primeAddress.city,
+        province: primeAddress.province, postal: primeAddress.postal,
+        country: primeAddress.country, phone: primeAddress.phone, email: primeAddress.email,
+      };
+      const map = dir === 'outbound'
+        ? { s_name: base.name, o_street: base.street, o_city: base.city,
+            o_state: base.province, o_zip: base.postal, o_country: base.country,
+            o_phone: base.phone, o_email: base.email }
+        : dir === 'inbound'
+        ? { c_name: base.name, d_street: base.street, d_city: base.city,
+            d_state: base.province, d_zip: base.postal, d_country: base.country,
+            d_phone: base.phone, d_email: base.email }
+        : null;
+      if (!map) return;
+      const form = $('#quote-form');
+      for (const [fname, val] of Object.entries(map)) {
+        const el = form.elements[fname];
+        if (!el) continue;
+        if (el.value.trim() === '' || el.dataset.prime === '1') {
+          el.value = val || '';
+          if (val) el.dataset.prime = '1';
+          else delete el.dataset.prime;
+        }
+      }
+    }
+
+    async function refreshPrimeLocation() {
+      await loadPrimeAddress();
+      applyPrimeLocation();
+    }
+
     /* Enable/disable the persistent Save / Complete buttons (right panel). */
     function syncQuoteActions() {
       const has = !!currentQuote;
@@ -1436,6 +1487,18 @@
       if (cs) cs.disabled = !has;
       gateCompleteButton();
     }
+    // Direction toggle: the prime location follows outbound (shipper) / inbound (consignee).
+    $$('#quote-form input[name="direction"]').forEach((r) =>
+      r.addEventListener('change', refreshPrimeLocation)
+    );
+    // Prime-filled fields stay changeable: a manual edit opts that field out.
+    ['s_name','o_street','o_city','o_state','o_zip','o_country','o_phone','o_email',
+     'c_name','d_street','d_city','d_state','d_zip','d_country','d_phone','d_email'
+    ].forEach((n) => {
+      const el = document.querySelector('#quote-form [name="' + n + '"]');
+      if (el) el.addEventListener('input', () => { delete el.dataset.prime; });
+    });
+
     // Persistent quote action buttons (right panel): enabled once rates are back.
     $('#save-quote-btn').addEventListener('click', saveCurrentQuote);
     $('#complete-shipment-btn').addEventListener('click', openCompleteModal);
@@ -2586,11 +2649,12 @@
         rows
           .map(
             (a) => `<tr>
-          <td>${esc(a.label)}</td><td>${esc(a.company)}</td><td>${esc(a.city)}</td>
+          <td>${esc(a.label)}${a.is_primary ? ' <span class="badge primary">★ Primary</span>' : ''}</td><td>${esc(a.company)}</td><td>${esc(a.city)}</td>
           <td>${esc(a.province)}</td><td>${esc(a.phone)}</td>
           <td>
             <button type="button" class="btn small" data-ab-use="shipper" data-ab-id="${esc(a.id)}">Use as shipper</button>
             <button type="button" class="btn small" data-ab-use="consignee" data-ab-id="${esc(a.id)}">Use as consignee</button>
+            ${a.is_primary ? '' : `<button type="button" class="btn small" data-ab-primary="${esc(a.id)}">Set as primary</button>`}
             <button type="button" class="btn small" data-ab-edit="${esc(a.id)}">Edit</button>
             <button type="button" class="btn small danger" data-ab-del="${esc(a.id)}">Delete</button>
           </td></tr>`
@@ -2606,6 +2670,19 @@
       $$('#ab-rows [data-ab-del]').forEach((b) =>
         b.addEventListener('click', () => delAddress(b.dataset.abDel))
       );
+      $$('#ab-rows [data-ab-primary]').forEach((b) =>
+        b.addEventListener('click', () => setPrimary(b.dataset.abPrimary))
+      );
+    }
+
+    async function setPrimary(id) {
+      try {
+        await api.setPrimaryAddress(id);
+        await loadAddressBook();
+        await refreshPrimeLocation();
+      } catch (err) {
+        showAlert('Could not set primary address: ' + err.message);
+      }
     }
 
     function abFormVals() {
@@ -2700,7 +2777,7 @@
             };
       for (const [name, val] of Object.entries(map)) {
         const el = form.elements[name];
-        if (el) el.value = val || '';
+        if (el) { el.value = val || ''; delete el.dataset.prime; }
       }
       // Tell postal auto-fill about the programmatic fill so it doesn't fight it.
       if (window.APEX_postalFilled) {
@@ -2932,6 +3009,7 @@
       loadBilling();
       loadSavedQuotes();
       if (typeof loadAddressBook === 'function') loadAddressBook();
+      if (typeof refreshPrimeLocation === 'function') refreshPrimeLocation();
     }
 
     async function signOut() {
@@ -2943,6 +3021,7 @@
       api.setAuthToken(null);
       currentUser = null;
       billingState = null;
+      primeAddress = null;
       loadBilling();
       loadSavedQuotes();
       if (typeof loadAddressBook === 'function') loadAddressBook();
@@ -3007,6 +3086,7 @@
           loadBilling();
           loadSavedQuotes();
           if (typeof loadAddressBook === 'function') loadAddressBook();
+          if (typeof refreshPrimeLocation === 'function') refreshPrimeLocation();
         } catch {
           api.setAuthToken(null); // stale token — drop it quietly
           renderAccount();

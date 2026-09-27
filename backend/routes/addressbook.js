@@ -54,6 +54,7 @@ function rowToAddr(row) {
     country: row.country,
     phone: row.phone,
     email: row.email,
+    is_primary: !!row.is_primary,
     created_at: row.created_at,
   };
 }
@@ -114,6 +115,27 @@ router.get('/search', async (req, res) => {
   }
 });
 
+router.get('/primary', async (req, res) => {
+  const ownerId = (req.user && req.user.id) || null;
+  try {
+    if (db.isEnabled()) {
+      const r = await db.query(
+        `SELECT * FROM address_book
+          WHERE user_id IS NOT DISTINCT FROM $1 AND is_primary = true
+          ORDER BY created_at DESC LIMIT 1`,
+        [ownerId]
+      );
+      return res.json({ address: r.rows.length ? rowToAddr(r.rows[0]) : null });
+    }
+    const rec = [...mem.values()]
+      .filter((a) => (a.user_id || null) === (ownerId || null) && a.is_primary)
+      .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))[0];
+    return res.json({ address: rec || null });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not load primary address: ' + err.message });
+  }
+});
+
 router.get('/', async (req, res) => {
   const ownerId = (req.user && req.user.id) || null;
   if (db.isEnabled()) {
@@ -165,7 +187,7 @@ router.post('/', async (req, res) => {
       String(r.postal || '').toLowerCase() === a.postal.toLowerCase()
   );
   if (existing) return res.json({ address: existing, duplicate: true });
-  const rec = { id: memId(), user_id: (req.user && req.user.id) || null, ...a, created_at: new Date().toISOString() };
+  const rec = { id: memId(), user_id: (req.user && req.user.id) || null, ...a, is_primary: false, created_at: new Date().toISOString() };
   mem.set(rec.id, rec);
   res.status(201).json({ address: rec });
 });
@@ -208,6 +230,37 @@ router.put('/:id', async (req, res) => {
   const updated = { ...rec, ...a };
   mem.set(rec.id, updated);
   res.json({ address: updated });
+});
+
+router.post('/:id/primary', async (req, res) => {
+  const ownerId = (req.user && req.user.id) || null;
+  if (db.isEnabled()) {
+    try {
+      const chk = ownerId
+        ? await db.query('SELECT id FROM address_book WHERE id = $1 AND user_id = $2', [req.params.id, ownerId])
+        : await db.query('SELECT id FROM address_book WHERE id = $1', [req.params.id]);
+      if (!chk.rows.length) return res.status(404).json({ error: 'Unknown address id' });
+      await db.query(
+        'UPDATE address_book SET is_primary = false WHERE user_id IS NOT DISTINCT FROM $1',
+        [ownerId]
+      );
+      const r = await db.query('UPDATE address_book SET is_primary = true WHERE id = $1 RETURNING *', [
+        req.params.id,
+      ]);
+      return res.json({ address: rowToAddr(r.rows[0]) });
+    } catch (err) {
+      return res.status(502).json({ error: 'Could not set primary address: ' + err.message });
+    }
+  }
+  const rec = mem.get(req.params.id);
+  if (!rec || (ownerId && rec.user_id !== ownerId)) {
+    return res.status(404).json({ error: 'Unknown address id' });
+  }
+  for (const r of mem.values()) {
+    if ((r.user_id || null) === (ownerId || null)) r.is_primary = false;
+  }
+  rec.is_primary = true;
+  res.json({ address: rec });
 });
 
 router.delete('/:id', async (req, res) => {

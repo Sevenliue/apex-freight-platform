@@ -732,3 +732,4 @@ dl.kv dd { margin: 0; font-weight: 600; }
 #complete-modal .modal-card input[type="text"] { width: 100%; margin-top: 4px; }
 #complete-modal .modal-card .chk { font-weight: 500; }
 #complete-modal .modal-card h3 { margin-top: 0; }
+.badge.primary { background: #fff3e6; color: #c74a08; border: 1px solid #f0b27a; }

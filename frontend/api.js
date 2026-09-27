@@ -393,6 +393,15 @@ export function deleteAddress(id) {
   return request('DELETE', `/api/address-book/${encodeURIComponent(id)}`);
 }
 
+/* Prime shipping location: one address per account. */
+export function getPrimaryAddress() {
+  return get('/api/address-book/primary');
+}
+
+export function setPrimaryAddress(id) {
+  return post(`/api/address-book/${encodeURIComponent(id)}/primary`, {});
+}
+
 /* Custom dropdown lists (package types, product names) */
 export function listCustomItems(kind) {
   return get(`/api/custom-lists/${encodeURIComponent(kind)}`);
