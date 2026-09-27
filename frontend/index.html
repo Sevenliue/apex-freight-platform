@@ -354,6 +354,8 @@
     </div>
   </footer>
 
+  <script src="fsa.js"></script>
+  <script src="postal-autofill.js"></script>
   <script type="module">
     import * as api from './api.js';
 
@@ -1261,6 +1263,12 @@
       for (const [name, val] of Object.entries(map)) {
         const el = form.elements[name];
         if (el) el.value = val || '';
+      }
+      // Tell postal auto-fill about the programmatic fill so it doesn't fight it.
+      if (window.APEX_postalFilled) {
+        const zname = side === 'shipper' ? 'o_zip' : 'd_zip';
+        const fsa = window.APEX_fsaOf ? window.APEX_fsaOf(a.postal) : '';
+        window.APEX_postalFilled(zname, fsa);
       }
       document.querySelector('.tab[data-tab="quote"]').click();
     }
