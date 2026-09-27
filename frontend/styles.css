@@ -1,11 +1,13 @@
 /* Apex Freight & Shipping Canada — professional logistics theme.
-   Palette: deep pine green, gold accent, light gray surfaces. */
+   Palette: deep pine green, gold accents, bright orange buttons, light gray surfaces. */
 
 :root {
   --brand: #14402f;
   --brand-dark: #0c2b20;
   --accent: #e0b13e;
   --accent-dark: #b3871f;
+  --cta: #ff6a00;
+  --cta-dark: #d95700;
   --bg: #f4f6f8;
   --card: #ffffff;
   --ink: #1d2b36;
@@ -69,12 +71,12 @@ body {
 .tab.side-cta {
   width: auto; align-self: center; margin: 0 auto 12px; justify-content: center;
   white-space: nowrap;
-  background: var(--accent); border: 1px solid var(--accent-dark); color: var(--brand-dark);
+  background: var(--cta); border: 1px solid var(--cta-dark); color: var(--brand-dark);
   font-weight: 700; font-size: 15px; padding: 10px 18px; border-radius: 8px;
 }
 .tab.side-cta svg { width: 16px; height: 16px; flex: 0 0 16px; opacity: 1; }
-.tab.side-cta:hover { background: var(--accent); border-color: var(--accent-dark); color: var(--brand-dark); filter: brightness(1.06); }
-.tab.side-cta.active { background: var(--accent); border-color: var(--accent-dark); color: var(--brand-dark); }
+.tab.side-cta:hover { background: var(--cta); border-color: var(--cta-dark); color: var(--brand-dark); filter: brightness(1.06); }
+.tab.side-cta.active { background: var(--cta); border-color: var(--cta-dark); color: var(--brand-dark); }
 .tab.side-cta.active svg { color: var(--brand-dark); }
 .tab.nav-qq { color: #fff; font-weight: 700; }
 .tab.nav-qq svg { color: var(--accent); opacity: 1; }
@@ -169,7 +171,7 @@ input.wide { min-width: 260px; }
   cursor: pointer; transition: filter 0.12s ease;
 }
 .btn:hover { filter: brightness(0.96); }
-.btn.primary { background: var(--accent); border-color: var(--accent-dark); color: var(--brand-dark); }
+.btn.primary { background: var(--cta); border-color: var(--cta-dark); color: var(--brand-dark); }
 .btn.primary:hover { filter: brightness(0.94); }
 #save-quote-btn { background: #1e3a5f; border-color: #152a45; color: #fff; }
 #save-quote-btn:hover { filter: brightness(1.12); }
@@ -293,12 +295,12 @@ details form { margin-top: 10px; }
   .topbar .brand-mark { width: 30px; height: 30px; font-size: 12px; flex-basis: 30px; }
   .topbar .top-qq {
     margin-left: auto; width: auto; flex: 0 0 auto;
-    background: var(--accent); border: 1px solid var(--accent-dark); color: var(--brand-dark);
+    background: var(--cta); border: 1px solid var(--cta-dark); color: var(--brand-dark);
     font-weight: 800; font-size: 13.5px; padding: 8px 14px; border-radius: 9px;
   }
   .topbar .top-qq svg { width: 16px; height: 16px; flex: 0 0 16px; opacity: 1; }
-  .topbar .top-qq:hover { color: var(--brand-dark); background: var(--accent); filter: brightness(1.06); }
-  .topbar .top-qq.active { color: var(--brand-dark); background: var(--accent); border-color: var(--accent-dark); }
+  .topbar .top-qq:hover { color: var(--brand-dark); background: var(--cta); filter: brightness(1.06); }
+  .topbar .top-qq.active { color: var(--brand-dark); background: var(--cta); border-color: var(--cta-dark); }
   .topbar .top-qq.active svg { color: var(--brand-dark); }
 }
 @media (max-width: 640px) {
@@ -371,8 +373,8 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 .account-name { color: #fff; font-size: 13.5px; font-weight: 600; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .btn.account-btn { background: transparent; border: 1px solid rgba(255,255,255,.45); color: #fff; }
 .btn.account-btn:hover { background: rgba(255,255,255,.12); filter: none; }
-.btn.account-btn.solid { background: var(--accent); border-color: var(--accent-dark); color: var(--brand-dark); font-weight: 700; }
-.btn.account-btn.solid:hover { background: var(--accent); filter: brightness(.94); }
+.btn.account-btn.solid { background: var(--cta); border-color: var(--cta-dark); color: var(--brand-dark); font-weight: 700; }
+.btn.account-btn.solid:hover { background: var(--cta); filter: brightness(.94); }
 
 .modal { position: fixed; inset: 0; background: rgba(15,36,54,.55); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
 .modal.hidden { display: none; }
