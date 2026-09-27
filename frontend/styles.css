@@ -654,17 +654,10 @@ dl.kv dd { margin: 0; font-weight: 600; }
 .qq-services { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
 .qq-split { display: grid; grid-template-columns: minmax(340px, 5fr) 7fr; gap: 10px; align-items: start; }
-.qq-getrates { margin: 4px 0 8px; }
-.qq-getrates .btn.primary { padding: 10px 26px; }
-
 #quote-form.qq .pkg-table th, #quote-form.qq .pkg-table td { padding: 6px 8px; }
 #quote-form.qq .pkg-table input, #quote-form.qq .pkg-table select { padding: 5px 6px; font-size: 13px; margin-top: 0; }
 #quote-form.qq .pkg-table td.narrow input { max-width: 76px; }
 
-#tab-dashboard #quote-results > h2 {
-  background: var(--navy); color: #fff; font-size: 13.5px; font-weight: 700; text-align: center;
-  padding: 8px 10px; margin: 0; border-radius: 8px 8px 0 0;
-}
 #tab-dashboard #quote-results .table-wrap { border: 1px solid var(--line); border-top: none; }
 #tab-dashboard #quote-results table.data { margin: 0; }
 
@@ -677,3 +670,15 @@ dl.kv dd { margin: 0; font-weight: 600; }
   .qq-row { flex-wrap: wrap; }
   .qq-row .sm, .qq-row .xs { flex: 1 1 100px; }
 }
+
+/* ---- Fetch Carrier Results button (rate board column) ---- */
+.rate-empty { text-align: center; padding: 26px 16px; }
+.rate-empty .note { margin-bottom: 14px; }
+.fetch-btn {
+  background: #e8590c; border: 1px solid #c74a08; color: #fff;
+  font-size: 16px; font-weight: 800; padding: 14px 30px; border-radius: 8px;
+  cursor: pointer; white-space: normal; line-height: 1.35;
+}
+.fetch-btn:hover { background: #d14e0a; }
+.fetch-btn:disabled { opacity: 0.7; cursor: wait; }
+.qq-split-right .qq-panel { margin-bottom: 0; }

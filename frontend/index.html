@@ -343,13 +343,17 @@
                 <p class="note">Covers loss or damage above standard carrier liability — 1% of declared value (min $20), charged at cost on top of the freight rate.</p>
               </div>
             </section>
-            <div class="actions qq-getrates">
-              <button type="submit" class="btn primary" id="quote-btn">Get rates</button>
-            </div>
             <p class="note">Instant rates come from uploaded carrier tariffs; live rates need carrier API keys. Transit times are estimates, not guaranteed.</p>
           </div>
           <div class="qq-split-right">
-            <div id="quote-results"></div>
+            <section class="qq-panel">
+              <h3 class="qq-head">Best Available Freight Rates and Service Options for this shipment</h3>
+              <div class="qq-body rate-empty" id="rate-empty">
+                <p class="note">Fill in the shipment details, then fetch carrier results.</p>
+                <button type="submit" class="btn fetch-btn hidden" id="fetch-rates-btn">Fetch Carrier Results</button>
+              </div>
+              <div id="quote-results"></div>
+            </section>
           </div>
         </div>
       </form>
@@ -1089,7 +1093,7 @@
         <td class="narrow"><input type="text" name="pkg_group" value="${esc(data.pkg_group || '')}" placeholder="II"></td>
         <td><button type="button" class="btn small danger pkg-del" title="Delete row">×</button></td>`;
       tr.querySelector('.pkg-del').addEventListener('click', () => {
-        if ($('#pkg-rows').rows.length > 1) tr.remove();
+        if ($('#pkg-rows').rows.length > 1) { tr.remove(); syncFetchButton(); }
         else showAlert('At least one package line is required.');
       });
       $('#pkg-rows').appendChild(tr);
@@ -1143,7 +1147,7 @@
       $$('#quote-form input[name="acc"]').forEach((el) => { el.checked = set.has(el.value); });
     }
 
-    $('#add-pkg').addEventListener('click', () => addPkgRow());
+    $('#add-pkg').addEventListener('click', () => { addPkgRow(); syncFetchButton(); });
 
     /* ---------- custom package types & product names ---------- */
     async function loadCustomLists() {
@@ -1283,6 +1287,7 @@
       });
     });
     addPkgRow();
+    syncFetchButton();
 
     /* ----- shipment type tabs + freight charges ----- */
     function currentRegion() {
@@ -1354,15 +1359,43 @@
       });
     }
 
+    // Show the "Fetch Carrier Results" button once the minimum shipment info is filled.
+    function syncFetchButton() {
+      const form = $('#quote-form');
+      const btn = $('#fetch-rates-btn');
+      if (!form || !btn) return;
+      const fd = new FormData(form);
+      const txt = (k) => ((fd.get(k) == null ? '' : fd.get(k)).toString().trim());
+      const required = ['o_street', 'o_city', 'o_state', 'o_zip',
+                        'd_street', 'd_city', 'd_state', 'd_zip', 'pickup_date'];
+      const fieldsOk = required.every((k) => txt(k) !== '');
+      let weightOk = false;
+      try { weightOk = collectPackages().some((pp) => pp.weight_lb > 0); } catch (err) { weightOk = false; }
+      btn.classList.toggle('hidden', !(fieldsOk && weightOk));
+    }
+    function syncRateEmpty() {
+      const empty = $('#rate-empty');
+      const box = $('#quote-results');
+      if (!empty || !box) return;
+      empty.classList.toggle('hidden', box.innerHTML.trim() !== '');
+    }
+    function syncRateEmptyHide() {
+      const empty = $('#rate-empty');
+      if (empty) empty.classList.add('hidden');
+    }
+    $('#quote-form').addEventListener('input', syncFetchButton);
+    $('#quote-form').addEventListener('change', syncFetchButton);
+
     $('#quote-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const f = new FormData(e.target);
       // Safe text accessor: never throws on a missing field.
       const txt = (k) => ((f.get(k) == null ? '' : f.get(k)).toString().trim());
-      const btn = $('#quote-btn');
+      const btn = $('#fetch-rates-btn');
       btn.disabled = true;
-      btn.textContent = 'Getting rates…';
+      btn.textContent = 'Fetching…';
       $('#quote-results').innerHTML = '';
+      syncRateEmpty();
       try {
       const packages = collectPackages();
       if (packages.some((p) => !(p.weight_lb > 0))) {
@@ -1447,7 +1480,7 @@
       } finally {
         $('#rate-loading').classList.add('hidden');
         btn.disabled = false;
-        btn.textContent = 'Get rates';
+        btn.textContent = 'Fetch Carrier Results';
       }
     });
 
@@ -1461,6 +1494,7 @@
       const box = $('#quote-results');
       if (data && data.full_load) {
         currentQuote = null;
+        syncRateEmptyHide();
         box.innerHTML = `<div class="card"><strong>Full load &mdash; custom pricing.</strong><br>
           <span class="note">A full truckload is priced per truck, not off the LTL rate sheets. Pick the equipment and send a request &mdash; we will come back with a price.</span>
           <div class="form-grid single" style="margin-top:10px;max-width:340px">
@@ -1481,6 +1515,7 @@
       }
       if (data && data.worldwide_notice) {
         currentQuote = null;
+        syncRateEmptyHide();
         box.innerHTML = `<div class="card empty"><strong>Worldwide rates need a live carrier connection.</strong><br>
           <span class="note">${esc(data.message || 'Add your EasyPost key in Render (EASYPOST_API_KEY) to rate worldwide shipments.')}</span></div>`;
         return;
@@ -1499,6 +1534,7 @@
         }
         html += '</div>';
         box.innerHTML = html;
+        syncRateEmptyHide();
         box.querySelectorAll('[data-sug]').forEach((btn) =>
           btn.addEventListener('click', () => {
             const s = sugs[Number(btn.dataset.sug)];
@@ -1532,8 +1568,8 @@
         )
         .join('');
 
+      syncRateEmptyHide();
       box.innerHTML = `
-        <h2>Best Available Freight Rates and Service Options for this shipment</h2>
         ${data.has_dg ? `<div class="card dg-notice">
           <h3>⚠ Dangerous goods — review required</h3>
           <p>This shipment contains dangerous goods. Under Canada's <em>Transportation of Dangerous Goods Regulations</em> the shipper must provide a proper shipping document with the correct shipping name, UN number, class, and packing group, and the goods must be properly packaged, marked, and placarded. Only trained personnel may handle them.</p>
@@ -3384,6 +3420,7 @@
 
     function renderQuotaExceeded(data) {
       const box = $('#quote-results');
+      syncRateEmptyHide();
       box.innerHTML =
         `<div class="card empty"><strong>Monthly quote limit reached.</strong><br>` +
         `<span class="note">${esc((data && data.error) || 'Upgrade your plan for more quotes.')}</span>` +
