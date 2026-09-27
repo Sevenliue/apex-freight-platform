@@ -126,7 +126,7 @@
             </tr></thead>
             <tbody id="pkg-rows"></tbody>
           </table></div>
-          <div class="actions"><button type="button" class="btn small" id="add-pkg">+ Add package</button></div>
+          <div class="actions"><button type="button" class="btn small" id="add-pkg">+ Add package</button> <button type="button" class="btn small" id="manage-lists">Custom types…</button></div>
         </fieldset>
         <div class="form-grid">
           <fieldset>
@@ -399,6 +399,32 @@
     </div>
   </div>
 
+  <div id="lists-modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Custom lists">
+    <div class="modal-card wide">
+      <button class="modal-close" id="lists-close" aria-label="Close">×</button>
+      <h3>My package types &amp; products</h3>
+      <p class="muted">Saved to your account — they show up in the quote form's dropdowns.</p>
+      <div class="lists-cols">
+        <section>
+          <h4>Package types</h4>
+          <div class="lists-add">
+            <input id="lists-add-pt" placeholder="e.g. Tote" maxlength="80" aria-label="New package type">
+            <button type="button" class="btn small" data-add-kind="package_type">Add</button>
+          </div>
+          <ul id="lists-pt" class="lists-ul"></ul>
+        </section>
+        <section>
+          <h4>Product names</h4>
+          <div class="lists-add">
+            <input id="lists-add-pn" placeholder="e.g. Tires" maxlength="80" aria-label="New product name">
+            <button type="button" class="btn small" data-add-kind="product_name">Add</button>
+          </div>
+          <ul id="lists-pn" class="lists-ul"></ul>
+        </section>
+      </div>
+    </div>
+  </div>
+
   <footer class="site-footer">
     <div class="wrap">
       <span>Apex Freight &amp; Shipping Canada — Edmonton, AB · All rates in CAD</span>
@@ -462,14 +488,44 @@
     let currentQuote = null; // last rated {shipment_id, rates, packages, ...}
     let lastQuoteParams = null; // form params for save/complete
 
-    const PKG_TYPES = ['Pallet', 'Skid', 'Box', 'Crate', 'Drum', 'Barrel', 'Roll', 'Tote', 'Gaylord', 'Other'];
+    const PKG_TYPES = ['Pallet', 'Skid', 'Box', 'Crate', 'Drum', 'Barrel', 'Roll', 'Tote',
+      'Gaylord', 'Bag', 'Piece', 'Tire', 'Full Load', 'Courier Express Envelope'];
+    const PRODUCT_NAMES = ['Tires', 'Auto Parts', 'Machinery', 'Building Materials',
+      'Paper Products', 'Food & Beverage', 'Furniture', 'Electronics',
+      'Clothing & Textiles', 'Chemicals', 'Plastics & Rubber', 'Metal Products'];
+
+    // Per-account custom dropdown entries, loaded after sign-in.
+    let customLists = { package_type: [], product_name: [] };
+
+    // listOptions(builtIn, custom, selected, placeholder): <option> HTML for a
+    // dropdown with built-ins, an optgroup of the account's custom entries,
+    // and a trailing "add custom" entry.
+    function listOptions(builtIn, custom, selected, placeholder) {
+      const opt = (v) =>
+        `<option value="${esc(v)}"${v === selected ? ' selected' : ''}>${esc(v)}</option>`;
+      let h = placeholder ? `<option value="">${esc(placeholder)}</option>` : '';
+      h += builtIn.map(opt).join('');
+      if (custom && custom.length) {
+        h += `<optgroup label="My custom">${custom.map((c) => opt(c.label)).join('')}</optgroup>`;
+      }
+      h += `<option value="__add__">＋ Add custom…</option>`;
+      return h;
+    }
+
+    function pkgTypeOptions(selected) {
+      return listOptions(PKG_TYPES, customLists.package_type, selected || 'Pallet');
+    }
+
+    function productNameOptions(selected) {
+      return listOptions(PRODUCT_NAMES, customLists.product_name, selected || '', 'Choose…');
+    }
 
     function addPkgRow(data = {}) {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><input type="number" name="qty" min="1" step="1" value="${esc(data.qty ?? 1)}" required></td>
-        <td><select name="package_type">${PKG_TYPES.map((t) => `<option${t === (data.package_type || 'Pallet') ? ' selected' : ''}>${t}</option>`).join('')}</select></td>
-        <td><input type="text" name="product_name" value="${esc(data.product_name || '')}" placeholder="Tires"></td>
+        <td><select name="package_type">${pkgTypeOptions(data.package_type)}</select></td>
+        <td><select name="product_name">${productNameOptions(data.product_name)}</select></td>
         <td><input type="number" name="weight_lb" min="0.1" step="0.1" value="${esc(data.weight_lb ?? '')}" required placeholder="500"></td>
         <td><input type="number" name="length" min="0" step="0.1" value="${esc(data.length ?? '')}" placeholder="48"></td>
         <td><input type="number" name="width" min="0" step="0.1" value="${esc(data.width ?? '')}" placeholder="40"></td>
@@ -531,6 +587,144 @@
     }
 
     $('#add-pkg').addEventListener('click', () => addPkgRow());
+
+    /* ---------- custom package types & product names ---------- */
+    async function loadCustomLists() {
+      customLists = { package_type: [], product_name: [] };
+      if (currentUser) {
+        for (const kind of ['package_type', 'product_name']) {
+          try {
+            const r = await api.listCustomItems(kind);
+            customLists[kind] = r.items || [];
+          } catch (err) {
+            console.error('custom lists failed:', err.message);
+          }
+        }
+      }
+      rebuildListSelects();
+    }
+
+    // Rebuild every package-row dropdown, preserving current selections.
+    function rebuildListSelects() {
+      document.querySelectorAll('#pkg-rows select[name="package_type"]').forEach((sel) => {
+        const cur = sel.value === '__add__' ? sel.dataset.prev || 'Pallet' : sel.value;
+        sel.innerHTML = pkgTypeOptions(cur);
+      });
+      document.querySelectorAll('#pkg-rows select[name="product_name"]').forEach((sel) => {
+        const cur = sel.value === '__add__' ? sel.dataset.prev || '' : sel.value;
+        sel.innerHTML = productNameOptions(cur);
+      });
+    }
+
+    // Remember the pre-change value so "＋ Add custom…" can restore it.
+    $('#pkg-rows').addEventListener('focusin', (e) => {
+      if (e.target.tagName === 'SELECT') e.target.dataset.prev = e.target.value;
+    });
+
+    $('#pkg-rows').addEventListener('change', (e) => {
+      const sel = e.target;
+      if (sel.tagName !== 'SELECT' || sel.value !== '__add__') return;
+      if (!currentUser) {
+        showAlert('Sign in to save your own package types and products.');
+        sel.value = sel.dataset.prev || '';
+        return;
+      }
+      openListsModal(sel);
+    });
+
+    let listsReturnSel = null; // select to restore/focus after the dialog
+
+    function renderListsModal() {
+      for (const [kind, ulId] of [['package_type', 'lists-pt'], ['product_name', 'lists-pn']]) {
+        const ul = document.getElementById(ulId);
+        const items = customLists[kind];
+        ul.innerHTML = items.length
+          ? items.map((it) =>
+              `<li><span>${esc(it.label)}</span>` +
+              `<button type="button" class="btn small danger" data-del-kind="${kind}" data-del-id="${esc(it.id)}" title="Delete">×</button></li>`
+            ).join('')
+          : '<li class="muted">None yet — add your first above.</li>';
+      }
+    }
+
+    function openListsModal(returnSel) {
+      listsReturnSel = returnSel || null;
+      renderListsModal();
+      $('#lists-modal').classList.remove('hidden');
+    }
+
+    function closeListsModal() {
+      $('#lists-modal').classList.add('hidden');
+      if (listsReturnSel) {
+        // If nothing was added, restore the previous selection.
+        if (listsReturnSel.value === '__add__') {
+          const cur = listsReturnSel.dataset.prev || '';
+          listsReturnSel.innerHTML = listsReturnSel.name === 'package_type'
+            ? pkgTypeOptions(cur) : productNameOptions(cur);
+        }
+        listsReturnSel = null;
+      }
+    }
+
+    $('#lists-close').addEventListener('click', closeListsModal);
+    $('#lists-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'lists-modal') closeListsModal();
+    });
+    $('#manage-lists').addEventListener('click', () => {
+      if (!currentUser) {
+        showAlert('Sign in to save your own package types and products.');
+        return;
+      }
+      openListsModal(null);
+    });
+
+    document.querySelectorAll('[data-add-kind]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const kind = btn.dataset.addKind;
+        const input = document.getElementById(kind === 'package_type' ? 'lists-add-pt' : 'lists-add-pn');
+        const label = input.value.trim();
+        if (!label) { input.focus(); return; }
+        btn.disabled = true;
+        try {
+          const { item } = await api.createCustomItem(kind, label);
+          customLists[kind] = customLists[kind].filter((c) => c.label.toLowerCase() !== item.label.toLowerCase());
+          customLists[kind].unshift(item);
+          input.value = '';
+          renderListsModal();
+          rebuildListSelects();
+          if (listsReturnSel && listsReturnSel.name === (kind === 'package_type' ? 'package_type' : 'product_name')) {
+            listsReturnSel.value = item.label;
+          }
+        } catch (err) {
+          showAlert('Could not save: ' + err.message);
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+
+    document.querySelectorAll('.lists-ul').forEach((ul) => {
+      ul.addEventListener('click', async (e) => {
+        const btn = e.target.closest('[data-del-id]');
+        if (!btn) return;
+        const kind = btn.dataset.delKind;
+        const id = btn.dataset.delId;
+        // Remember which selects used this label so they can fall back.
+        const label = (customLists[kind].find((c) => String(c.id) === String(id)) || {}).label;
+        btn.disabled = true;
+        try {
+          await api.deleteCustomItem(kind, id);
+          customLists[kind] = customLists[kind].filter((c) => String(c.id) !== String(id));
+          renderListsModal();
+          document.querySelectorAll('#pkg-rows select').forEach((sel) => {
+            if (sel.value === label) sel.selectedIndex = 0;
+          });
+          rebuildListSelects();
+        } catch (err) {
+          showAlert('Could not delete: ' + err.message);
+        }
+      });
+    });
     addPkgRow();
 
     /* ----- shipment type tabs + freight charges ----- */
@@ -1693,6 +1887,7 @@
       renderPricing();
       renderAccount();
       gateQuoteForm();
+      loadCustomLists();
     }
 
     function quotaLabel() {

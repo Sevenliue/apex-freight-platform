@@ -243,6 +243,19 @@ export function deleteAddress(id) {
   return request('DELETE', `/api/address-book/${encodeURIComponent(id)}`);
 }
 
+/* Custom dropdown lists (package types, product names) */
+export function listCustomItems(kind) {
+  return get(`/api/custom-lists/${encodeURIComponent(kind)}`);
+}
+
+export function createCustomItem(kind, label) {
+  return post(`/api/custom-lists/${encodeURIComponent(kind)}`, { label });
+}
+
+export function deleteCustomItem(kind, id) {
+  return request('DELETE', `/api/custom-lists/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`);
+}
+
 /* Carriers + exclusions */
 export function listCarriers() {
   return get('/api/carriers');

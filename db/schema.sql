@@ -66,6 +66,20 @@ CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 ALTER TABLE address_book ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS idx_address_book_user_id ON address_book(user_id);
 
+-- Custom per-account dropdown lists (added 2026-09-27): shippers can add
+-- their own package types and product names; kind is 'package_type' or
+-- 'product_name'.
+CREATE TABLE IF NOT EXISTS custom_list_items (
+  id         uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    uuid        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind       varchar(20) NOT NULL,
+  label      varchar(80) NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT chk_custom_list_kind CHECK (kind IN ('package_type', 'product_name')),
+  CONSTRAINT uq_custom_list UNIQUE (user_id, kind, label)
+);
+CREATE INDEX IF NOT EXISTS idx_custom_list_user_kind ON custom_list_items(user_id, kind);
+
 -- ---------------------------------------------------------------------------
 -- quotes: instant-quote requests and their rate results
 -- ---------------------------------------------------------------------------
