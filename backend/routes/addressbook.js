@@ -58,6 +58,62 @@ function rowToAddr(row) {
   };
 }
 
+// GET /api/address-book/search?q=<text> — type-ahead over the signed-in
+// user's own address book. Used by the quote form: address-book matches are
+// shown FIRST, Google Places suggestions come after. Never touches Google,
+// so it also saves Places API calls.
+router.get('/search', async (req, res) => {
+  const ownerId = (req.user && req.user.id) || null;
+  const q = String(req.query.q || '').trim().toLowerCase();
+  if (q.length < 2) return res.json({ suggestions: [] });
+  const like = `%${q.replace(/[%_]/g, '')}%`;
+  const match = (a) =>
+    [a.label, a.company, a.contact_name, a.street, a.city, a.postal]
+      .some((v) => String(v || '').toLowerCase().includes(q));
+  try {
+    let rows;
+    if (db.isEnabled()) {
+      const r = await db.query(
+        `SELECT id, label, company, contact_name, street, city, province,
+                postal, country, phone, email
+           FROM address_book
+          WHERE user_id IS NOT DISTINCT FROM $1
+            AND (lower(label) LIKE $2 OR lower(company) LIKE $2
+                 OR lower(contact_name) LIKE $2 OR lower(street) LIKE $2
+                 OR lower(city) LIKE $2 OR lower(postal) LIKE $2)
+          ORDER BY created_at DESC LIMIT 8`,
+        [ownerId, like]
+      );
+      rows = r.rows;
+    } else {
+      rows = [...mem.values()]
+        .filter((a) => (a.user_id || null) === (ownerId || null) && match(a))
+        .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''))
+        .slice(0, 8);
+    }
+    return res.json({
+      suggestions: rows.map((a) => ({
+        source: 'address_book',
+        id: a.id,
+        main_text: [a.label || a.company || a.contact_name, a.street].filter(Boolean).join(' — ') || a.city,
+        secondary_text: [a.city, a.province, a.postal].filter(Boolean).join(', ') + ' · ★ My address book',
+        address: {
+          name: a.contact_name || a.company || '',
+          street: a.street || '',
+          city: a.city || '',
+          province: a.province || '',
+          postal: a.postal || '',
+          country: a.country || 'CA',
+          phone: a.phone || '',
+          email: a.email || '',
+        },
+      })),
+    });
+  } catch (err) {
+    return res.status(502).json({ error: 'Address search failed: ' + err.message });
+  }
+});
+
 router.get('/', async (req, res) => {
   const ownerId = (req.user && req.user.id) || null;
   if (db.isEnabled()) {
@@ -81,9 +137,15 @@ router.post('/', async (req, res) => {
   if (!a.label || !a.city) {
     return res.status(400).json({ error: 'label and city are required' });
   }
+  const ownerId = (req.user && req.user.id) || null;
+  // Dedupe on street+city+postal per account (e.g. double-clicking the
+  // "Save to address book" button): return the existing record instead of
+  // creating a duplicate.
+  const dupWhere = 'user_id IS NOT DISTINCT FROM $1 AND lower(street) = lower($2) AND lower(city) = lower($3) AND lower(coalesce(postal,\'\')) = lower($4)';
   if (db.isEnabled()) {
     try {
-      const ownerId = (req.user && req.user.id) || null;
+      const dup = await db.query(`SELECT * FROM address_book WHERE ${dupWhere} LIMIT 1`, [ownerId, a.street, a.city, a.postal]);
+      if (dup.rows.length) return res.json({ address: rowToAddr(dup.rows[0]), duplicate: true });
       const r = await db.query(
         `INSERT INTO address_book (user_id, label, company, contact_name, street, city, province, postal, country, phone, email)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
@@ -95,6 +157,14 @@ router.post('/', async (req, res) => {
       return res.status(502).json({ error: 'Could not save address: ' + err.message });
     }
   }
+  const existing = [...mem.values()].find(
+    (r) =>
+      (r.user_id || null) === (ownerId || null) &&
+      String(r.street || '').toLowerCase() === a.street.toLowerCase() &&
+      String(r.city || '').toLowerCase() === a.city.toLowerCase() &&
+      String(r.postal || '').toLowerCase() === a.postal.toLowerCase()
+  );
+  if (existing) return res.json({ address: existing, duplicate: true });
   const rec = { id: memId(), user_id: (req.user && req.user.id) || null, ...a, created_at: new Date().toISOString() };
   mem.set(rec.id, rec);
   res.status(201).json({ address: rec });

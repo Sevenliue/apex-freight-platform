@@ -342,9 +342,27 @@ export function getAdminOverview() {
   return get('/api/admin/overview');
 }
 
+/* Admin — account approvals: new accounts start quote-only until approved. */
+export function listUsers() {
+  return get('/api/admin/users');
+}
+
+export function approveUser(id) {
+  return post(`/api/admin/users/${encodeURIComponent(id)}/approve`, {});
+}
+
+export function revokeUser(id) {
+  return post(`/api/admin/users/${encodeURIComponent(id)}/revoke`, {});
+}
+
 /* Address book */
 export function listAddresses() {
   return get('/api/address-book');
+}
+
+/* Type-ahead over the user's own address book — shown before Google Places. */
+export function searchAddresses(q) {
+  return get('/api/address-book/search?q=' + encodeURIComponent(q));
 }
 
 export function createAddress(a) {

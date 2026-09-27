@@ -33,6 +33,7 @@ function sanitizeUser(row) {
     company: row.company_name || null,
     email: row.email,
     role: row.role,
+    shipping_approved: !!row.shipping_approved,
   };
 }
 
@@ -48,7 +49,8 @@ async function lookupSession(authHeader) {
   if (!token || !db.isEnabled()) return null;
   try {
     const r = await db.query(
-      `SELECT u.id, u.email, u.full_name, u.company_name, u.role
+      `SELECT u.id, u.email, u.full_name, u.company_name, u.role,
+              u.shipping_approved
          FROM sessions s
          JOIN users u ON u.id = s.user_id
         WHERE s.token = $1 AND s.expires_at > now()

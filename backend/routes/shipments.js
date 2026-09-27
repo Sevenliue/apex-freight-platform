@@ -13,6 +13,25 @@ const { round2 } = require('../lib/money');
 
 const router = express.Router();
 
+// userCanShip(userId): the shipping-approval gate. Admins (ADMIN_EMAILS)
+// always pass; ordinary accounts must be approved by an admin in
+// Admin → Account approvals. New accounts start quote-only.
+async function userCanShip(userId) {
+  if (!userId) return false;
+  try {
+    if (db.isEnabled()) {
+      const r = await db.query('SELECT shipping_approved FROM users WHERE id = $1 LIMIT 1', [userId]);
+      if (r.rows.length && r.rows[0].shipping_approved) return true;
+    }
+  } catch { /* fall through to the billing/admin check */ }
+  try {
+    const billing = require('../lib/billing');
+    return !!((await billing.getBillingState(userId) || {}).isAdmin);
+  } catch {
+    return false;
+  }
+}
+
 router.post('/buy', async (req, res) => {
   const { shipment_id, rate_id, db_quote_id = null, user_id = null, charged_amount } = req.body || {};
   // The logged-in account wins over the optional guest user_id label.
@@ -324,6 +343,13 @@ router.post('/checkout', async (req, res) => {
   }
   if (!db.isEnabled()) {
     return res.status(501).json({ error: 'Shipment payment requires a database. Set DATABASE_URL.' });
+  }
+  // Shipping approval: new accounts are quote-only until an admin approves
+  // them in Admin → Account approvals.
+  if (!(await userCanShip(req.user.id))) {
+    return res.status(403).json({
+      error: 'Your account is not approved for shipping yet. You can keep getting quotes — we will enable scheduling once your account is approved.',
+    });
   }
   const stripeKey = config.stripeKey;
   if (!stripeKey) {

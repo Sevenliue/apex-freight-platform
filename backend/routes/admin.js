@@ -56,3 +56,94 @@ router.delete('/loads/:id', async (req, res) => {
 });
 
 module.exports = router;
+
+// ---------------------------------------------------------------------------
+// Account approvals (added 2026-09-27): every new account starts quote-only.
+// Admins approve accounts here; only approved accounts can schedule/pay for
+// shipments (see userCanShip in routes/shipments.js).
+// ---------------------------------------------------------------------------
+
+const billing = require('../lib/billing');
+const notify = require('../lib/notify');
+
+function needDb(res) {
+  if (!db.isEnabled()) {
+    res.status(501).json({ error: 'Admin requires a database. Set DATABASE_URL to enable it.' });
+    return true;
+  }
+  return false;
+}
+
+async function requireAdmin(req, res) {
+  if (!req.user) {
+    res.status(401).json({ error: 'Sign in required.' });
+    return false;
+  }
+  try {
+    const state = await billing.getBillingState(req.user.id);
+    if (state && state.isAdmin) return true;
+  } catch { /* fall through */ }
+  res.status(403).json({ error: 'Admin access required.' });
+  return false;
+}
+
+// GET /api/admin/users — all accounts, newest first, with approval status.
+router.get('/users', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const r = await db.query(
+      `SELECT id, email, full_name, company_name, phone, shipping_approved, created_at
+         FROM users ORDER BY created_at DESC LIMIT 500`
+    );
+    const users = r.rows.map((u) => ({
+      id: u.id,
+      email: u.email,
+      name: u.full_name,
+      company: u.company_name,
+      phone: u.phone,
+      shipping_approved: !!u.shipping_approved,
+      is_admin: billing.isAdminEmail(u.email),
+      created_at: u.created_at,
+    }));
+    return res.json({ users });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not list accounts: ' + err.message });
+  }
+});
+
+// POST /api/admin/users/:id/approve — approve an account for shipping.
+router.post('/users/:id/approve', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const r = await db.query(
+      'UPDATE users SET shipping_approved = true WHERE id = $1 RETURNING id, email, full_name',
+      [req.params.id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Unknown account.' });
+    const u = r.rows[0];
+    try {
+      notify.notify('shipping_approved', null, { user: { email: u.email, name: u.full_name } });
+    } catch { /* notify never throws */ }
+    return res.json({ approved: true, id: u.id });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not approve account: ' + err.message });
+  }
+});
+
+// POST /api/admin/users/:id/revoke — remove shipping approval (quote-only).
+router.post('/users/:id/revoke', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const r = await db.query(
+      'UPDATE users SET shipping_approved = false WHERE id = $1 RETURNING id',
+      [req.params.id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Unknown account.' });
+    return res.json({ approved: false, id: r.rows[0].id });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not update account: ' + err.message });
+  }
+});

@@ -1,14 +1,22 @@
 /* Google Places street-address autocomplete, proxied through /api/places/*.
  * The API key lives server-side only; the browser never sees it.
  *
+ * Address-book-first: before asking Google, the signed-in user's own
+ * address book is searched (/api/address-book/search). Book matches render
+ * at the top of the dropdown (marked ★); Google suggestions follow. This
+ * also saves Places API calls on repeat shippers/receivers.
+ *
  * Attaches to the street inputs of the quote form address blocks:
- *   shipper   o_street / o_city / o_state / o_zip / o_country
- *   consignee d_street / d_city / d_state / d_zip / d_country
- *   3rd party b_street / b_city / b_state / b_zip / b_country
+ *   shipper   o_street / o_city / o_state / o_zip / o_country (+ s_name, o_phone, o_email)
+ *   consignee d_street / d_city / d_state / d_zip / d_country (+ c_name, d_phone, d_email)
+ *   3rd party b_street / b_city / b_state / b_zip / b_country (+ b_name)
  *
  * Behavior:
  * - 300ms debounce; keyboard navigation (up/down/enter/escape); click-to-select.
- * - On select, GET /api/places/details fills street/city/province/postal/country.
+ * - On select of a Google suggestion, GET /api/places/details fills
+ *   street/city/province/postal/country.
+ * - On select of an address-book entry, every address field (plus contact
+ *   name/phone/email where the block has them) fills instantly — no Google call.
  * - Coexists with the offline postal auto-fill: after a suggestion is applied,
  *   window.APEX_postalFilled(zipName, fsa) is called when present so the
  *   postal auto-fill treats those fields as set and doesn't fight it.
@@ -19,9 +27,12 @@
   'use strict';
 
   var GROUPS = [
-    { street: 'o_street', city: 'o_city', state: 'o_state', zip: 'o_zip', country: 'o_country' },
-    { street: 'd_street', city: 'd_city', state: 'd_state', zip: 'd_zip', country: 'd_country' },
-    { street: 'b_street', city: 'b_city', state: 'b_state', zip: 'b_zip', country: 'b_country' },
+    { street: 'o_street', city: 'o_city', state: 'o_state', zip: 'o_zip', country: 'o_country',
+      name: 's_name', phone: 'o_phone', email: 'o_email' },
+    { street: 'd_street', city: 'd_city', state: 'd_state', zip: 'd_zip', country: 'd_country',
+      name: 'c_name', phone: 'd_phone', email: 'd_email' },
+    { street: 'b_street', city: 'b_city', state: 'b_state', zip: 'b_zip', country: 'b_country',
+      name: 'b_name', phone: null, email: null },
   ];
 
   var placesOn = null; // null = unknown, false = disabled (no key)
@@ -57,7 +68,7 @@
     box.className = 'places-dd';
     items.forEach(function (it, i) {
       var opt = document.createElement('div');
-      opt.className = 'opt';
+      opt.className = 'opt' + (it.source === 'address_book' ? ' from-book' : '');
       opt.setAttribute('data-i', String(i));
       var main = document.createElement('div');
       main.textContent = it.main_text || it.description;
@@ -93,35 +104,89 @@
     }
   }
 
+  function signedIn() {
+    try {
+      return !!localStorage.getItem('apex_auth_token');
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async function fetchBookSuggestions(q) {
+    if (!signedIn()) return [];
+    try {
+      var r = await fetch('/api/address-book/search?q=' + encodeURIComponent(q));
+      var data = await r.json();
+      return (data && data.suggestions) || [];
+    } catch (e) {
+      return []; // address book hiccup: Google path still works
+    }
+  }
+
   async function fetchSuggestions(input, group) {
     var q = input.value.trim();
     if (q.length < 3) {
       closeDropdown();
       return;
     }
+    // Address book first — the user's own saved shippers/receivers.
+    var bookItems = await fetchBookSuggestions(q);
     var country = (el(group.country) && el(group.country).value.trim().toUpperCase()) || 'CA';
-    try {
-      var r = await fetch(
-        '/api/places/autocomplete?input=' + encodeURIComponent(q) + '&country=' + encodeURIComponent(country)
-      );
-      var data = await r.json();
-      if (data.configured === false) {
-        placesOn = false;
-        closeDropdown();
-        return; // key not set: stay plain inputs, quietly
+    var googleItems = [];
+    if (placesOn !== false) {
+      try {
+        var r = await fetch(
+          '/api/places/autocomplete?input=' + encodeURIComponent(q) + '&country=' + encodeURIComponent(country)
+        );
+        var data = await r.json();
+        if (data.configured === false) {
+          placesOn = false;
+        } else if (!data.error) {
+          googleItems = data.suggestions || [];
+        }
+      } catch (e) {
+        /* network hiccup: book results still render */
       }
-      if (data.error) {
-        closeDropdown(); // Google-side error: fail silent on the UI
-        return;
-      }
-      renderDropdown(input, group, data.suggestions || []);
-    } catch (e) {
-      closeDropdown(); // network hiccup: plain input keeps working
+    }
+    renderDropdown(input, group, bookItems.concat(googleItems));
+  }
+
+  // Fill the whole address block (and contact fields) from an address-book
+  // entry — no Google call needed.
+  function applyBookAddress(group, addr) {
+    setVal(group.street, addr.street);
+    setVal(group.city, addr.city);
+    setVal(group.state, addr.province);
+    setVal(group.zip, addr.postal);
+    setVal(group.country, addr.country);
+    if (group.name) setVal(group.name, addr.name);
+    if (group.phone) setVal(group.phone, addr.phone);
+    if (group.email) setVal(group.email, addr.email);
+    var z = el(group.zip);
+    var fsa = '';
+    if (window.APEX_fsaOf) fsa = window.APEX_fsaOf(addr.postal || '');
+    else {
+      var c = String(addr.postal || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (/^[A-Z]\d[A-Z]/.test(c)) fsa = c.slice(0, 3);
+    }
+    if (window.APEX_postalFilled) {
+      window.APEX_postalFilled(group.zip, fsa);
+    } else {
+      var cEl = el(group.city);
+      var sEl = el(group.state);
+      if (z) z.dataset.lastFsa = fsa || '';
+      if (cEl) cEl.dataset.manual = '1';
+      if (sEl) sEl.dataset.manual = '1';
     }
   }
 
   async function selectSuggestion(input, group, item) {
     closeDropdown();
+    if (item.source === 'address_book' && item.address) {
+      input.value = item.address.street || input.value;
+      applyBookAddress(group, item.address);
+      return;
+    }
     input.value = item.main_text || item.description || input.value;
     try {
       var r = await fetch('/api/places/details?place_id=' + encodeURIComponent(item.place_id));

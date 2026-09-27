@@ -67,10 +67,10 @@ function money(n) {
 // notify(event, order, opts): fire-and-forget wrapper, never throws.
 async function notify(event, order, opts = {}) {
   try {
-    const customer = opts.customerEmail || ((order.bol || {}).shipper || {}).email || null;
+    const customer = opts.customerEmail || (order ? (((order.bol || {}).shipper || {}).email || null) : null);
     const admin = adminEmail();
-    const route = routeOf(order);
-    const ref = order.shipper_order_no ? ` (your order #${order.shipper_order_no})` : '';
+    const route = order ? routeOf(order) : '';
+    const ref = order && order.shipper_order_no ? ` (your order #${order.shipper_order_no})` : '';
     switch (event) {
       case 'order_created':
         await sendEmail({
@@ -106,6 +106,22 @@ async function notify(event, order, opts = {}) {
           text: `Your shipment${ref} for ${route} has been cancelled.${opts.refunded ? '\nYour payment has been refunded.' : ''}`,
         });
         break;
+      case 'new_signup': {
+        const u = opts.user || {};
+        await sendEmail({
+          to: admin, event, subject: `New account registered — ${u.name || u.email || 'unknown'}`,
+          text: `A new account just registered and is waiting for shipping approval.\nName: ${u.name || '—'}\nCompany: ${u.company || '—'}\nEmail: ${u.email || '—'}\n\nThey can get quotes now. Approve them in Admin → Account approvals to let them schedule shipments.`,
+        });
+        break;
+      }
+      case 'shipping_approved': {
+        const u = opts.user || {};
+        await sendEmail({
+          to: u.email || customer, event, subject: 'Your Apex Freight account is approved',
+          text: `Good news — your Apex Freight account has been approved.\nYou can now schedule and pay for shipments on the site. Thanks for shipping with us.`,
+        });
+        break;
+      }
       default:
         break;
     }

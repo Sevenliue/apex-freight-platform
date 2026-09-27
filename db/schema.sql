@@ -386,3 +386,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS current_period_end timestamptz;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS quotes_used integer NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS quota_period text;
 CREATE INDEX IF NOT EXISTS idx_users_stripe_customer_id ON users(stripe_customer_id);
+
+-- ---------------------------------------------------------------------------
+-- Shipping approval (added 2026-09-27): new accounts start quote-only.
+-- An admin must approve the account (Admin → Account approvals) before the
+-- customer can schedule/pay for shipments. Admins (ADMIN_EMAILS) bypass.
+-- ---------------------------------------------------------------------------
+ALTER TABLE users ADD COLUMN IF NOT EXISTS shipping_approved boolean NOT NULL DEFAULT false;

@@ -337,6 +337,8 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 .places-dd .opt { padding: 8px 10px; cursor: pointer; font-size: 13px; line-height: 1.35; }
 .places-dd .opt .sub { display: block; color: #666; font-size: 12px; }
 .places-dd .opt.active, .places-dd .opt:hover { background: #eef3ff; }
+.places-dd .opt.from-book { border-left: 3px solid #d97706; background: #fffbeb; }
+.places-dd .opt.from-book.active, .places-dd .opt.from-book:hover { background: #fef3c7; }
 
 /* ---------- Shipper account ---------- */
 .account { display: flex; align-items: center; gap: 8px; margin-left: auto; }
@@ -395,7 +397,10 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 .dg-notice { border-left: 4px solid #c2410c; background: #fff7ed; }
 .dg-notice h3 { color: #9a3412; margin: 0 0 8px; font-size: 16px; }
 .dg-notice p { margin: 6px 0; font-size: 14px; color: #431407; }
-.badge.save { background: var(--amber); color: var(--navy-dark); }
+.badge.ok { background: var(--green-bg); color: var(--green); }
+.badge.warn { background: #fdf3e3; color: #b26a00; }
+.badge.staff { background: #eef3ff; color: #1d4ed8; }
+.card.warn { background: #fffbeb; border-color: #f5d48e; }
 .plan-badge {
   background: rgba(255, 255, 255, 0.16); color: #fff;
   font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px;

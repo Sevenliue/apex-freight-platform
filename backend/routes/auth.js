@@ -69,14 +69,24 @@ router.post('/signup', async (req, res) => {
     }
     const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const id = randomUUID();
+    // New accounts start quote-only: an admin approves them for shipping in
+    // Admin → Account approvals. Staff emails bypass approval automatically.
+    const { isAdminEmail } = require('../lib/billing');
+    const approved = isAdminEmail(email);
     const r = await db.query(
-      `INSERT INTO users (id, email, full_name, company_name, role, is_verified, password_hash)
-       VALUES ($1, $2, $3, $4, 'shipper', true, $5)
-       RETURNING id, email, full_name, company_name, role`,
-      [id, email, name, company || null, hash]
+      `INSERT INTO users (id, email, full_name, company_name, role, is_verified, password_hash, shipping_approved)
+       VALUES ($1, $2, $3, $4, 'shipper', true, $5, $6)
+       RETURNING id, email, full_name, company_name, role, shipping_approved`,
+      [id, email, name, company || null, hash, approved]
     );
     await sessionLib.pruneExpiredSessions();
     const token = await sessionLib.createSession(r.rows[0].id);
+    // Tell the admin a new account is waiting (best-effort, never blocks).
+    try {
+      require('../lib/notify').notify('new_signup', null, {
+        user: { name, email, company },
+      });
+    } catch { /* notify never throws; belt and suspenders */ }
     return res.status(201).json({ token, user: sessionLib.sanitizeUser(r.rows[0]) });
   } catch (err) {
     // Race on the UNIQUE(email) constraint between the check and insert.
@@ -102,7 +112,7 @@ router.post('/login', async (req, res) => {
 
   try {
     const r = await db.query(
-      'SELECT id, email, full_name, company_name, role, password_hash FROM users WHERE email = $1 LIMIT 1',
+      'SELECT id, email, full_name, company_name, role, shipping_approved, password_hash FROM users WHERE email = $1 LIMIT 1',
       [email]
     );
     const row = r.rows[0];

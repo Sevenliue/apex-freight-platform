@@ -184,6 +184,7 @@
               <label>Phone <input name="o_phone" type="tel" placeholder="780-555-0100"></label>
               <label>Email <input name="o_email" type="email" placeholder="ship@example.com"></label>
             </div>
+            <button type="button" class="btn small" data-save-addr="shipper">💾 Save shipper to address book</button>
             <label class="check"><input type="checkbox" name="depot_dropoff"> Drop off at depot — do not dispatch pickup</label>
           </fieldset>
           <div class="addr-swap-btn">
@@ -203,6 +204,7 @@
               <label>Phone <input name="d_phone" type="tel" placeholder="403-555-0100"></label>
               <label>Email <input name="d_email" type="email" placeholder="receive@example.com"></label>
             </div>
+            <button type="button" class="btn small" data-save-addr="consignee">💾 Save consignee to address book</button>
             <label class="check"><input type="checkbox" name="depot_pickup"> Pick up at depot — no carrier delivery</label>
           </fieldset>
         </div>
@@ -544,6 +546,7 @@
       </div>
       <div id="admin-cards" class="cards"></div>
       <div id="admin-note"></div>
+      <div id="account-queue" style="margin-top:16px"></div>
       <div id="tender-queue" style="margin-top:16px"></div>
       <div id="dg-queue" style="margin-top:16px"></div>
     </section>
@@ -573,7 +576,7 @@
         <p class="form-error hidden" id="signup-error" role="alert"></p>
         <div class="actions"><button class="btn primary" type="submit" id="signup-submit">Create account</button></div>
       </form>
-      <p class="note">Accounts keep your saved quotes, shipments, and address book under your name.</p>
+      <p class="note">Accounts keep your saved quotes, shipments, and address book under your name. New accounts can get quotes right away — scheduling is enabled after we approve your account.</p>
     </div>
   </div>
 
@@ -1322,11 +1325,13 @@
             <button class="btn" id="save-quote-btn">Save This Quote</button>
             <button class="btn primary" id="complete-shipment-btn">Complete This Shipment</button>
           </div>
+          <div id="approval-note"></div>
         </div>
         <div id="complete-result"></div>`;
 
       $('#save-quote-btn').addEventListener('click', saveCurrentQuote);
       $('#complete-shipment-btn').addEventListener('click', completeCurrentShipment);
+      gateCompleteButton();
       $('#terms-link').addEventListener('click', (e) => { e.preventDefault(); showTerms(); });
     }
 
@@ -1380,8 +1385,43 @@
       }
     }
 
+    /* Shipping-approval gate: new accounts are quote-only until an admin
+       approves them (Admin → Account approvals). Admins always pass. */
+    function approvalGate() {
+      if (!currentUser) return { ok: true, pending: false };
+      const isAdmin = !!(billingState && billingState.is_admin);
+      if (isAdmin) return { ok: true, pending: false };
+      const approved =
+        !!((billingState && billingState.shipping_approved) ||
+           (currentUser && currentUser.shipping_approved));
+      return { ok: approved, pending: !approved };
+    }
+
+    function gateCompleteButton() {
+      const btn = $('#complete-shipment-btn');
+      const note = $('#approval-note');
+      if (!btn) return;
+      const g = approvalGate();
+      if (!g.ok) {
+        btn.disabled = true;
+        btn.title = 'Your account is pending approval — scheduling unlocks after approval.';
+        if (note) {
+          note.innerHTML =
+            '<div class="card warn" style="margin-top:10px">⏳ <strong>Your account is pending approval.</strong> ' +
+            'You can get quotes now, but scheduling is enabled only after we approve your account — we\'ll notify you as soon as it\'s ready.</div>';
+        }
+      } else if (note) {
+        note.innerHTML = '';
+      }
+    }
+
     async function completeCurrentShipment() {
       if (!currentQuote) return;
+      const gate = approvalGate();
+      if (!gate.ok) {
+        showAlert('Your account is pending approval — scheduling is enabled after we approve your account.');
+        return;
+      }
       const rateId = selectedRateId();
       if (!rateId) { showAlert('Pick a carrier rate first.'); return; }
       const refNum = $('#ref-num').value.trim();
@@ -1917,6 +1957,82 @@
       }
       loadTenders();
       loadDgQueue();
+      loadAccountQueue();
+    }
+
+    /* Account approvals: every new account starts quote-only. Approving an
+       account here lets the customer schedule and pay for shipments. */
+    async function loadAccountQueue() {
+      const box = $('#account-queue');
+      if (!box) return;
+      box.innerHTML = '<div class="card empty">Loading accounts…</div>';
+      try {
+        const { users } = await api.listUsers();
+        if (!users.length) {
+          box.innerHTML =
+            '<h2>Account approvals</h2><p class="lede">New accounts can quote right away; approve them to unlock scheduling.</p>' +
+            '<div class="card empty">No accounts yet.</div>';
+          return;
+        }
+        const pending = users.filter((u) => !u.is_admin && !u.shipping_approved);
+        box.innerHTML =
+          '<h2>Account approvals</h2><p class="lede">New accounts can get quotes right away. ' +
+          'Approve an account to let them schedule and pay for shipments.</p>' +
+          (pending.length
+            ? `<div class="card warn" style="margin-bottom:10px">⏳ ${pending.length} account${pending.length === 1 ? '' : 's'} waiting for approval.</div>`
+            : '') +
+          `<div class="table-wrap"><table class="data"><thead><tr>
+            <th>Registered</th><th>Name</th><th>Company</th><th>Email</th><th>Status</th><th></th>
+          </tr></thead><tbody>${users
+            .map(
+              (u) => `<tr>
+              <td>${esc((u.created_at || '').slice(0, 10))}</td>
+              <td>${esc(u.name || '—')}</td>
+              <td>${esc(u.company || '—')}</td>
+              <td>${esc(u.email || '—')}</td>
+              <td>${u.is_admin
+                ? '<span class="badge staff">Staff</span>'
+                : u.shipping_approved
+                  ? '<span class="badge ok">Approved</span>'
+                  : '<span class="badge warn">Quote-only</span>'}</td>
+              <td>${u.is_admin
+                ? ''
+                : u.shipping_approved
+                  ? `<button class="btn small" data-acct-revoke="${esc(u.id)}">Revoke</button>`
+                  : `<button class="btn small primary" data-acct-approve="${esc(u.id)}">Approve</button>`}</td>
+            </tr>`
+            )
+            .join('')}</tbody></table></div>`;
+        const reload = () => loadAccountQueue();
+        box.querySelectorAll('[data-acct-approve]').forEach((btn) =>
+          btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            try {
+              await api.approveUser(btn.getAttribute('data-acct-approve'));
+              reload();
+            } catch (err) {
+              showAlert('Could not approve: ' + err.message);
+              btn.disabled = false;
+            }
+          })
+        );
+        box.querySelectorAll('[data-acct-revoke]').forEach((btn) =>
+          btn.addEventListener('click', async () => {
+            if (!confirm('Revoke shipping for this account? They go back to quote-only.')) return;
+            btn.disabled = true;
+            try {
+              await api.revokeUser(btn.getAttribute('data-acct-revoke'));
+              reload();
+            } catch (err) {
+              showAlert('Could not update: ' + err.message);
+              btn.disabled = false;
+            }
+          })
+        );
+      } catch (err) {
+        // Not an admin (or DB off): hide the queue silently.
+        box.innerHTML = '';
+      }
     }
 
     /* Dangerous-goods review queue: DG loads held before completion. */
@@ -2033,6 +2149,54 @@
     /* ---------- ADDRESS BOOK ---------- */
     let AB = [];
     let abEditing = null;
+
+    /* Save-to-address-book buttons on the quote form (shipper / consignee
+       blocks). Every required field must be filled first: name, street,
+       city, province, postal. Phone/email ride along when present. */
+    const ADDR_SAVE_GROUPS = {
+      shipper:   { name: 's_name', street: 'o_street', city: 'o_city', state: 'o_state', zip: 'o_zip', country: 'o_country', phone: 'o_phone', email: 'o_email', kind: 'Shipper' },
+      consignee: { name: 'c_name', street: 'd_street', city: 'd_city', state: 'd_state', zip: 'd_zip', country: 'd_country', phone: 'd_phone', email: 'd_email', kind: 'Consignee' },
+    };
+
+    async function savePartyToAddressBook(partyKind) {
+      const g = ADDR_SAVE_GROUPS[partyKind];
+      if (!g) return;
+      if (!currentUser) {
+        showAlert('Sign in to save addresses to your address book.');
+        return;
+      }
+      const qf = document.querySelector('#quote-form');
+      const v = (n) => (((qf && qf.querySelector(`[name="${n}"]`)) || {}).value || '').trim();
+      const labels = { name: 'Name', street: 'Street', city: 'City', state: 'Province', zip: 'Postal code' };
+      const missing = ['name', 'street', 'city', 'state', 'zip'].filter((k) => !v(g[k]));
+      if (missing.length) {
+        showAlert(`Fill in these required fields first: ${missing.map((k) => labels[k]).join(', ')}.`);
+        return;
+      }
+      const name = v(g.name);
+      try {
+        await api.createAddress({
+          label: `${g.kind} — ${name}`.slice(0, 120),
+          company: name.slice(0, 160),
+          contact_name: name.slice(0, 120),
+          street: v(g.street),
+          city: v(g.city),
+          province: v(g.state),
+          postal: v(g.zip),
+          country: (v(g.country) || 'CA').slice(0, 40),
+          phone: v(g.phone),
+          email: v(g.email),
+        });
+        showAlert(`${g.kind} address saved to your address book.`);
+        if (typeof loadAddressBook === 'function') loadAddressBook();
+      } catch (err) {
+        showAlert('Could not save address: ' + err.message);
+      }
+    }
+
+    document.querySelectorAll('[data-save-addr]').forEach((btn) =>
+      btn.addEventListener('click', () => savePartyToAddressBook(btn.getAttribute('data-save-addr')))
+    );
 
     async function loadAddressBook() {
       try {

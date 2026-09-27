@@ -70,6 +70,7 @@ router.get('/status', async (req, res) => {
     return res.json({
       tier: state.tier,
       is_admin: !!state.isAdmin,
+      shipping_approved: !!state.shippingApproved,
       status: state.status,
       billing_active: state.billingActive,
       quotes_used: state.quotesUsed,
