@@ -222,6 +222,17 @@ async function prepareOrder(body, effectiveUserId) {
   } else {
     order.id = id('ord');
   }
+  // Auto-save the entered addresses into this customer's address book so
+  // each address stays attached to their customer name. Best-effort: a
+  // save failure must never break order creation.
+  try {
+    const ab = require('./addressbook');
+    if (typeof ab.savePartyAddresses === 'function') {
+      await ab.savePartyAddresses(order.user_id, shipper, consignee);
+    }
+  } catch (err) {
+    console.error('address-book auto-save failed:', err && err.message);
+  }
   store.orders.push(order);
   return { order, quote, rate };
 }

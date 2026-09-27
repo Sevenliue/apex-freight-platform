@@ -165,3 +165,70 @@ router.delete('/:id', async (req, res) => {
 });
 
 module.exports = router;
+
+// savePartyAddresses(userId, shipper, consignee): auto-save the addresses a
+// customer typed on the quote/shipment form into their own address book, so
+// each address stays attached to their customer account. Called best-effort
+// from order creation; never throws.
+// Party shape: {name, street1|street, city, state|province, zip|postal,
+//               country, phone, email}
+async function savePartyAddresses(userId, shipper, consignee) {
+  const norm = (p, kind) => {
+    const q = p || {};
+    const street = String(q.street1 || q.street || '').trim();
+    const city = String(q.city || '').trim();
+    if (!street || !city) return null;
+    const name = String(q.name || q.company || '').trim().slice(0, 120);
+    return {
+      label: (kind + ' — ' + (name || 'address')).slice(0, 120),
+      company: name,
+      contact_name: name,
+      street: street.slice(0, 160),
+      city: city.slice(0, 80),
+      province: String(q.state || q.province || '').trim().slice(0, 40),
+      postal: String(q.zip || q.postal || '').trim().slice(0, 20),
+      country: String(q.country || '').trim().slice(0, 40) || 'CA',
+      phone: String(q.phone || '').trim().slice(0, 40),
+      email: String(q.email || '').trim().slice(0, 160),
+    };
+  };
+  const parties = [
+    norm(shipper, 'Shipper'),
+    norm(consignee, 'Consignee'),
+  ].filter(Boolean);
+  if (!parties.length) return;
+
+  if (db.isEnabled()) {
+    for (const a of parties) {
+      const dup = await db.query(
+        `SELECT id FROM address_book
+         WHERE user_id IS NOT DISTINCT FROM $1
+           AND lower(street) = lower($2) AND lower(city) = lower($3)
+           AND lower(coalesce(postal,'')) = lower($4) LIMIT 1`,
+        [userId || null, a.street, a.city, a.postal]
+      );
+      if (dup.rows.length) continue;
+      await db.query(
+        `INSERT INTO address_book (user_id, label, company, contact_name, street, city, province, postal, country, phone, email)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+        [userId || null, a.label, a.company || null, a.contact_name || null, a.street, a.city,
+         a.province || null, a.postal || null, a.country, a.phone || null, a.email || null]
+      );
+    }
+    return;
+  }
+  for (const a of parties) {
+    const dup = [...mem.values()].some(
+      (r) =>
+        (r.user_id || null) === (userId || null) &&
+        String(r.street || '').toLowerCase() === a.street.toLowerCase() &&
+        String(r.city || '').toLowerCase() === a.city.toLowerCase() &&
+        String(r.postal || '').toLowerCase() === a.postal.toLowerCase()
+    );
+    if (dup) continue;
+    const rec = { id: memId(), user_id: userId || null, ...a, created_at: new Date().toISOString() };
+    mem.set(rec.id, rec);
+  }
+}
+
+module.exports.savePartyAddresses = savePartyAddresses;
