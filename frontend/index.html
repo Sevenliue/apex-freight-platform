@@ -135,7 +135,26 @@
 
     <!-- DASHBOARD -->
     <section id="tab-dashboard" class="panel active" role="tabpanel">
-      <!-- QUOTE FORM: top of the main page -->
+      <!-- SHORTCUT CARDS: top of the main page -->
+      <div class="dash-cards">
+        <button type="button" class="dash-card" data-dash-goto="quote" data-region="worldwide">
+          <span class="dash-ico">📦</span>
+          <span class="dash-txt"><strong>Package shipping</strong><small>Express delivery and tracking for your smaller packages</small></span>
+        </button>
+        <button type="button" class="dash-card" data-dash-goto="quote" data-region="canada_usa">
+          <span class="dash-ico">🚚</span>
+          <span class="dash-txt"><strong>LTL Freight</strong><small>Efficient freight shipping for large, heavy or palletized loads</small></span>
+        </button>
+        <button type="button" class="dash-card" data-dash-goto="quote">
+          <span class="dash-ico">🗓️</span>
+          <span class="dash-txt"><strong>Schedule Pickup</strong><small>Book a convenient pickup time for your carrier shipments</small></span>
+        </button>
+        <button type="button" class="dash-card" data-dash-goto="pricing">
+          <span class="dash-ico">🧾</span>
+          <span class="dash-txt"><strong>Billing Center</strong><small>Manage invoices, payment methods, and account credits</small></span>
+        </button>
+      </div>
+      <!-- QUOTE FORM -->
       <h1>Get a rate</h1>
       <p class="lede">Compare carrier rates instantly. All amounts in CAD.</p>
       <div id="payment-result"></div>
@@ -305,24 +324,6 @@
       <div id="quote-results"></div>
       <h2>Saved quotes</h2>
       <div id="saved-quotes"><p class="note">Loading…</p></div>
-      <div class="dash-cards">
-        <button type="button" class="dash-card" data-dash-goto="quote" data-region="worldwide">
-          <span class="dash-ico">📦</span>
-          <span class="dash-txt"><strong>Package shipping</strong><small>Express delivery and tracking for your smaller packages</small></span>
-        </button>
-        <button type="button" class="dash-card" data-dash-goto="quote" data-region="canada_usa">
-          <span class="dash-ico">🚚</span>
-          <span class="dash-txt"><strong>LTL Freight</strong><small>Efficient freight shipping for large, heavy or palletized loads</small></span>
-        </button>
-        <button type="button" class="dash-card" data-dash-goto="quote">
-          <span class="dash-ico">🗓️</span>
-          <span class="dash-txt"><strong>Schedule Pickup</strong><small>Book a convenient pickup time for your carrier shipments</small></span>
-        </button>
-        <button type="button" class="dash-card" data-dash-goto="pricing">
-          <span class="dash-ico">🧾</span>
-          <span class="dash-txt"><strong>Billing Center</strong><small>Manage invoices, payment methods, and account credits</small></span>
-        </button>
-      </div>
       <div class="dash-orders-head">
         <div>
           <h2>My Orders</h2>
