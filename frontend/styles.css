@@ -455,6 +455,44 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 .filters input, .filters select { font: inherit; font-weight: 400; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: #fff; min-width: 130px; }
 .filters label.grow { flex: 1 1 220px; }
 
+/* ---------- bookstore ---------- */
+.store-hero { display: flex; gap: 28px; align-items: center; background: linear-gradient(120deg, #0f2a4a 0%, #1b4f8a 100%); border-radius: 14px; padding: 32px; margin-bottom: 24px; color: #fff; flex-wrap: wrap; }
+.store-cover { width: 190px; border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,.35); }
+.store-hero-txt { flex: 1 1 280px; }
+.store-brand { font-weight: 800; letter-spacing: .18em; font-size: 12px; color: #9cc3ee; margin: 0 0 8px; }
+.store-hero-txt h1 { margin: 0 0 10px; color: #fff; font-size: 30px; }
+.store-hero-txt .lede { color: rgba(255,255,255,.82); margin: 0 0 18px; }
+.store-hero-txt .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.store-hero-txt .btn:not(.primary) { background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.35); color: #fff; text-decoration: none; }
+.store-hero-txt .btn:not(.primary):hover { background: rgba(255,255,255,.24); }
+.store-chapters { columns: 2; column-gap: 28px; margin: 0; padding-left: 20px; }
+.store-chapters li { margin-bottom: 7px; font-size: 14.5px; break-inside: avoid; }
+.store-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 6px 0 26px; }
+.store-card { display: flex; flex-direction: column; position: relative; }
+.store-card.featured { border: 2px solid var(--navy); }
+.store-card h3 { margin: 6px 0 2px; }
+.store-includes { margin: 10px 0; padding-left: 20px; font-size: 14px; }
+.store-includes li { margin-bottom: 5px; }
+.store-price { font-size: 30px; font-weight: 800; color: var(--navy); margin: 8px 0 14px; }
+.store-price small { font-size: 14px; font-weight: 600; color: var(--muted); }
+.store-card .actions { margin-top: auto; }
+.store-faq p { margin: 0 0 16px; font-size: 14.5px; }
+.store-faq p:last-child { margin-bottom: 0; }
+.lib-row { display: flex; gap: 16px; align-items: center; margin-bottom: 12px; }
+.lib-cover { width: 64px; border-radius: 5px; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+.lib-txt { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.card.ok { border-left: 4px solid var(--green, #1e8e3e); }
+.prod-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.prod-txt { flex: 1 1 200px; display: flex; flex-direction: column; }
+.tablewrap { overflow-x: auto; }
+@media (max-width: 1024px) { .store-grid { grid-template-columns: 1fr; } }
+@media (max-width: 640px) {
+  .store-hero { padding: 22px; }
+  .store-cover { width: 140px; }
+  .store-chapters { columns: 1; }
+  .lib-row { flex-wrap: wrap; }
+}
+
 /* ---------- billing center ---------- */
 .billing-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 16px; margin-bottom: 8px; }
 .bill-card h3 { margin-top: 0; font-size: 16px; }

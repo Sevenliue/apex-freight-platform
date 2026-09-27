@@ -78,6 +78,7 @@ app.use('/api/custom-lists', require('./routes/custom-lists'));
 app.use('/api/carriers', require('./routes/carriers'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/store', require('./routes/store'));
 
 // Serve the sibling-built static frontend (same origin as the API).
 const FRONTEND_DIR = path.join(__dirname, '..', 'frontend');

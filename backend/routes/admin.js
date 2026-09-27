@@ -147,3 +147,60 @@ router.post('/users/:id/revoke', async (req, res) => {
     return res.status(502).json({ error: 'Could not update account: ' + err.message });
   }
 });
+
+// ---------- Northline Ops Bookstore ----------
+
+// GET /api/admin/store/orders — digital product orders, newest first.
+router.get('/store/orders', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const r = await db.query(
+      `SELECT o.id, o.amount_cents, o.currency, o.status, o.created_at,
+              u.email AS user_email, p.title AS product_title, p.slug AS product_slug
+       FROM digital_orders o
+       JOIN users u ON u.id = o.user_id
+       JOIN products p ON p.id = o.product_id
+       ORDER BY o.created_at DESC LIMIT 200`
+    );
+    res.json({ orders: r.rows });
+  } catch (err) {
+    res.status(502).json({ error: 'Could not load store orders: ' + err.message });
+  }
+});
+
+// GET /api/admin/store/products — all products including inactive.
+router.get('/store/products', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const r = await db.query(`SELECT * FROM products ORDER BY sort_order, created_at`);
+    res.json({ products: r.rows });
+  } catch (err) {
+    res.status(502).json({ error: 'Could not load products: ' + err.message });
+  }
+});
+
+// PUT /api/admin/store/products/:id — update title, pricing, visibility.
+router.put('/store/products/:id', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  const b = req.body || {};
+  const fields = [];
+  const vals = [];
+  let i = 1;
+  for (const k of ['title', 'subtitle', 'description']) {
+    if (typeof b[k] === 'string') { fields.push(`${k} = $${i++}`); vals.push(b[k]); }
+  }
+  if (Number.isFinite(Number(b.price_cents))) { fields.push(`price_cents = $${i++}`); vals.push(Math.round(Number(b.price_cents))); }
+  if (typeof b.active === 'boolean') { fields.push(`active = $${i++}`); vals.push(b.active); }
+  if (!fields.length) return res.status(400).json({ error: 'Nothing to update.' });
+  try {
+    vals.push(req.params.id);
+    const r = await db.query(`UPDATE products SET ${fields.join(', ')} WHERE id = $${i} RETURNING *`, vals);
+    if (!r.rows.length) return res.status(404).json({ error: 'Unknown product.' });
+    res.json({ product: r.rows[0] });
+  } catch (err) {
+    res.status(502).json({ error: 'Could not update product: ' + err.message });
+  }
+});

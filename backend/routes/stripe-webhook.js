@@ -73,6 +73,19 @@ async function handleEvent(stripe, event) {
     // Shipment freight payment (pay-at-scheduling): finalize the order —
     // buy the EasyPost label or mint the internal PRO — then mark paid.
     const meta = obj.metadata || {};
+    if (meta.type === 'digital_purchase' && meta.product_id) {
+      const store = require('./store');
+      const userId = meta.user_id || obj.client_reference_id || null;
+      const orderId = await store.fulfillDigitalPurchase({
+        sessionId: obj.id,
+        productId: meta.product_id,
+        userId,
+        amountCents: obj.amount_total,
+        currency: obj.currency,
+      });
+      console.log(`[stripe-webhook] digital purchase → user ${userId} product ${meta.product_id} (order ${orderId || 'dup'})`);
+      return;
+    }
     if (meta.type === 'shipment_payment' && meta.order_id) {
       const shipments = require('./shipments');
       const pi = obj.payment_intent;

@@ -434,3 +434,50 @@ export function addExclusion(name) {
 export function removeExclusion(name) {
   return request('DELETE', `/api/carriers/exclusions/${encodeURIComponent(name)}`);
 }
+
+/* Northline Ops Bookstore */
+export function listStoreProducts() {
+  return request('GET', '/api/store/products');
+}
+export function storeCheckout(slug) {
+  return request('POST', '/api/store/checkout', { slug });
+}
+export function storeLibrary() {
+  return request('GET', '/api/store/library');
+}
+export async function downloadStoreFile(id) {
+  const token = getAuthToken();
+  const res = await fetch(`/api/store/download/${encodeURIComponent(id)}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    let msg = `Download failed (${res.status})`;
+    try {
+      const d = await res.json();
+      if (d && d.error) msg = d.error;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  const blob = await res.blob();
+  const cd = res.headers.get('content-disposition') || '';
+  const m = cd.match(/filename="([^"]+)"/);
+  const name = m ? m[1] : 'northline-ops-download';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(a.href);
+    a.remove();
+  }, 1000);
+}
+export function listStoreOrders() {
+  return request('GET', '/api/admin/store/orders');
+}
+export function listStoreProductsAdmin() {
+  return request('GET', '/api/admin/store/products');
+}
+export function updateStoreProduct(id, patch) {
+  return request('PUT', `/api/admin/store/products/${encodeURIComponent(id)}`, patch);
+}

@@ -98,6 +98,17 @@
             <button class="tab sub" data-tab="reports" role="tab" aria-selected="false"><span>Reports</span></button>
           </div>
         </div>
+        <div class="nav-group" data-group="bookstore">
+          <button class="tab group-toggle" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            <span>Bookstore</span>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="nav-sub">
+            <button class="tab sub" data-tab="store" role="tab" aria-selected="false"><span>Store</span></button>
+            <button class="tab sub" data-tab="library" role="tab" aria-selected="false"><span>My Library</span></button>
+          </div>
+        </div>
         <button class="tab" data-tab="comingsoon" data-comingsoon="Settings" role="tab" aria-selected="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.2 4.2l2.8 2.8M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8l2.8-2.8M17 7l2.8-2.8"/></svg>
           <span>Settings</span>
@@ -601,6 +612,40 @@
     </section>
 
     <!-- ADMIN -->
+    <!-- BOOKSTORE -->
+    <section id="tab-store" class="panel" role="tabpanel">
+      <div class="store-hero">
+        <img src="/img/playbook-cover.png" alt="The Warehouse Manager's Playbook — cover" class="store-cover">
+        <div class="store-hero-txt">
+          <p class="store-brand">NORTHLINE OPS</p>
+          <h1>The Warehouse Manager's Playbook</h1>
+          <p class="lede">Practical operations leadership — written from the warehouse floor, not a desk. Hiring, onboarding, safety, training, KPIs, P&amp;L, and every corner of the operation from receiving to the dock door.</p>
+          <div class="actions">
+            <a class="btn" href="/api/store/sample" download>📄 Free sample chapter</a>
+            <button type="button" class="btn primary" id="store-see-editions">See editions</button>
+          </div>
+        </div>
+      </div>
+      <h2>What's inside</h2>
+      <div class="card"><ul id="store-chapters" class="store-chapters"></ul></div>
+      <h2 id="store-editions">Choose your edition</h2>
+      <p class="lede">One-time purchase. Yours forever, including future updates to the eBook.</p>
+      <div id="store-products" class="store-grid"><div class="card empty">Loading…</div></div>
+      <h2>Questions</h2>
+      <div class="card store-faq">
+        <p><strong>How do I get the book?</strong><br>Right after payment, your download appears in <strong>My Library</strong> — no waiting, no shipping.</p>
+        <p><strong>What format are the files?</strong><br>The eBook is a PDF. The packs are a ZIP with the PDF plus the Excel companion tools.</p>
+        <p><strong>What does the team license cover?</strong><br>Up to 5 people in your company. Share it with your leadership team and run the playbook together.</p>
+        <p><strong>Is this the finished book?</strong><br>The manuscript is being finalized for publication. Every buyer gets lifetime updates to the eBook, free.</p>
+        <p><strong>Refunds?</strong><br>If a file won't open or isn't as described, contact us within 14 days and we'll make it right.</p>
+      </div>
+    </section>
+    <section id="tab-library" class="panel" role="tabpanel">
+      <h1>My Library</h1>
+      <p class="lede">Your Northline Ops downloads.</p>
+      <div id="library-notice"></div>
+      <div id="library-items"><div class="card empty">Loading…</div></div>
+    </section>
     <section id="tab-admin" class="panel" role="tabpanel">
       <h1>Admin overview</h1>
       <p class="lede">Platform activity at a glance.</p>
@@ -612,6 +657,7 @@
       <div id="account-queue" style="margin-top:16px"></div>
       <div id="tender-queue" style="margin-top:16px"></div>
       <div id="dg-queue" style="margin-top:16px"></div>
+      <div id="store-admin" style="margin-top:16px"></div>
     </section>
       </main>
     </div><!-- /.content -->
@@ -740,6 +786,8 @@
       if (btn.dataset.tab === 'addressbook') loadAddressBook();
       if (btn.dataset.tab === 'carriers') loadCarriers();
       if (btn.dataset.tab === 'dashboard') loadDashboard();
+      if (btn.dataset.tab === 'store') loadStore();
+      if (btn.dataset.tab === 'library') loadLibrary();
       if (btn.dataset.tab === 'pricing') loadBillingCenter();
       closeSidebar();
       const target = btn.dataset.scroll ? document.getElementById(btn.dataset.scroll) : null;
@@ -2078,6 +2126,7 @@
       loadTenders();
       loadDgQueue();
       loadAccountQueue();
+      loadStoreAdmin();
     }
 
     /* Account approvals: every new account starts quote-only. Approving an
@@ -3350,7 +3399,205 @@
       gateQuoteForm();
       handleBillingReturn();
       handleShipmentReturn();
+      handleStoreReturn();
     }
+
+    /* ---------- NORTHLINE OPS BOOKSTORE ---------- */
+    const STORE_CHAPTERS = [
+      'Introduction', 'How to use this playbook',
+      'People first: the manager\u2019s starting point',
+      'Trust your team and have their back',
+      'Hire for reliability, judgement, and learning',
+      'Onboarding begins before the first shift',
+      'The walkaround teaches standards and culture',
+      'Probation becomes a development process',
+      'Training ends with demonstrated competence',
+      'Daily huddles and team meetings', 'Problem solving',
+      'Delegation, planning ahead, and the management pipeline',
+      'Corrective action, firing, and difficult conversations',
+      'Managing up: your leader and head office',
+      'Write down the unwritten safety rules',
+      'Safety compliance checklist: paperwork proves the work',
+      'Warehouse metrics and KPIs', 'Optimization: 5S, Lean, and Six Sigma',
+      'Building and equipment repair and maintenance',
+      'Fleet management: cost per kilometre and vehicle replacement',
+      'Freight invoice review and annual carrier rate review',
+      'Understand your P&L and sell your proposals',
+      'Improve with the people who do the work',
+      'Receiving: the operation starts at the dock door',
+      'Put-away: every item in its right home',
+      'Inventory management: trust your numbers',
+      'Picking: accuracy first, speed follows',
+      'Dock operations: shipping is the promise kept',
+    ];
+
+    const storeCad = (cents) => '$' + (cents / 100).toFixed(2);
+    let storeProductsCache = null;
+
+    async function loadStore() {
+      const list = $('#store-chapters');
+      if (list && !list.children.length) {
+        list.innerHTML = STORE_CHAPTERS.map((c) => '<li>' + esc(c) + '</li>').join('');
+      }
+      const grid = $('#store-products');
+      if (!grid) return;
+      try {
+        const data = await api.listStoreProducts();
+        storeProductsCache = data.products || [];
+        if (!storeProductsCache.length) {
+          grid.innerHTML = '<div class="card empty">The store is not available right now — check back soon.</div>';
+          return;
+        }
+        grid.innerHTML = storeProductsCache.map((p, i) => (
+          '<div class="card store-card' + (i === 1 ? ' featured' : '') + '">' +
+          (i === 1 ? '<span class="pill info">Most popular</span>' : '') +
+          '<h3>' + esc(p.title) + '</h3>' +
+          '<p class="muted">' + esc(p.subtitle || '') + '</p>' +
+          '<p>' + esc(p.description || '') + '</p>' +
+          '<ul class="store-includes">' + (p.includes || []).map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
+          '<div class="store-price">' + storeCad(p.price_cents) + ' <small>CAD</small></div>' +
+          '<div class="actions"><button type="button" class="btn primary" data-buy="' + esc(p.slug) + '">Buy now</button></div>' +
+          '</div>'
+        )).join('');
+        grid.querySelectorAll('[data-buy]').forEach((b) =>
+          b.addEventListener('click', () => buyProduct(b.dataset.buy, b))
+        );
+      } catch (err) {
+        grid.innerHTML = '<div class="card empty">Could not load products (' + esc(err.message) + ').</div>';
+      }
+    }
+
+    async function buyProduct(slug, btn) {
+      if (!api.getAuthToken()) {
+        openAuthModal('signup');
+        showAlert('Create a free account (or sign in) to buy from the bookstore.');
+        return;
+      }
+      const orig = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Starting checkout…';
+      try {
+        const r = await api.storeCheckout(slug);
+        if (r && r.url) { location.href = r.url; return; }
+        showAlert('Checkout did not return a payment link. Please try again.');
+      } catch (err) {
+        if (err && err.data && err.data.owned) {
+          showTab('library');
+          showAlert('You already own this — it is in your library below.');
+        } else {
+          showAlert(err.message || 'Could not start checkout.');
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = orig;
+      }
+    }
+
+    async function loadLibrary() {
+      const box = $('#library-items');
+      if (!box) return;
+      if (!api.getAuthToken()) {
+        box.innerHTML = '<div class="card empty"><strong>Sign in to see your library.</strong><br><span class="note">Your purchased downloads live here.</span></div>';
+        return;
+      }
+      box.innerHTML = '<div class="card empty">Loading…</div>';
+      try {
+        const data = await api.storeLibrary();
+        const items = data.items || [];
+        if (!items.length) {
+          box.innerHTML = '<div class="card empty">No purchases yet. <button type="button" class="linklike" id="lib-browse">Browse the store</button></div>';
+          const bb = $('#lib-browse');
+          if (bb) bb.addEventListener('click', () => showTab('store'));
+          return;
+        }
+        box.innerHTML = items.map((p) => (
+          '<div class="card lib-row">' +
+          '<img src="' + esc(p.cover_url || '/img/playbook-cover.png') + '" alt="" class="lib-cover">' +
+          '<div class="lib-txt"><strong>' + esc(p.title) + '</strong>' +
+          '<span class="note">' + esc(p.subtitle || '') + ' · Purchased ' + esc((p.purchased_at || '').slice(0, 10)) + '</span></div>' +
+          '<div class="actions"><button type="button" class="btn primary" data-dl="' + esc(p.id) + '">Download</button></div>' +
+          '</div>'
+        )).join('');
+        box.querySelectorAll('[data-dl]').forEach((b) =>
+          b.addEventListener('click', async () => {
+            const o = b.textContent;
+            b.disabled = true; b.textContent = 'Preparing…';
+            try { await api.downloadStoreFile(b.dataset.dl); }
+            catch (e) { showAlert(e.message || 'Download failed.'); }
+            finally { b.disabled = false; b.textContent = o; }
+          })
+        );
+      } catch (err) {
+        box.innerHTML = '<div class="card empty">Could not load your library (' + esc(err.message) + ').</div>';
+      }
+    }
+
+    function handleStoreReturn() {
+      const q = new URLSearchParams(location.search);
+      const kind = q.get('store');
+      if (!kind) return;
+      q.delete('store'); q.delete('product');
+      history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q.toString() : ''));
+      if (kind === 'cancelled') {
+        showTab('store');
+        showAlert('Payment was cancelled — no charge was made.');
+        return;
+      }
+      if (kind === 'purchased') {
+        showTab('library');
+        const n = $('#library-notice');
+        if (n) n.innerHTML = '<div class="card ok">🎉 <strong>Payment complete.</strong> Your download is ready below.</div>';
+      }
+    }
+
+    async function loadStoreAdmin() {
+      const box = $('#store-admin');
+      if (!box) return;
+      box.innerHTML = '<div class="card empty">Loading bookstore…</div>';
+      try {
+        const [orders, prods] = await Promise.all([api.listStoreOrders(), api.listStoreProductsAdmin()]);
+        const fmt = (c) => '$' + (c / 100).toFixed(2);
+        let h = '<h3>Bookstore orders</h3>';
+        const os = orders.orders || [];
+        h += os.length
+          ? '<div class="tablewrap"><table class="data"><thead><tr><th>Date</th><th>Customer</th><th>Product</th><th>Amount</th><th>Status</th></tr></thead><tbody>' +
+            os.map((o) => '<tr><td>' + esc((o.created_at || '').slice(0, 10)) + '</td><td>' + esc(o.user_email || '') + '</td><td>' + esc(o.product_title || '') + '</td><td>' + fmt(o.amount_cents) + ' ' + esc((o.currency || '').toUpperCase()) + '</td><td>' + esc(o.status || '') + '</td></tr>').join('') +
+            '</tbody></table></div>'
+          : '<div class="card empty">No bookstore orders yet.</div>';
+        h += '<h3 style="margin-top:18px">Products</h3>';
+        h += (prods.products || []).map((p) => (
+          '<div class="card prod-row" data-prod="' + esc(p.id) + '">' +
+          '<div class="prod-txt"><strong>' + esc(p.title) + '</strong><span class="note">' + esc(p.slug || '') + '</span></div>' +
+          '<label>Price (CAD) <input type="number" min="1" step="0.01" value="' + (p.price_cents / 100).toFixed(2) + '" data-f="price" style="width:90px"></label>' +
+          '<label class="inline"><input type="checkbox" data-f="active"' + (p.active ? ' checked' : '') + '> Active</label>' +
+          '<div class="actions"><button type="button" class="btn small primary" data-save>Save</button></div>' +
+          '</div>'
+        )).join('');
+        box.innerHTML = h;
+        box.querySelectorAll('.prod-row').forEach((row) => {
+          row.querySelector('[data-save]').addEventListener('click', async (ev) => {
+            const b = ev.currentTarget;
+            b.disabled = true;
+            try {
+              await api.updateStoreProduct(row.dataset.prod, {
+                price_cents: Math.round(Number(row.querySelector('[data-f="price"]').value) * 100),
+                active: row.querySelector('[data-f="active"]').checked,
+              });
+              showAlert('Product updated.');
+            } catch (e) { showAlert(e.message || 'Update failed.'); }
+            finally { b.disabled = false; }
+          });
+        });
+      } catch (err) {
+        box.innerHTML = '<div class="card empty">Bookstore admin is unavailable (' + esc(err.message) + ').</div>';
+      }
+    }
+
+    const seeEd = $('#store-see-editions');
+    if (seeEd) seeEd.addEventListener('click', () => {
+      const t = $('#store-editions');
+      if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
 
     /* ---------- DASHBOARD + BILLING CENTER wiring ---------- */
     $$('[data-dash-goto]').forEach((c) =>
