@@ -1,11 +1,11 @@
 /* Apex Freight & Shipping Canada — professional logistics theme.
-   Palette: deep pine green chrome, orange CTAs, gold details, light gray surfaces. */
+   Palette: dark blue chrome, green primary buttons, orange highlights, light gray surfaces. */
 
 :root {
-  --brand: #14402f;
-  --brand-dark: #0c2b20;
-  --accent: #e0b13e;
-  --accent-dark: #b3871f;
+  --brand: #16324a;
+  --brand-dark: #0f2436;
+  --accent: #e8590c;
+  --accent-dark: #c74a08;
   --bg: #f4f6f8;
   --card: #ffffff;
   --ink: #1d2b36;
@@ -17,7 +17,7 @@
   --blue-bg: #e8f1fa;
   --danger: #b3261e;
   --radius: 10px;
-  --shadow: 0 1px 3px rgba(12, 43, 32, 0.12);
+  --shadow: 0 1px 3px rgba(15, 36, 54, 0.12);
 }
 
 * { box-sizing: border-box; }
@@ -169,7 +169,7 @@ input.wide { min-width: 260px; }
   cursor: pointer; transition: filter 0.12s ease;
 }
 .btn:hover { filter: brightness(0.96); }
-.btn.primary { background: #e8590c; border-color: #c74a08; color: #fff; }
+.btn.primary { background: #1a7a4c; border-color: #0f4c2d; color: #fff; }
 .btn.primary:hover { filter: brightness(0.94); }
 #save-quote-btn { background: #1e3a5f; border-color: #152a45; color: #fff; }
 #save-quote-btn:hover { filter: brightness(1.12); }
@@ -371,8 +371,8 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 .account-name { color: #fff; font-size: 13.5px; font-weight: 600; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .btn.account-btn { background: transparent; border: 1px solid rgba(255,255,255,.45); color: #fff; }
 .btn.account-btn:hover { background: rgba(255,255,255,.12); filter: none; }
-.btn.account-btn.solid { background: #e8590c; border-color: #c74a08; color: #fff; font-weight: 700; }
-.btn.account-btn.solid:hover { background: #d14e0a; filter: none; }
+.btn.account-btn.solid { background: #1a7a4c; border-color: #0f4c2d; color: #fff; font-weight: 700; }
+.btn.account-btn.solid:hover { background: #146038; filter: none; }
 
 .modal { position: fixed; inset: 0; background: rgba(15,36,54,.55); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
 .modal.hidden { display: none; }
@@ -427,7 +427,7 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 .dg-notice h3 { color: #9a3412; margin: 0 0 8px; font-size: 16px; }
 .dg-notice p { margin: 6px 0; font-size: 14px; color: #431407; }
 .badge.ok { background: var(--green-bg); color: var(--green); }
-.badge.warn { background: #fbf3dd; color: #8a6d1a; }
+.badge.warn { background: #fdf3e3; color: #b26a00; }
 .badge.staff { background: #eef3ff; color: #1d4ed8; }
 .card.warn { background: #fffbeb; border-color: #f5d48e; }
 .plan-badge {
@@ -473,7 +473,7 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
   padding: 16px; cursor: pointer; font: inherit; color: #fff;
   transition: border-color .15s, box-shadow .15s, transform .1s;
 }
-.dash-card:hover { border-color: var(--accent); box-shadow: 0 4px 14px rgba(12,43,32,.25); transform: translateY(-1px); }
+.dash-card:hover { border-color: var(--accent); box-shadow: 0 4px 14px rgba(20,40,70,.25); transform: translateY(-1px); }
 .dash-ico { font-size: 26px; line-height: 1.2; }
 .dash-txt strong { display: block; font-size: 15.5px; margin-bottom: 4px; }
 .dash-txt small { color: #c3cfda; font-size: 13px; line-height: 1.45; display: block; }
@@ -488,7 +488,7 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 .inv-scan-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
 .inv-scan-btns .btn { padding: 18px 12px; font-size: 18px; font-weight: 800; border-radius: 12px; }
 .btn.inv-in { background: var(--green-bg); border: 2px solid var(--green); color: var(--green); }
-.btn.inv-out { background: #fbf3dd; border: 2px solid var(--accent-dark); color: #7a5f14; }
+.btn.inv-out { background: #fdf3ec; border: 2px solid var(--accent-dark); color: #8a5a12; }
 .btn.inv-in:hover, .btn.inv-out:hover { filter: brightness(0.97); }
 #inv-scanner-wrap { margin-bottom: 14px; }
 .inv-scanner-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
@@ -508,7 +508,7 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 .inv-move:last-child { border-bottom: none; }
 .inv-dir { font-weight: 800; font-size: 15px; flex: 0 0 52px; }
 .inv-dir.in { color: var(--green); }
-.inv-dir.out { color: #7a5f14; }
+.inv-dir.out { color: #8a5a12; }
 .inv-move-txt { display: flex; flex-direction: column; min-width: 0; }
 .inv-search { display: block; margin-bottom: 8px; }
 @media (max-width: 640px) {
@@ -572,7 +572,7 @@ dl.kv dd { margin: 0; font-weight: 600; }
   font-size: 12px; font-weight: 800; letter-spacing: .03em; white-space: nowrap;
 }
 .pill.ok { background: var(--green-bg); color: var(--green); }
-.pill.warn { background: #fbf3dd; color: #8a6d1a; }
+.pill.warn { background: #fdf3e3; color: #b26a00; }
 .pill.info { background: var(--blue-bg); color: var(--blue); }
 
 @media (max-width: 1024px) {
@@ -680,11 +680,11 @@ dl.kv dd { margin: 0; font-weight: 600; }
 .rate-empty { text-align: center; padding: 26px 16px; }
 .rate-empty .note { margin-bottom: 14px; }
 .fetch-btn {
-  background: #e8590c; border: 1px solid #c74a08; color: #fff;
+  background: #1a7a4c; border: 1px solid #0f4c2d; color: #fff;
   font-size: 16px; font-weight: 800; padding: 14px 30px; border-radius: 8px;
   cursor: pointer; white-space: normal; line-height: 1.35;
 }
-.fetch-btn:hover { background: #d14e0a; }
+.fetch-btn:hover { background: #146038; }
 .fetch-btn:disabled { opacity: 0.7; cursor: wait; }
 .fetch-btn-left { width: 100%; }
 .rate-actions-card { padding: 16px; }
@@ -694,10 +694,10 @@ dl.kv dd { margin: 0; font-weight: 600; }
 .qq-split-right .qq-panel { margin-bottom: 0; }
 
 /* Selected rate row (cheapest) highlighted like the reference board */
-#tab-dashboard #quote-results table.data tbody tr.picked { background: #e8590c; color: #fff; }
+#tab-dashboard #quote-results table.data tbody tr.picked { background: #1a7a4c; color: #fff; }
 #tab-dashboard #quote-results table.data tbody tr.picked td strong { color: #fff; }
 #tab-dashboard #quote-results table.data tbody tr.picked .note { color: #ffe8d6; }
-#tab-dashboard #quote-results table.data tbody tr.picked:hover { background: #d14e0a; }
+#tab-dashboard #quote-results table.data tbody tr.picked:hover { background: #146038; }
 
 /* ---- Service toggles: label left, switch right, two columns (reference style) ---- */
 #acc-pickup.check-grid, #acc-delivery.check-grid {
@@ -715,7 +715,7 @@ dl.kv dd { margin: 0; font-weight: 600; }
   position: relative; transition: background 0.15s;
 }
 #acc-pickup .check input[type="checkbox"]:checked, #acc-delivery .check input[type="checkbox"]:checked {
-  background: #e8590c;
+  background: #1a7a4c;
 }
 #acc-pickup .check input[type="checkbox"]::after, #acc-delivery .check input[type="checkbox"]::after {
   content: ""; position: absolute; top: 3px; left: 3px;
