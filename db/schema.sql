@@ -47,6 +47,26 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- ---------------------------------------------------------------------------
+-- Shipper account auth (added 2026-09-27): password login + session tokens.
+-- Idempotent: ALTER ... IF NOT EXISTS / CREATE TABLE IF NOT EXISTS.
+-- ---------------------------------------------------------------------------
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash varchar(255);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    token      text         PRIMARY KEY,
+    user_id    uuid         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at timestamptz  NOT NULL DEFAULT now(),
+    expires_at timestamptz  NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
+
+-- Address book ownership (added 2026-09-27): addresses belong to the
+-- logged-in account when one is present; guest-created rows stay unowned.
+ALTER TABLE address_book ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;
+CREATE INDEX IF NOT EXISTS idx_address_book_user_id ON address_book(user_id);
+
+-- ---------------------------------------------------------------------------
 -- quotes: instant-quote requests and their rate results
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS quotes (

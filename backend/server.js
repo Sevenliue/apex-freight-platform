@@ -30,8 +30,26 @@ app.use((req, res, next) => {
   next();
 });
 
+// Shipper account auth (signup/login) must stay reachable even when the
+// API-token gate is on, so it is mounted BEFORE the gate.
+app.use('/api/auth', require('./routes/auth'));
+
 // Auth stub (disabled unless AUTH_TOKEN is set).
 app.use('/api', authStub);
+
+// Session enrichment (always on): a valid Bearer <redacted> attaches
+// req.user = {id, email, name, company, role}. Public routes stay public;
+// they simply see req.user when a session is present.
+app.use('/api', async (req, res, next) => {
+  if (!req.user) {
+    try {
+      req.user = await require('./lib/session').lookupSession(req.headers.authorization);
+    } catch {
+      req.user = null;
+    }
+  }
+  next();
+});
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'online', timestamp: new Date().toISOString() });

@@ -43,6 +43,7 @@ function clean(body) {
 function rowToAddr(row) {
   return {
     id: row.id,
+    user_id: row.user_id || null,
     label: row.label,
     company: row.company,
     contact_name: row.contact_name,
@@ -58,15 +59,20 @@ function rowToAddr(row) {
 }
 
 router.get('/', async (req, res) => {
+  const ownerId = (req.user && req.user.id) || null;
   if (db.isEnabled()) {
     try {
-      const r = await db.query('SELECT * FROM address_book ORDER BY created_at DESC LIMIT 200');
+      const r = ownerId
+        ? await db.query('SELECT * FROM address_book WHERE user_id = $1 ORDER BY created_at DESC LIMIT 200', [ownerId])
+        : await db.query('SELECT * FROM address_book ORDER BY created_at DESC LIMIT 200');
       return res.json({ addresses: r.rows.map(rowToAddr) });
     } catch (err) {
       return res.status(502).json({ error: 'Could not list addresses: ' + err.message });
     }
   }
-  const all = [...mem.values()].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+  const all = [...mem.values()]
+    .filter((a) => !ownerId || a.user_id === ownerId)
+    .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
   res.json({ addresses: all });
 });
 
@@ -77,10 +83,11 @@ router.post('/', async (req, res) => {
   }
   if (db.isEnabled()) {
     try {
+      const ownerId = (req.user && req.user.id) || null;
       const r = await db.query(
-        `INSERT INTO address_book (label, company, contact_name, street, city, province, postal, country, phone, email)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-        [a.label, a.company || null, a.contact_name || null, a.street || null, a.city,
+        `INSERT INTO address_book (user_id, label, company, contact_name, street, city, province, postal, country, phone, email)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+        [ownerId, a.label, a.company || null, a.contact_name || null, a.street || null, a.city,
          a.province || null, a.postal || null, a.country, a.phone || null, a.email || null]
       );
       return res.status(201).json({ address: rowToAddr(r.rows[0]) });
@@ -88,7 +95,7 @@ router.post('/', async (req, res) => {
       return res.status(502).json({ error: 'Could not save address: ' + err.message });
     }
   }
-  const rec = { id: memId(), ...a, created_at: new Date().toISOString() };
+  const rec = { id: memId(), user_id: (req.user && req.user.id) || null, ...a, created_at: new Date().toISOString() };
   mem.set(rec.id, rec);
   res.status(201).json({ address: rec });
 });
@@ -100,14 +107,24 @@ router.put('/:id', async (req, res) => {
   }
   if (db.isEnabled()) {
     try {
-      const r = await db.query(
-        `UPDATE address_book
-         SET label=$2, company=$3, contact_name=$4, street=$5, city=$6,
-             province=$7, postal=$8, country=$9, phone=$10, email=$11
-         WHERE id=$1 RETURNING *`,
-        [req.params.id, a.label, a.company || null, a.contact_name || null, a.street || null, a.city,
-         a.province || null, a.postal || null, a.country, a.phone || null, a.email || null]
-      );
+      const ownerId = (req.user && req.user.id) || null;
+      const r = ownerId
+        ? await db.query(
+            `UPDATE address_book
+             SET label=$3, company=$4, contact_name=$5, street=$6, city=$7,
+                 province=$8, postal=$9, country=$10, phone=$11, email=$12
+             WHERE id=$1 AND user_id=$2 RETURNING *`,
+            [req.params.id, ownerId, a.label, a.company || null, a.contact_name || null, a.street || null, a.city,
+             a.province || null, a.postal || null, a.country, a.phone || null, a.email || null]
+          )
+        : await db.query(
+            `UPDATE address_book
+             SET label=$2, company=$3, contact_name=$4, street=$5, city=$6,
+                 province=$7, postal=$8, country=$9, phone=$10, email=$11
+             WHERE id=$1 RETURNING *`,
+            [req.params.id, a.label, a.company || null, a.contact_name || null, a.street || null, a.city,
+             a.province || null, a.postal || null, a.country, a.phone || null, a.email || null]
+          );
       if (!r.rows.length) return res.status(404).json({ error: 'Unknown address id' });
       return res.json({ address: rowToAddr(r.rows[0]) });
     } catch (err) {
@@ -116,6 +133,8 @@ router.put('/:id', async (req, res) => {
   }
   const rec = mem.get(req.params.id);
   if (!rec) return res.status(404).json({ error: 'Unknown address id' });
+  const ownerId = (req.user && req.user.id) || null;
+  if (ownerId && rec.user_id !== ownerId) return res.status(404).json({ error: 'Unknown address id' });
   const updated = { ...rec, ...a };
   mem.set(rec.id, updated);
   res.json({ address: updated });
@@ -124,14 +143,24 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   if (db.isEnabled()) {
     try {
-      const r = await db.query('DELETE FROM address_book WHERE id = $1 RETURNING id', [req.params.id]);
+      const ownerId = (req.user && req.user.id) || null;
+      const r = ownerId
+        ? await db.query('DELETE FROM address_book WHERE id = $1 AND user_id = $2 RETURNING id', [req.params.id, ownerId])
+        : await db.query('DELETE FROM address_book WHERE id = $1 RETURNING id', [req.params.id]);
       if (!r.rows.length) return res.status(404).json({ error: 'Unknown address id' });
       return res.json({ deleted: true });
     } catch (err) {
       return res.status(502).json({ error: 'Could not delete address: ' + err.message });
     }
   }
-  if (!mem.delete(req.params.id)) return res.status(404).json({ error: 'Unknown address id' });
+  {
+    const rec = mem.get(req.params.id);
+    const ownerId = (req.user && req.user.id) || null;
+    if (!rec || (ownerId && rec.user_id !== ownerId)) {
+      return res.status(404).json({ error: 'Unknown address id' });
+    }
+    mem.delete(req.params.id);
+  }
   res.json({ deleted: true });
 });
 

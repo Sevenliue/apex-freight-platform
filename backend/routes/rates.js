@@ -120,6 +120,10 @@ router.post('/', async (req, res) => {
     bill_to = {},
   } = req.body || {};
 
+  // The logged-in account wins over the optional guest user_id label.
+  // req.user.id is already a users uuid, so ensureUser passes it through.
+  const effectiveUserId = (req.user && req.user.id) || user_id || null;
+
   // Shipment type + freight charges (parsed before validation: worldwide
   // addresses need city+country, not necessarily a state/province).
   const region = ['canada_usa', 'worldwide'].includes(rawRegion) ? rawRegion : 'canada_usa';
@@ -166,7 +170,7 @@ router.post('/', async (req, res) => {
       region, direction, freight_charges, bill_to: billTo,
       parcel: { weight: totalWeightLbs },
       total_weight_lbs: totalWeightLbs,
-      user_id,
+      user_id: effectiveUserId,
       rates: [],
       easypost_shipment_id: null,
       created_at: new Date().toISOString(),
@@ -258,7 +262,7 @@ router.post('/', async (req, res) => {
     bill_to: billTo,
     parcel: { weight: totalWeightLbs },
     total_weight_lbs: totalWeightLbs,
-    user_id,
+    user_id: effectiveUserId,
     rates,
     easypost_shipment_id: null,
     created_at: new Date().toISOString(),
@@ -318,7 +322,7 @@ router.post('/', async (req, res) => {
   let db_quote_id = null;
   if (db.isEnabled()) {
     try {
-      const userUuid = user_id ? await db.ensureUser(user_id, 'shipper') : null;
+      const userUuid = effectiveUserId ? await db.ensureUser(effectiveUserId, 'shipper') : null;
       const r = await db.query(
         `INSERT INTO quotes (user_id, origin_street1, origin_city, origin_state, origin_zip, origin_country,
                              dest_street1, dest_city, dest_state, dest_zip, dest_country,

@@ -115,9 +115,10 @@ router.post('/:id/save', async (req, res) => {
   return bad(res, 404, 'Unknown quote id — request a fresh quote first');
 });
 
-// GET /api/quotes/saved?user_id=
+// GET /api/quotes/saved?user_id= — the logged-in account wins over the
+// optional guest user_id label.
 router.get('/saved', async (req, res) => {
-  const userId = req.query.user_id || null;
+  const userId = (req.user && req.user.id) || req.query.user_id || null;
   if (db.isEnabled()) {
     try {
       const params = [];

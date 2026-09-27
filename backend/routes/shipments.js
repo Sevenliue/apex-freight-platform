@@ -15,6 +15,8 @@ const router = express.Router();
 
 router.post('/buy', async (req, res) => {
   const { shipment_id, rate_id, db_quote_id = null, user_id = null, charged_amount } = req.body || {};
+  // The logged-in account wins over the optional guest user_id label.
+  const effectiveUserId = (req.user && req.user.id) || user_id || null;
 
   if (!shipment_id || !rate_id) {
     return res.status(400).json({ error: 'shipment_id and rate_id are required' });
@@ -45,7 +47,7 @@ router.post('/buy', async (req, res) => {
       shipment_id,
       rate_id,
       db_quote_id,
-      user_id,
+      user_id: effectiveUserId,
       carrier: bought.carrier || rate.carrier,
       service: bought.service || rate.service,
       tracking_code: bought.tracking_code,
@@ -106,6 +108,9 @@ router.post('/complete', async (req, res) => {
     region = null, direction = null, freight_charges = null, bill_to = null,
   } = req.body || {};
 
+  // The logged-in account wins over the optional guest user_id label.
+  const effectiveUserId = (req.user && req.user.id) || user_id || null;
+
   if (!shipment_id || !rate_id) {
     return res.status(400).json({ error: 'shipment_id and rate_id are required' });
   }
@@ -130,7 +135,7 @@ router.post('/complete', async (req, res) => {
     quote_id: quote.db_quote_id || null,
     shipment_id,
     rate_id,
-    user_id,
+    user_id: effectiveUserId,
     carrier: rate.carrier,
     service: rate.service,
     cost_cad: rate.cost_cad,
@@ -186,7 +191,7 @@ router.post('/complete', async (req, res) => {
 
   if (db.isEnabled()) {
     try {
-      const userUuid = user_id ? await db.ensureUser(user_id, 'shipper') : null;
+      const userUuid = effectiveUserId ? await db.ensureUser(effectiveUserId, 'shipper') : null;
       await db.query(
         `INSERT INTO orders (quote_id, user_id, easypost_shipment_id, easypost_rate_id,
                              tracking_code, carrier, service_level, cost_amount,

@@ -4,11 +4,36 @@
 
 const API_BASE_URL = ''; // same origin; set to full URL only if API is hosted separately
 
+/* ---- Shipper account session -------------------------------------------
+   The server issues an opaque session token on signup/login. It is stored
+   in localStorage and sent as `Authorization: Bearer <token>` on every API
+   call. Public flows (rating, guest quotes) work with or without it. */
+const TOKEN_KEY = 'apex_auth_token';
+
+export function getAuthToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setAuthToken(token) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* storage unavailable — session just won't persist */
+  }
+}
+
 async function request(method, path, body) {
   const opts = {
     method,
     headers: { 'Content-Type': 'application/json' },
   };
+  const token = getAuthToken();
+  if (token) opts.headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) opts.body = JSON.stringify(body);
 
   const res = await fetch(API_BASE_URL + path, opts);
@@ -39,6 +64,24 @@ const post = (path, body) => request('POST', path, body);
 /* Health */
 export function getHealth() {
   return get('/api/health');
+}
+
+/* Shipper accounts. signup/login return { token, user } — the caller is
+   expected to persist the token via setAuthToken(). */
+export function signup({ name, company, email, password }) {
+  return post('/api/auth/signup', { name, company, email, password });
+}
+
+export function login({ email, password }) {
+  return post('/api/auth/login', { email, password });
+}
+
+export function logout() {
+  return post('/api/auth/logout', {});
+}
+
+export function me() {
+  return get('/api/auth/me');
 }
 
 /* Rates — packages[] in LBS; accessorials[] are catalog codes. Legacy

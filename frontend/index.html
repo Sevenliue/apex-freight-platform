@@ -22,6 +22,7 @@
         <button class="tab" data-tab="reports" role="tab" aria-selected="false">Reports</button>
         <button class="tab" data-tab="admin" role="tab" aria-selected="false">Admin</button>
       </nav>
+      <div class="account" id="account-area" aria-live="polite"></div>
     </div>
   </header>
 
@@ -128,7 +129,7 @@
             <div class="check-grid" id="acc-delivery"><span class="note">Loading…</span></div>
           </fieldset>
         </div>
-        <label class="inline">User ID (optional)
+        <label class="inline" id="user-id-row">User ID (optional)
           <input name="user_id" type="text" placeholder="paste your user UUID (auth coming later)">
         </label>
         <div class="actions">
@@ -348,6 +349,32 @@
     </section>
   </main>
 
+  <!-- ACCOUNT MODAL -->
+  <div id="auth-modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Account">
+    <div class="modal-card">
+      <button class="modal-close" id="auth-close" aria-label="Close">×</button>
+      <div class="modal-tabs" role="tablist" aria-label="Log in or sign up">
+        <button class="modal-tab active" data-auth-tab="login" role="tab" aria-selected="true">Log in</button>
+        <button class="modal-tab" data-auth-tab="signup" role="tab" aria-selected="false">Sign up</button>
+      </div>
+      <form id="auth-login-form" autocomplete="on">
+        <label>Email <input name="email" type="email" required autocomplete="email"></label>
+        <label>Password <input name="password" type="password" required autocomplete="current-password"></label>
+        <p class="form-error hidden" id="login-error" role="alert"></p>
+        <div class="actions"><button class="btn primary" type="submit" id="login-submit">Log in</button></div>
+      </form>
+      <form id="auth-signup-form" class="hidden" autocomplete="on">
+        <label>Full name <input name="name" type="text" required autocomplete="name"></label>
+        <label>Company <input name="company" type="text" autocomplete="organization" placeholder="Optional"></label>
+        <label>Email <input name="email" type="email" required autocomplete="email"></label>
+        <label>Password <input name="password" type="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters"></label>
+        <p class="form-error hidden" id="signup-error" role="alert"></p>
+        <div class="actions"><button class="btn primary" type="submit" id="signup-submit">Create account</button></div>
+      </form>
+      <p class="note">Accounts keep your saved quotes, shipments, and address book under your name.</p>
+    </div>
+  </div>
+
   <footer class="site-footer">
     <div class="wrap">
       <span>Apex Freight &amp; Shipping Canada — Edmonton, AB · All rates in CAD</span>
@@ -362,6 +389,10 @@
 
     const $ = (sel, el = document) => el.querySelector(sel);
     const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
+
+    // Shipper account session (see the SHIPPER ACCOUNT section below).
+    // Declared up here so early init calls like loadSavedQuotes() can read it.
+    let currentUser = null;
 
     const alertBox = $('#alert');
     function showAlert(msg) {
@@ -722,8 +753,12 @@
     async function loadSavedQuotes() {
       const box = $('#saved-quotes');
       try {
-        const userId = ($('#quote-form [name="user_id"]') || {}).value || '';
-        const { quotes } = await api.listSavedQuotes(userId.trim() || undefined);
+        // Logged in → the server scopes to the session account. Guest → the
+        // optional manual User ID field, exactly as before.
+        const userId = currentUser
+          ? undefined
+          : ((($('#quote-form [name="user_id"]') || {}).value || '').trim() || undefined);
+        const { quotes } = await api.listSavedQuotes(userId);
         if (!quotes.length) {
           box.innerHTML = '<p class="note">No saved quotes yet. Rate a shipment above, then press “Save This Quote”.</p>';
           return;
@@ -1409,6 +1444,167 @@
       }
     }
 
+    /* ---------- SHIPPER ACCOUNT ---------- */
+    // Session token lives in localStorage (see api.js). currentUser mirrors
+    // GET /api/auth/me (declared at the top of this module). Guest flows are
+    // untouched: everything below only activates when a session exists.
+
+    function renderAccount() {
+      const area = $('#account-area');
+      if (!area) return;
+      if (currentUser) {
+        area.innerHTML =
+          `<span class="account-name">${esc(currentUser.name || currentUser.email || 'Account')}</span>` +
+          `<button class="btn small account-btn" id="logout-btn" type="button">Log out</button>`;
+        $('#logout-btn').addEventListener('click', signOut);
+      } else {
+        area.innerHTML =
+          `<button class="btn small account-btn" id="login-btn" type="button">Log in</button>` +
+          `<button class="btn small account-btn solid" id="signup-btn" type="button">Sign up</button>`;
+        $('#login-btn').addEventListener('click', () => openAuthModal('login'));
+        $('#signup-btn').addEventListener('click', () => openAuthModal('signup'));
+      }
+      syncUserIdField();
+    }
+
+    // When logged in, the manual "User ID (optional)" field is replaced by a
+    // note — the server attaches the session account automatically.
+    function syncUserIdField() {
+      const row = $('#user-id-row');
+      if (!row) return;
+      if (currentUser) {
+        if (!row.dataset.authed) {
+          row.dataset.authed = '1';
+          row.dataset.orig = row.innerHTML;
+          row.innerHTML =
+            `<span class="note">Signed in as <strong>${esc(currentUser.name || currentUser.email || '')}</strong>` +
+            `${currentUser.company ? ' · ' + esc(currentUser.company) : ''} — quotes and shipments save to your account.</span>`;
+        }
+      } else if (row.dataset.authed) {
+        delete row.dataset.authed;
+        row.innerHTML = row.dataset.orig;
+        delete row.dataset.orig;
+      }
+    }
+
+    function openAuthModal(tab) {
+      switchAuthTab(tab || 'login');
+      $('#auth-modal').classList.remove('hidden');
+      const first = $('#auth-modal').querySelector('.modal-card input');
+      if (first) first.focus();
+    }
+
+    function closeAuthModal() {
+      $('#auth-modal').classList.add('hidden');
+      $('#login-error').classList.add('hidden');
+      $('#signup-error').classList.add('hidden');
+    }
+
+    function switchAuthTab(tab) {
+      $$('#auth-modal .modal-tab').forEach((b) => {
+        const on = b.dataset.authTab === tab;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      $('#auth-login-form').classList.toggle('hidden', tab !== 'login');
+      $('#auth-signup-form').classList.toggle('hidden', tab !== 'signup');
+    }
+
+    function authFail(elId, err) {
+      const el = $(elId);
+      el.textContent = (err && err.message) || 'Something went wrong. Please try again.';
+      el.classList.remove('hidden');
+    }
+
+    async function afterAuth(data) {
+      api.setAuthToken(data.token);
+      currentUser = data.user;
+      closeAuthModal();
+      renderAccount();
+      // Refresh the account-scoped views.
+      loadSavedQuotes();
+      if (typeof loadAddressBook === 'function') loadAddressBook();
+    }
+
+    async function signOut() {
+      try {
+        await api.logout();
+      } catch {
+        /* token may already be invalid — still clear it locally */
+      }
+      api.setAuthToken(null);
+      currentUser = null;
+      renderAccount();
+      loadSavedQuotes();
+      if (typeof loadAddressBook === 'function') loadAddressBook();
+    }
+
+    async function initAccount() {
+      renderAccount();
+      $('#auth-close').addEventListener('click', closeAuthModal);
+      $('#auth-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'auth-modal') closeAuthModal();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !$('#auth-modal').classList.contains('hidden')) closeAuthModal();
+      });
+      $$('#auth-modal .modal-tab').forEach((b) =>
+        b.addEventListener('click', () => switchAuthTab(b.dataset.authTab))
+      );
+
+      $('#auth-login-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = $('#login-submit');
+        btn.disabled = true;
+        try {
+          const f = new FormData(e.target);
+          const data = await api.login({
+            email: String(f.get('email') || '').trim(),
+            password: String(f.get('password') || ''),
+          });
+          await afterAuth(data);
+        } catch (err) {
+          authFail('#login-error', err);
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      $('#auth-signup-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = $('#signup-submit');
+        btn.disabled = true;
+        try {
+          const f = new FormData(e.target);
+          const data = await api.signup({
+            name: String(f.get('name') || '').trim(),
+            company: String(f.get('company') || '').trim(),
+            email: String(f.get('email') || '').trim(),
+            password: String(f.get('password') || ''),
+          });
+          await afterAuth(data);
+        } catch (err) {
+          authFail('#signup-error', err);
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      // Restore a persisted session, if any.
+      if (api.getAuthToken()) {
+        try {
+          const { user } = await api.me();
+          currentUser = user;
+          renderAccount();
+          loadSavedQuotes();
+          if (typeof loadAddressBook === 'function') loadAddressBook();
+        } catch {
+          api.setAuthToken(null); // stale token — drop it quietly
+          renderAccount();
+        }
+      }
+    }
+
     /* ---------- ADDRESS BOOK + CARRIERS wiring ---------- */
     $('#ab-add').addEventListener('click', () => openAbForm(null));
     $('#ab-cancel').addEventListener('click', closeAbForm);
@@ -1418,6 +1614,8 @@
     $('#car-cancel').addEventListener('click', closeCarForm);
     $('#car-save').addEventListener('click', saveCarrier);
     $('#exc-add').addEventListener('click', addExclusion);
+
+    initAccount();
   </script>
 </body>
 </html>
