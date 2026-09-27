@@ -24,7 +24,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           <span>Quick Quote</span>
         </button>
-        <button class="tab active" data-tab="dashboard" role="tab" aria-selected="true">
+        <button class="tab active" id="dashboard-tab-btn" data-tab="dashboard" role="tab" aria-selected="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
           <span>Dashboard</span>
         </button>
@@ -2181,14 +2181,18 @@
           orderSel.innerHTML = '<option value="">Choose a shipment…</option>' +
             orders.map((o) => `<option value="${esc(o.id)}">${esc(o.ref)}${o.carrier ? ' · ' + esc(o.carrier) : ''} · ${esc(o.status || '')}</option>`).join('');
         }
-      } catch {
-        orderSel.innerHTML = '<option value="">Could not load shipments</option>';
+      } catch (err) {
+        orderSel.innerHTML = err && err.status === 401
+          ? '<option value="">Sign in to see your shipments</option>'
+          : '<option value="">Could not load shipments</option>';
       }
       try {
         const { pickups } = await api.listPickups();
         renderPickups(listBox, pickups || []);
-      } catch {
-        listBox.innerHTML = '<div class="card empty">Could not load pickup requests.</div>';
+      } catch (err) {
+        listBox.innerHTML = err && err.status === 401
+          ? '<div class="card empty">Sign in to book and view pickup requests.</div>'
+          : '<div class="card empty">Could not load pickup requests.</div>';
       }
     }
 
@@ -4348,7 +4352,12 @@
       b.setAttribute('role', 'button');
       b.setAttribute('tabindex', '0');
       b.setAttribute('title', 'Home');
-      const goHome = () => showTab('dashboard');
+      const goHome = () => {
+        // Click the real Dashboard tab button — not just the first
+        // [data-tab="dashboard"] (the Quick Quote shortcuts share that value).
+        const dash = document.getElementById('dashboard-tab-btn');
+        if (dash) dash.click(); else showTab('dashboard');
+      };
       b.addEventListener('click', goHome);
       b.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goHome(); }
