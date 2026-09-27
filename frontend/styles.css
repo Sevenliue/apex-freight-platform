@@ -171,6 +171,8 @@ input.wide { min-width: 260px; }
 .btn:hover { filter: brightness(0.96); }
 .btn.primary { background: #e8590c; border-color: #c74a08; color: #fff; }
 .btn.primary:hover { filter: brightness(0.94); }
+#save-quote-btn { background: #1e3a5f; border-color: #152a45; color: #fff; }
+#save-quote-btn:hover { filter: brightness(1.12); }
 .btn.small { padding: 6px 12px; font-size: 13.5px; }
 .btn:disabled { opacity: 0.6; cursor: progress; }
 
