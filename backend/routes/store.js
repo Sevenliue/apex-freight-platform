@@ -29,7 +29,7 @@ const SEED_PRODUCTS = [
     subtitle: 'eBook (PDF)',
     description:
       'The complete playbook: 29 chapters of practical warehouse operations leadership — people first, hiring, onboarding, safety, training, KPIs, P&L, receiving, put-away, inventory, picking, and dock operations. Written from the warehouse floor, not a desk.',
-    price_cents: 4900,
+    price_cents: 2900,
     currency: 'cad',
     file_name: 'playbook-full.pdf',
     includes: ['Complete 29-chapter book (PDF)', 'Lifetime updates to the eBook'],
@@ -41,7 +41,7 @@ const SEED_PRODUCTS = [
     subtitle: 'eBook + companion tools (ZIP)',
     description:
       'The full playbook plus the companion tools from the book: the new-hire training tracker, the ROI calculator, and the probation review & PDP toolkit. Everything you need to put the chapters to work.',
-    price_cents: 9900,
+    price_cents: 4900,
     currency: 'cad',
     file_name: 'playbook-bundle.zip',
     includes: [
@@ -58,7 +58,7 @@ const SEED_PRODUCTS = [
     subtitle: 'For your whole leadership team (ZIP)',
     description:
       'Everything in the Template Pack, licensed for up to 5 members of your leadership team. Share it inside your company and run the playbook together.',
-    price_cents: 19900,
+    price_cents: 7900,
     currency: 'cad',
     file_name: 'playbook-bundle.zip',
     includes: [
@@ -108,6 +108,12 @@ async function ensureStoreTables() {
        p.file_name, JSON.stringify(p.includes), p.sort_order]
     );
   }
+  // One-time price update 2026-09-27: eBook $49->$29, bundle $99->$49, team
+  // $199->$79. Keyed on the old values so it fires once and never clobbers
+  // a price the admin later sets with the price editor.
+  await db.query(`UPDATE products SET price_cents = 2900 WHERE slug = 'playbook-ebook' AND price_cents = 4900`);
+  await db.query(`UPDATE products SET price_cents = 4900 WHERE slug = 'playbook-bundle' AND price_cents = 9900`);
+  await db.query(`UPDATE products SET price_cents = 7900 WHERE slug = 'playbook-team' AND price_cents = 19900`);
 }
 ensureStoreTables().catch((e) => console.error('[store] table init failed:', e.message));
 
