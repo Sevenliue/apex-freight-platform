@@ -311,6 +311,16 @@
       <h2>Subscription</h2>
       <div id="billing-status"></div>
       <h2>Plans</h2>
+      <div class="pitch-strip">
+        <h3>Stop chasing carriers for quotes.</h3>
+        <p class="pitch-sub">One quote here does the work of a dozen phone calls.</p>
+        <ul class="pitch-points">
+          <li><strong>No phone tag.</strong> Enter the load once and compare real rates in seconds — instead of waiting on email replies.</li>
+          <li><strong>Every carrier on one board.</strong> Rates ranked cheapest first with transit times, all freight charges and fuel surcharges included.</li>
+          <li><strong>Your details are saved.</strong> Addresses, products, and package types carry over — the next quote takes seconds, not a fresh round of calls.</li>
+          <li><strong>Quote to shipment in one click.</strong> Pick the winning rate and print the BOL. No retyping, no second system.</li>
+        </ul>
+      </div>
       <div class="actions billing-cycle">
         <div class="segmented" role="radiogroup" aria-label="Billing period">
           <label class="seg active"><input type="radio" name="billing-cycle" value="monthly" checked> Monthly</label>
@@ -2322,11 +2332,13 @@
       {
         tier: 'starter', name: 'Starter', monthly: 29, annual: 290,
         quotes: '50 quotes per month',
+        pitch: 'For shippers quoting every week — pays for itself the first time you catch a cheaper rate.',
         features: ['Everything in Free', 'Save & reload quotes', 'Shipment history'],
       },
       {
         tier: 'pro', name: 'Pro', monthly: 79, annual: 790,
         quotes: 'Unlimited quotes',
+        pitch: 'For daily shippers — quote everything, compare everything, never hit a limit.',
         features: ['Everything in Starter', 'Priority support'],
       },
     ];
@@ -2406,6 +2418,7 @@
         return (
           `<div class="plan${isCurrent ? ' current' : ''}">${popular}<h3>${esc(plan.name)}</h3>` +
           `<p class="plan-price">${esc(planPrice(plan))}</p>` +
+          (plan.pitch ? `<p class="plan-pitch">${esc(plan.pitch)}</p>` : '') +
           `<ul class="plan-feats">${feats}</ul>` +
           `<div class="actions">${btn}</div></div>`
         );

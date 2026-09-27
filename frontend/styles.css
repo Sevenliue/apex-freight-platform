@@ -368,6 +368,13 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 .plan-feats li { padding: 5px 0 5px 24px; position: relative; font-size: 14px; color: #33414d; }
 .plan-feats li::before { content: "\2713"; position: absolute; left: 4px; color: var(--green); font-weight: 800; }
 .plan .actions { margin-top: auto; }
+.plan-pitch { font-size: 13.5px; color: #4a5a66; margin: 2px 0 4px; line-height: 1.45; }
+.pitch-strip { background: #f4f8fb; border: 1px solid #dbe7f0; border-radius: 12px; padding: 18px 20px; margin: 6px 0 20px; }
+.pitch-strip h3 { font-size: 19px; margin: 0 0 2px; color: var(--navy-dark); }
+.pitch-sub { margin: 0 0 12px; color: #4a5a66; font-size: 14px; }
+.pitch-points { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px 18px; }
+.pitch-points li { font-size: 13.5px; color: #33414d; line-height: 1.45; padding-left: 22px; position: relative; }
+.pitch-points li::before { content: "\2713"; position: absolute; left: 2px; color: var(--green); font-weight: 800; }
 .badge.save { background: var(--amber); color: var(--navy-dark); }
 .plan-badge {
   background: rgba(255, 255, 255, 0.16); color: #fff;
