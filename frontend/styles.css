@@ -30,7 +30,7 @@ body {
   line-height: 1.5;
 }
 
-.wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px; }
+.wrap { max-width: none; margin: 0 auto; padding: 0 20px; }
 
 /* ---------- sidebar layout ---------- */
 .app { display: flex; min-height: 100vh; align-items: stretch; }
@@ -688,3 +688,34 @@ dl.kv dd { margin: 0; font-weight: 600; }
 #tab-dashboard #quote-results table.data tbody tr.picked td strong { color: #fff; }
 #tab-dashboard #quote-results table.data tbody tr.picked .note { color: #ffe8d6; }
 #tab-dashboard #quote-results table.data tbody tr.picked:hover { background: #d14e0a; }
+
+/* ---- Service toggles: label left, switch right, two columns (reference style) ---- */
+#acc-pickup.check-grid, #acc-delivery.check-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px;
+}
+#acc-pickup .check, #acc-delivery .check {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  font-size: 12.5px; font-weight: 500; color: var(--navy);
+  padding: 6px 2px; margin: 0; border-bottom: 1px solid #eef1f4; cursor: pointer;
+}
+#acc-pickup .check input[type="checkbox"], #acc-delivery .check input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none;
+  width: 36px; height: 20px; border-radius: 999px; flex: 0 0 auto;
+  background: #cbd5e1; border: none; margin: 0; padding: 0; cursor: pointer;
+  position: relative; transition: background 0.15s;
+}
+#acc-pickup .check input[type="checkbox"]:checked, #acc-delivery .check input[type="checkbox"]:checked {
+  background: #e8590c;
+}
+#acc-pickup .check input[type="checkbox"]::after, #acc-delivery .check input[type="checkbox"]::after {
+  content: ""; position: absolute; top: 3px; left: 3px;
+  width: 14px; height: 14px; border-radius: 50%; background: #fff;
+  transition: left 0.15s;
+}
+#acc-pickup .check input[type="checkbox"]:checked::after, #acc-delivery .check input[type="checkbox"]:checked::after {
+  left: 19px;
+}
+
+/* ---- Delivery notes: stacked full-width boxes ---- */
+.qq-notes-stack { display: grid; gap: 8px; }
+.qq-notes-stack label { margin-bottom: 0; }
