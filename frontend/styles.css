@@ -478,6 +478,37 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 .filters input, .filters select { font: inherit; font-weight: 400; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: #fff; min-width: 130px; }
 .filters label.grow { flex: 1 1 220px; }
 
+/* ---------- simple inventory ---------- */
+.inv-scan-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.inv-scan-btns .btn { padding: 18px 12px; font-size: 18px; font-weight: 800; border-radius: 12px; }
+.btn.inv-in { background: var(--green-bg); border: 2px solid var(--green); color: var(--green); }
+.btn.inv-out { background: #fdf3ec; border: 2px solid var(--amber-dark); color: #8a5a12; }
+.btn.inv-in:hover, .btn.inv-out:hover { filter: brightness(0.97); }
+#inv-scanner-wrap { margin-bottom: 14px; }
+.inv-scanner-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+#inv-scanner { width: 100%; max-width: 480px; margin: 0 auto; border-radius: 10px; overflow: hidden; background: #000; }
+#inv-scanner video { width: 100%; display: block; }
+#inv-new-item { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+#inv-last-scan { margin-top: 10px; font-size: 15px; }
+.inv-row { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--line); }
+.inv-row:last-child { border-bottom: none; }
+.inv-row-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.inv-row-txt strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inv-qty { font-size: 20px; font-weight: 800; background: var(--bg); border-radius: 10px; padding: 6px 14px; min-width: 64px; text-align: center; }
+.inv-qty.zero { color: var(--muted); }
+.inv-row-btns { margin-top: 0; flex: 0 0 auto; }
+.inv-row-btns .btn { font-size: 18px; padding: 6px 14px; }
+.inv-move { display: flex; gap: 10px; align-items: flex-start; padding: 8px 4px; border-bottom: 1px solid var(--line); }
+.inv-move:last-child { border-bottom: none; }
+.inv-dir { font-weight: 800; font-size: 15px; flex: 0 0 52px; }
+.inv-dir.in { color: var(--green); }
+.inv-dir.out { color: #8a5a12; }
+.inv-move-txt { display: flex; flex-direction: column; min-width: 0; }
+.inv-search { display: block; margin-bottom: 8px; }
+@media (max-width: 640px) {
+  .inv-scan-btns .btn { font-size: 16px; padding: 16px 8px; }
+}
+
 /* ---------- bookstore ---------- */
 .store-hero { display: flex; gap: 28px; align-items: center; background: linear-gradient(120deg, #0f2a4a 0%, #1b4f8a 100%); border-radius: 14px; padding: 32px; margin-bottom: 24px; color: #fff; flex-wrap: wrap; }
 .store-cover { width: 190px; border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,.35); }

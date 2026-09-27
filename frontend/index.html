@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Apex Freight &amp; Shipping Canada</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
 </head>
 <body>
   <div class="app">
@@ -117,6 +118,10 @@
             <button class="tab sub" data-tab="library" role="tab" aria-selected="false"><span>My Library</span></button>
           </div>
         </div>
+        <button class="tab" data-tab="inventory" role="tab" aria-selected="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+          <span>Inventory</span>
+        </button>
         <button class="tab" data-tab="comingsoon" data-comingsoon="Settings" role="tab" aria-selected="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.2 4.2l2.8 2.8M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8l2.8-2.8M17 7l2.8-2.8"/></svg>
           <span>Settings</span>
@@ -659,6 +664,58 @@
       <div id="library-notice"></div>
       <div id="library-items"><div class="card empty">Loading…</div></div>
     </section>
+
+    <!-- INVENTORY -->
+    <section id="tab-inventory" class="panel" role="tabpanel">
+      <h1>Inventory</h1>
+      <p class="lede">Simple live inventory. Scan barcodes in and out from your phone — no ERP needed.</p>
+      <div id="inv-gate" class="card empty hidden">
+        <strong>Sign in to use inventory.</strong><br>
+        <span class="note">Inventory needs a free account — it takes less than a minute.</span>
+      </div>
+      <div id="inv-app" class="hidden">
+        <div class="inv-scan-btns">
+          <button type="button" class="btn inv-in" id="inv-scan-in">📥 Scan In</button>
+          <button type="button" class="btn inv-out" id="inv-scan-out">📤 Scan Out</button>
+        </div>
+        <div id="inv-scanner-wrap" class="card hidden">
+          <div class="inv-scanner-head">
+            <strong id="inv-scanner-title">Scan to add stock</strong>
+            <button type="button" class="btn small" id="inv-scanner-stop">Stop</button>
+          </div>
+          <div id="inv-scanner"></div>
+          <p class="note" id="inv-scan-hint">Point your camera at a barcode. Each scan records 1 unit.</p>
+          <div id="inv-new-item" class="hidden">
+            <p><strong>New barcode:</strong> <span id="inv-new-sku"></span></p>
+            <label>Item name <input type="text" id="inv-new-name" placeholder="e.g. 12oz coffee bags" maxlength="160"></label>
+            <div class="actions"><button type="button" class="btn primary" id="inv-new-save">Save &amp; scan in</button></div>
+          </div>
+          <div id="inv-last-scan" class="note" aria-live="polite"></div>
+        </div>
+        <div class="card">
+          <h3 class="sub">Manual entry</h3>
+          <div class="row-3 inv-manual">
+            <label>Barcode <input type="text" id="inv-man-sku" placeholder="Scan or type barcode" autocomplete="off"></label>
+            <label>Qty <input type="number" id="inv-man-qty" value="1" min="1" max="9999"></label>
+            <label>Item name <input type="text" id="inv-man-name" placeholder="Only for new items" maxlength="160" autocomplete="off"></label>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn inv-in" id="inv-man-in">+ In</button>
+            <button type="button" class="btn inv-out" id="inv-man-out">− Out</button>
+            <span class="note" id="inv-man-msg" aria-live="polite"></span>
+          </div>
+        </div>
+        <div class="card">
+          <h3 class="sub">On hand</h3>
+          <label class="inv-search">Search <input type="search" id="inv-q" placeholder="Name or barcode"></label>
+          <div id="inv-items"><div class="note">Loading…</div></div>
+        </div>
+        <div class="card">
+          <h3 class="sub">Recent movements</h3>
+          <div id="inv-moves"><div class="note">Loading…</div></div>
+        </div>
+      </div>
+    </section>
     <section id="tab-admin" class="panel" role="tabpanel">
       <h1>Admin overview</h1>
       <p class="lede">Platform activity at a glance.</p>
@@ -801,6 +858,7 @@
       if (btn.dataset.tab === 'dashboard') loadDashboard();
       if (btn.dataset.tab === 'store') loadStore();
       if (btn.dataset.tab === 'library') loadLibrary();
+      if (btn.dataset.tab === 'inventory') loadInventory();
       if (btn.dataset.tab === 'pricing') loadBillingCenter();
       closeSidebar();
       const target = btn.dataset.scroll ? document.getElementById(btn.dataset.scroll) : null;
@@ -3545,6 +3603,201 @@
       }
     }
 
+    /* ---------- SIMPLE INVENTORY ---------- */
+    let invScanner = null;
+    let invScanDir = 'in';
+    const invCooldown = {};
+    let invItemsCache = [];
+
+    async function loadInventory() {
+      const gate = $('#inv-gate'), app = $('#inv-app');
+      if (!gate || !app) return;
+      const signedIn = !!api.getAuthToken();
+      gate.classList.toggle('hidden', signedIn);
+      app.classList.toggle('hidden', !signedIn);
+      if (!signedIn) { stopInvScanner(); return; }
+      await Promise.all([refreshInvItems(), refreshInvMoves()]);
+    }
+
+    async function refreshInvItems() {
+      const box = $('#inv-items');
+      try {
+        const data = await api.listInventoryItems();
+        invItemsCache = data.items || [];
+      } catch (e) {
+        box.innerHTML = '<div class="note">Could not load inventory (' + esc(e.message) + ').</div>';
+        return;
+      }
+      renderInvItems();
+    }
+
+    function renderInvItems() {
+      const box = $('#inv-items');
+      const q = ($('#inv-q').value || '').trim().toLowerCase();
+      const items = invItemsCache.filter((i) =>
+        !q || i.name.toLowerCase().includes(q) || i.sku.toLowerCase().includes(q));
+      if (!items.length) {
+        box.innerHTML = '<div class="note">' +
+          (invItemsCache.length ? 'No items match your search.' : 'No items yet — scan something in to start.') + '</div>';
+        return;
+      }
+      box.innerHTML = items.map((i) =>
+        '<div class="inv-row">' +
+          '<div class="inv-row-txt"><strong>' + esc(i.name) + '</strong>' +
+          '<span class="note">' + esc(i.sku) + '</span></div>' +
+          '<span class="inv-qty' + (i.qty === 0 ? ' zero' : '') + '">' + i.qty + '</span>' +
+          '<div class="actions inv-row-btns">' +
+            '<button type="button" class="btn small" data-inv-adj="out" data-inv-sku="' + esc(i.sku) + '" title="Take 1 out">−</button>' +
+            '<button type="button" class="btn small" data-inv-adj="in" data-inv-sku="' + esc(i.sku) + '" title="Add 1 in">+</button>' +
+          '</div>' +
+        '</div>'
+      ).join('');
+      box.querySelectorAll('[data-inv-adj]').forEach((b) =>
+        b.addEventListener('click', async () => {
+          b.disabled = true;
+          try {
+            const r = await api.scanInventory(b.dataset.invSku, b.dataset.invAdj, 1);
+            invItemsCache = invItemsCache.map((i) => i.sku === r.item.sku ? r.item : i);
+            renderInvItems(); refreshInvMoves();
+          } catch (e) { showAlert(e.message || 'Adjustment failed.'); }
+          finally { b.disabled = false; }
+        })
+      );
+    }
+
+    async function refreshInvMoves() {
+      const box = $('#inv-moves');
+      try {
+        const data = await api.listInventoryMovements(30);
+        const ms = data.movements || [];
+        if (!ms.length) { box.innerHTML = '<div class="note">No movements yet.</div>'; return; }
+        box.innerHTML = ms.map((m) =>
+          '<div class="inv-move">' +
+            '<span class="inv-dir ' + m.direction + '">' + (m.direction === 'in' ? '+ ' : '− ') + m.qty + '</span>' +
+            '<span class="inv-move-txt"><strong>' + esc(m.name) + '</strong>' +
+            '<span class="note">' + esc(m.sku) + ' · ' + esc(invTime(m.created_at)) + '</span></span>' +
+          '</div>'
+        ).join('');
+      } catch (e) {
+        box.innerHTML = '<div class="note">Could not load history (' + esc(e.message) + ').</div>';
+      }
+    }
+
+    function invTime(iso) {
+      try { return new Date(iso).toLocaleString('en-CA', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+      catch { return ''; }
+    }
+
+    function invBeep(ok) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = ok ? 880 : 220; o.type = 'sine';
+        g.gain.setValueAtTime(0.15, ctx.currentTime);
+        o.start(); o.stop(ctx.currentTime + 0.15);
+      } catch { /* no audio */ }
+    }
+
+    async function invRecordScan(sku, direction, qty, name) {
+      const msgEl = $('#inv-last-scan');
+      try {
+        const r = await api.scanInventory(sku, direction, qty, name);
+        invBeep(true);
+        if (msgEl) msgEl.innerHTML = '<strong>' + (direction === 'in' ? 'Added ' : 'Removed ') + qty +
+          ' × ' + esc(r.item.name) + '</strong> — now ' + r.item.qty + ' on hand.';
+        refreshInvItems(); refreshInvMoves();
+        return true;
+      } catch (e) {
+        if (e && e.data && e.data.needsName && direction === 'in') { invPromptNewItem(sku); return false; }
+        invBeep(false);
+        if (msgEl) msgEl.textContent = e.message || 'Scan failed.';
+        return false;
+      }
+    }
+
+    function invPromptNewItem(sku) {
+      $('#inv-new-sku').textContent = sku;
+      $('#inv-new-name').value = '';
+      $('#inv-new-item').classList.remove('hidden');
+      $('#inv-new-name').focus();
+    }
+
+    async function startInvScan(direction) {
+      invScanDir = direction;
+      const wrap = $('#inv-scanner-wrap');
+      wrap.classList.remove('hidden');
+      wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      $('#inv-scanner-title').textContent = direction === 'in' ? 'Scan to add stock' : 'Scan to remove stock';
+      $('#inv-new-item').classList.add('hidden');
+      $('#inv-last-scan').textContent = '';
+      if (typeof Html5Qrcode === 'undefined') {
+        showAlert('Camera scanner is still loading — use manual entry below for now.');
+        return;
+      }
+      await stopInvScanner();
+      invScanner = new Html5Qrcode('inv-scanner');
+      try {
+        await invScanner.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 260, height: 160 } },
+          (text) => {
+            const sku = String(text || '').trim();
+            if (!sku) return;
+            const now = Date.now();
+            if (invCooldown[sku] && now - invCooldown[sku] < 2500) return;
+            invCooldown[sku] = now;
+            invRecordScan(sku, invScanDir, 1, null);
+          },
+          () => {}
+        );
+      } catch (e) {
+        showAlert('Camera unavailable (' + (e.message || e) + '). Use manual entry below.');
+      }
+    }
+
+    async function stopInvScanner() {
+      if (invScanner) {
+        try { await invScanner.stop(); } catch { /* already stopped */ }
+        try { invScanner.clear(); } catch { /* noop */ }
+        invScanner = null;
+      }
+      const wrap = $('#inv-scanner-wrap');
+      if (wrap) wrap.classList.add('hidden');
+    }
+
+    function wireInventory() {
+      const si = $('#inv-scan-in'), so = $('#inv-scan-out');
+      if (!si) return;
+      si.addEventListener('click', () => startInvScan('in'));
+      so.addEventListener('click', () => startInvScan('out'));
+      $('#inv-scanner-stop').addEventListener('click', stopInvScanner);
+      $('#inv-new-save').addEventListener('click', async () => {
+        const name = $('#inv-new-name').value.trim();
+        if (!name) { showAlert('Give the item a name first.'); return; }
+        const sku = $('#inv-new-sku').textContent;
+        const ok = await invRecordScan(sku, invScanDir, 1, name);
+        if (ok) $('#inv-new-item').classList.add('hidden');
+      });
+      $('#inv-q').addEventListener('input', renderInvItems);
+      const manMsg = $('#inv-man-msg');
+      const manGo = async (direction) => {
+        const sku = $('#inv-man-sku').value.trim();
+        const qty = Math.max(1, Math.min(9999, parseInt($('#inv-man-qty').value, 10) || 1));
+        const name = $('#inv-man-name').value.trim();
+        if (!sku) { manMsg.textContent = 'Enter a barcode first.'; return; }
+        manMsg.textContent = 'Saving…';
+        try {
+          const r = await api.scanInventory(sku, direction, qty, name || undefined);
+          manMsg.textContent = (direction === 'in' ? 'Added ' : 'Removed ') + qty + ' × ' + r.item.name + ' — now ' + r.item.qty + '.';
+          $('#inv-man-sku').value = ''; $('#inv-man-name').value = '';
+          refreshInvItems(); refreshInvMoves();
+        } catch (e) { manMsg.textContent = e.message || 'Save failed.'; }
+      };
+      $('#inv-man-in').addEventListener('click', () => manGo('in'));
+      $('#inv-man-out').addEventListener('click', () => manGo('out'));
+    }
+
     function handleStoreReturn() {
       const q = new URLSearchParams(location.search);
       const kind = q.get('store');
@@ -3634,6 +3887,7 @@
     );
     // Dashboard is the landing tab: load its data on boot.
     loadDashboard();
+    wireInventory();
 
     /* ---------- ADDRESS BOOK + CARRIERS wiring ---------- */
     $('#ab-add').addEventListener('click', () => openAbForm(null));

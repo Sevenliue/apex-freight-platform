@@ -481,3 +481,17 @@ export function listStoreProductsAdmin() {
 export function updateStoreProduct(id, patch) {
   return request('PUT', `/api/admin/store/products/${encodeURIComponent(id)}`, patch);
 }
+
+/* Northline Ops simple inventory */
+export function listInventoryItems() {
+  return request('GET', '/api/inventory/items');
+}
+export function saveInventoryItem(sku, name) {
+  return request('POST', '/api/inventory/items', { sku, name });
+}
+export function scanInventory(sku, direction, qty, name) {
+  return request('POST', '/api/inventory/scan', { sku, direction, qty, name });
+}
+export function listInventoryMovements(limit) {
+  return request('GET', '/api/inventory/movements' + (limit ? '?limit=' + limit : ''));
+}
