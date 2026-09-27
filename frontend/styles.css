@@ -255,11 +255,11 @@ details form { margin-top: 10px; }
 /* Qty | Type | Product (flex) | Wt | L | W | H | Stack | DG | UN# | Class | PkgGrp | × */
 .pkg-table th:nth-child(1), .pkg-table td:nth-child(1) { width: 56px; }
 .pkg-table th:nth-child(2), .pkg-table td:nth-child(2) { width: 108px; }
-.pkg-table th:nth-child(4), .pkg-table td:nth-child(4),
-.pkg-table th:nth-child(5), .pkg-table td:nth-child(5),
-.pkg-table th:nth-child(6), .pkg-table td:nth-child(6),
-.pkg-table th:nth-child(7), .pkg-table td:nth-child(7) { width: 78px; }
-.pkg-table th:nth-child(8), .pkg-table td:nth-child(8) { width: 58px; }
+.pkg-table th:nth-child(4), .pkg-table td:nth-child(4) { width: 96px; }
+.pkg-table th:nth-child(5), .pkg-table td:nth-child(5) { width: 96px; }
+.pkg-table th:nth-child(6), .pkg-table td:nth-child(6) { width: 88px; }
+.pkg-table th:nth-child(7), .pkg-table td:nth-child(7) { width: 96px; }
+.pkg-table th:nth-child(8), .pkg-table td:nth-child(8) { width: 80px; }
 .pkg-table th:nth-child(9), .pkg-table td:nth-child(9) { width: 44px; }
 .pkg-table th:nth-child(10), .pkg-table td:nth-child(10) { width: 72px; }
 .pkg-table th:nth-child(11), .pkg-table td:nth-child(11) { width: 64px; }
