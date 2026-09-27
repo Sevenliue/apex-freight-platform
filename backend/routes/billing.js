@@ -173,11 +173,10 @@ router.get('/payments', async (req, res) => {
     );
     const payments = r.rows.map((row) => {
       let bol = {};
-      try { bol = JSON.parse(row.bol_json || '{}'); } catch { /* ignore */ }
-      const origin = [bol.shipper_city || bol.origin_city, bol.shipper_province || bol.origin_province]
-        .filter(Boolean).join(', ');
-      const dest = [bol.consignee_city || bol.destination_city, bol.consignee_province || bol.destination_province]
-        .filter(Boolean).join(', ');
+      try { bol = typeof row.bol_json === 'object' ? row.bol_json || {} : JSON.parse(row.bol_json || '{}'); } catch { /* ignore */ }
+      const city = (p) => [p && p.city, p && (p.province || p.state)].filter(Boolean).join(', ');
+      const origin = city(bol.shipper);
+      const dest = city(bol.consignee);
       return {
         date: row.created_at ? new Date(row.created_at).toISOString().slice(0, 10) : '',
         tracking_code: row.tracking_code || '',
