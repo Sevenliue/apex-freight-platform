@@ -618,3 +618,62 @@ dl.kv dd { margin: 0; font-weight: 600; }
   animation: rl-spin 0.8s linear infinite;
 }
 @keyframes rl-spin { to { transform: rotate(360deg); } }
+
+/* ---- Quick Quote dense layout (desktop quoting tool) ---- */
+#quote-form.qq { background: transparent; border: none; box-shadow: none; padding: 0; margin-bottom: 12px; }
+#quote-form.qq label { font-size: 12.5px; margin-bottom: 6px; }
+#quote-form.qq input, #quote-form.qq select, #quote-form.qq textarea {
+  padding: 6px 8px; font-size: 13.5px; margin-top: 3px;
+}
+.qq-topbar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-bottom: 10px; }
+.qq-topseg { display: flex; align-items: center; gap: 8px; }
+.qq-toplabel { font-weight: 700; font-size: 13px; color: var(--navy); white-space: nowrap; }
+.qq-freight { display: flex; align-items: center; gap: 8px; margin: 0 0 0 auto !important; }
+.qq-freight select { width: auto; margin-top: 0 !important; }
+
+.qq-panel { background: #fff; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-bottom: 10px; }
+.qq-head {
+  background: var(--navy); color: #fff; font-size: 13.5px; font-weight: 700;
+  text-align: center; padding: 7px 10px; margin: 0;
+}
+.qq-body { padding: 10px 12px; }
+
+.qq-addr { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: start; }
+.qq-addr .qq-panel { margin-bottom: 0; }
+.qq-row { display: flex; gap: 8px; }
+.qq-row .grow { flex: 1 1 auto; min-width: 0; }
+.qq-row .sm { flex: 0 0 104px; }
+.qq-row .xs { flex: 0 0 64px; }
+.check.mini { font-size: 11.5px; line-height: 1.35; white-space: nowrap; align-self: flex-end; padding-bottom: 2px; }
+
+.qq-refrow { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: flex-end; margin: 10px 0; }
+.qq-refrow > label { margin-bottom: 0; }
+.qq-refrow .units-row { display: flex; align-items: center; gap: 8px; }
+#user-id-row input { max-width: 220px; }
+
+.qq-services { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+.qq-split { display: grid; grid-template-columns: minmax(340px, 5fr) 7fr; gap: 10px; align-items: start; }
+.qq-getrates { margin: 4px 0 8px; }
+.qq-getrates .btn.primary { padding: 10px 26px; }
+
+#quote-form.qq .pkg-table th, #quote-form.qq .pkg-table td { padding: 6px 8px; }
+#quote-form.qq .pkg-table input, #quote-form.qq .pkg-table select { padding: 5px 6px; font-size: 13px; margin-top: 0; }
+#quote-form.qq .pkg-table td.narrow input { max-width: 76px; }
+
+#tab-dashboard #quote-results > h2 {
+  background: var(--navy); color: #fff; font-size: 13.5px; font-weight: 700; text-align: center;
+  padding: 8px 10px; margin: 0; border-radius: 8px 8px 0 0;
+}
+#tab-dashboard #quote-results .table-wrap { border: 1px solid var(--line); border-top: none; }
+#tab-dashboard #quote-results table.data { margin: 0; }
+
+@media (max-width: 1000px) {
+  .qq-addr { grid-template-columns: 1fr; }
+  .qq-addr .addr-swap-btn { display: none; }
+  .qq-services { grid-template-columns: 1fr; }
+  .qq-split { grid-template-columns: 1fr; }
+  .qq-freight { margin-left: 0 !important; }
+  .qq-row { flex-wrap: wrap; }
+  .qq-row .sm, .qq-row .xs { flex: 1 1 100px; }
+}

@@ -183,33 +183,24 @@
           <button type="button" class="btn" id="gate-signup">Sign up free</button>
         </div>
       </div>
-      <form id="quote-form" class="card">
-        <div class="form-grid">
-          <fieldset>
-            <legend>Shipment Type</legend>
+      <form id="quote-form" class="qq">
+        <div class="qq-topbar">
+          <div class="qq-topseg"><span class="qq-toplabel">Shipment Type:</span>
             <div class="segmented" role="radiogroup" aria-label="Region">
               <label class="seg active"><input type="radio" name="region" value="canada_usa" checked> Canada &amp; USA</label>
               <label class="seg"><input type="radio" name="region" value="worldwide"> Worldwide</label>
             </div>
-          </fieldset>
-          <fieldset>
-            <legend>Direction</legend>
-            <div class="segmented" role="radiogroup" aria-label="Direction">
-              <label class="seg active"><input type="radio" name="direction" value="outbound" checked> Outbound</label>
-              <label class="seg"><input type="radio" name="direction" value="inbound"> Inbound</label>
-              <label class="seg"><input type="radio" name="direction" value="third_party"> 3rd Party</label>
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend>Load Type</legend>
-            <div class="segmented" role="radiogroup" aria-label="Load type">
-              <label class="seg active"><input type="radio" name="load_type" value="ltl" checked> LTL</label>
-              <label class="seg"><input type="radio" name="load_type" value="full_load"> Full Load</label>
-            </div>
-          </fieldset>
-        </div>
-        <div class="form-grid">
-          <label class="inline">Freight Charges
+          </div>
+          <div class="segmented" role="radiogroup" aria-label="Direction">
+            <label class="seg active"><input type="radio" name="direction" value="outbound" checked> Outbound</label>
+            <label class="seg"><input type="radio" name="direction" value="inbound"> Inbound</label>
+            <label class="seg"><input type="radio" name="direction" value="third_party"> 3rd Party</label>
+          </div>
+          <div class="segmented" role="radiogroup" aria-label="Load type">
+            <label class="seg active"><input type="radio" name="load_type" value="ltl" checked> LTL</label>
+            <label class="seg"><input type="radio" name="load_type" value="full_load"> Full Load</label>
+          </div>
+          <label class="qq-freight">Freight Charges
             <select name="freight_charges" id="freight-charges">
               <option value="prepaid" selected>Prepaid — bill shipper</option>
               <option value="collect">Collect — bill consignee</option>
@@ -232,52 +223,55 @@
           </div>
           <label class="inline">Country <input name="b_country" type="text" value="CA" maxlength="2" style="max-width:80px"></label>
         </fieldset>
-        <div class="form-grid addr-swap">
-          <fieldset>
-            <legend>Shipper / From</legend>
-            <label>Shipper name <input name="s_name" type="text" placeholder="Company name"></label>
-            <label>Street <input name="o_street" type="text" required placeholder="123 Industrial Ave"></label>
-            <label>City <input name="o_city" type="text" required placeholder="Edmonton"></label>
-            <div class="row-2">
-              <label>Province <input name="o_state" type="text" required placeholder="AB" maxlength="2"></label>
-              <label>Postal code <input name="o_zip" type="text" required placeholder="T5S 1A1"></label>
+        <div class="qq-addr">
+          <section class="qq-panel">
+            <h3 class="qq-head">Shipper / From</h3>
+            <div class="qq-body">
+              <label>Company <input name="s_name" type="text" placeholder="Company name"></label>
+              <div class="qq-row">
+                <label class="grow">Street / Ave <input name="o_street" type="text" required placeholder="123 Industrial Ave"></label>
+                <label class="check mini"><input type="checkbox" name="depot_dropoff"> Do not dispatch<br>drop off at depot</label>
+              </div>
+              <div class="qq-row">
+                <label class="grow">City <input name="o_city" type="text" required placeholder="Edmonton"></label>
+                <label class="sm">Prov <input name="o_state" type="text" required placeholder="AB" maxlength="10"></label>
+                <label class="sm">Postal Code <input name="o_zip" type="text" required placeholder="T5S 1A1"></label>
+                <label class="xs">Country <input name="o_country" type="text" value="CA" maxlength="2"></label>
+              </div>
+              <div class="qq-row">
+                <label class="grow">Telephone <input name="o_phone" type="tel" placeholder="780-555-0100"></label>
+                <label class="grow">Email <input name="o_email" type="email" placeholder="ship@example.com"></label>
+              </div>
+              <button type="button" class="btn small" data-save-addr="shipper">💾 Save shipper to address book</button>
             </div>
-            <label class="inline">Country <input name="o_country" type="text" value="CA" maxlength="2" style="max-width:80px"></label>
-            <div class="row-2">
-              <label>Phone <input name="o_phone" type="tel" placeholder="780-555-0100"></label>
-              <label>Email <input name="o_email" type="email" placeholder="ship@example.com"></label>
-            </div>
-            <button type="button" class="btn small" data-save-addr="shipper">💾 Save shipper to address book</button>
-            <label class="check"><input type="checkbox" name="depot_dropoff"> Drop off at depot — do not dispatch pickup</label>
-          </fieldset>
+          </section>
           <div class="addr-swap-btn">
             <button type="button" class="btn swap-btn" id="swap-addresses" title="Swap ship-from and ship-to" aria-label="Swap ship-from and ship-to">⇆</button>
           </div>
-          <fieldset>
-            <legend>Consignee / To</legend>
-            <label>Consignee name <input name="c_name" type="text" placeholder="Company name"></label>
-            <label>Street <input name="d_street" type="text" required placeholder="456 Warehouse Rd"></label>
-            <label>City <input name="d_city" type="text" required placeholder="Calgary"></label>
-            <div class="row-2">
-              <label>Province <input name="d_state" type="text" required placeholder="AB" maxlength="2"></label>
-              <label>Postal code <input name="d_zip" type="text" required placeholder="T2P 3G8"></label>
+          <section class="qq-panel">
+            <h3 class="qq-head">Consignee / To</h3>
+            <div class="qq-body">
+              <label>Company <input name="c_name" type="text" placeholder="Company name"></label>
+              <div class="qq-row">
+                <label class="grow">Street / Ave <input name="d_street" type="text" required placeholder="456 Warehouse Rd"></label>
+                <label class="check mini"><input type="checkbox" name="depot_pickup"> Pick up at depot<br>no carrier delivery</label>
+              </div>
+              <div class="qq-row">
+                <label class="grow">City <input name="d_city" type="text" required placeholder="Calgary"></label>
+                <label class="sm">Prov <input name="d_state" type="text" required placeholder="AB" maxlength="10"></label>
+                <label class="sm">Postal Code <input name="d_zip" type="text" required placeholder="T2P 3G8"></label>
+                <label class="xs">Country <input name="d_country" type="text" value="CA" maxlength="2"></label>
+              </div>
+              <div class="qq-row">
+                <label class="grow">Telephone <input name="d_phone" type="tel" placeholder="403-555-0100"></label>
+                <label class="grow">Email <input name="d_email" type="email" placeholder="receive@example.com"></label>
+              </div>
+              <button type="button" class="btn small" data-save-addr="consignee">💾 Save consignee to address book</button>
             </div>
-            <label class="inline">Country <input name="d_country" type="text" value="CA" maxlength="2" style="max-width:80px"></label>
-            <div class="row-2">
-              <label>Phone <input name="d_phone" type="tel" placeholder="403-555-0100"></label>
-              <label>Email <input name="d_email" type="email" placeholder="receive@example.com"></label>
-            </div>
-            <button type="button" class="btn small" data-save-addr="consignee">💾 Save consignee to address book</button>
-            <label class="check"><input type="checkbox" name="depot_pickup"> Pick up at depot — no carrier delivery</label>
-          </fieldset>
+          </section>
         </div>
-        <fieldset>
-          <legend>Pickup</legend>
+        <div class="qq-refrow">
           <label>Requested pickup date * <input type="date" name="pickup_date" id="pickup-date" required></label>
-          <p class="note">The carrier is asked to collect the freight on this date.</p>
-        </fieldset>
-        <fieldset>
-          <legend>Packages</legend>
           <div class="units-row">
             <span class="note">Units:</span>
             <div class="segmented" role="radiogroup" aria-label="Weight and dimension units">
@@ -285,63 +279,83 @@
               <label class="seg"><input type="radio" name="units" value="metric"> kg / cm</label>
             </div>
           </div>
+          <label class="inline" id="user-id-row">User ID (optional)
+            <input name="user_id" type="text" placeholder="paste your user UUID (auth coming later)">
+          </label>
+        </div>
+        <section class="qq-panel">
+          <h3 class="qq-head">Packages</h3>
           <div class="table-wrap"><table class="data pkg-table" id="pkg-table">
             <thead><tr>
               <th>Qty</th><th>Package Type</th><th>Product Name</th><th>Weight (lb)</th>
               <th>Length (in)</th><th>Width (in)</th><th>Height (in)</th>
-              <th>Stackable</th><th>DG?</th><th>UN #</th><th>Class</th><th>Pkg Grp</th><th></th>
+              <th>Stackable</th><th>DG?</th><th>UN #</th><th>Class</th><th>Pkg. Grp.</th><th>Delete</th><th>Add</th>
             </tr></thead>
             <tbody id="pkg-rows"></tbody>
           </table></div>
-          <div class="actions"><button type="button" class="btn small" id="add-pkg">+ Add package</button> <button type="button" class="btn small" id="manage-lists">Custom types…</button></div>
-        </fieldset>
-        <div class="form-grid">
-          <fieldset>
-            <legend>Pick-up Services</legend>
-            <div class="check-grid" id="acc-pickup"><span class="note">Loading…</span></div>
-          </fieldset>
-          <fieldset>
-            <legend>Delivery Services</legend>
-            <div class="check-grid" id="acc-delivery"><span class="note">Loading…</span></div>
-          </fieldset>
+          <div class="qq-body actions"><button type="button" class="btn small" id="add-pkg">+ Add package</button> <button type="button" class="btn small" id="manage-lists">Custom types…</button></div>
+        </section>
+        <div class="qq-services">
+          <section class="qq-panel">
+            <h3 class="qq-head">Pick-up Services</h3>
+            <div class="qq-body"><div class="check-grid" id="acc-pickup"><span class="note">Loading…</span></div></div>
+          </section>
+          <section class="qq-panel">
+            <h3 class="qq-head">Delivery Services</h3>
+            <div class="qq-body"><div class="check-grid" id="acc-delivery"><span class="note">Loading…</span></div></div>
+          </section>
         </div>
-        <fieldset>
-          <legend>Notes &amp; Attachments</legend>
-          <h3 class="sub">Delivery Notes</h3>
-          <p class="note">(text you enter in these boxes will print on the bill of lading)</p>
-          <div class="row-2">
-            <label>Box 1 <input type="text" name="delivery_note_1" maxlength="60" placeholder="e.g. Call 30 min before arrival"></label>
-            <label>Box 2 <input type="text" name="delivery_note_2" maxlength="60" placeholder="e.g. Dock 4, forklift on site"></label>
+        <div class="qq-split">
+          <div class="qq-split-left">
+            <section class="qq-panel">
+              <h3 class="qq-head">Delivery Notes</h3>
+              <div class="qq-body">
+                <p class="note">(text you enter in these boxes will print on the bill of lading)</p>
+                <div class="row-2">
+                  <label>Box 1 <input type="text" name="delivery_note_1" maxlength="60" placeholder="e.g. Call 30 min before arrival"></label>
+                  <label>Box 2 <input type="text" name="delivery_note_2" maxlength="60" placeholder="e.g. Dock 4, forklift on site"></label>
+                </div>
+                <p class="note chars"><span id="dn1-left">60</span> characters left on Box 1 · <span id="dn2-left">60</span> left on Box 2</p>
+              </div>
+            </section>
+            <section class="qq-panel">
+              <h3 class="qq-head">Attachments</h3>
+              <div class="qq-body">
+                <label class="file-pick" id="file-pick">(click here to select files)
+                  <input type="file" id="quote-files" multiple hidden>
+                </label>
+                <ul id="attach-list" class="file-list"><li class="note">No files attached.</li></ul>
+                <p class="note" id="attach-hint">Files attach to the quote once you press Get rates.</p>
+              </div>
+            </section>
+            <section class="qq-panel">
+              <h3 class="qq-head">User's Private Notes</h3>
+              <div class="qq-body">
+                <p class="note">(does not print on any documents)</p>
+                <textarea name="private_notes" rows="2" placeholder="Internal notes — only visible to your account"></textarea>
+              </div>
+            </section>
+            <section class="qq-panel">
+              <h3 class="qq-head">Additional Insurance</h3>
+              <div class="qq-body">
+                <label class="check"><input type="checkbox" name="add_insurance"> Purchase additional cargo insurance</label>
+                <label>Declared value (CAD $) <input type="number" name="declared_value" min="0" step="1" placeholder="5000"></label>
+                <p class="note">Covers loss or damage above standard carrier liability — 1% of declared value (min $20), charged at cost on top of the freight rate.</p>
+              </div>
+            </section>
+            <div class="actions qq-getrates">
+              <button type="submit" class="btn primary" id="quote-btn">Get rates</button>
+            </div>
+            <p class="note">Instant rates come from uploaded carrier tariffs; live rates need carrier API keys. Transit times are estimates, not guaranteed.</p>
           </div>
-          <p class="note chars"><span id="dn1-left">60</span> characters left on Box 1 · <span id="dn2-left">60</span> left on Box 2</p>
-          <h3 class="sub">Attachments</h3>
-          <label class="file-pick" id="file-pick">(click here to select files)
-            <input type="file" id="quote-files" multiple hidden>
-          </label>
-          <ul id="attach-list" class="file-list"><li class="note">No files attached.</li></ul>
-          <p class="note" id="attach-hint">Files attach to the quote once you press Get rates.</p>
-          <h3 class="sub">User's Private Notes</h3>
-          <p class="note">(does not print on any documents)</p>
-          <textarea name="private_notes" rows="2" placeholder="Internal notes — only visible to your account"></textarea>
-        </fieldset>
-        <fieldset>
-          <legend>Additional Insurance</legend>
-          <label class="check"><input type="checkbox" name="add_insurance"> Purchase additional cargo insurance</label>
-          <label>Declared value (CAD $) <input type="number" name="declared_value" min="0" step="1" placeholder="5000"></label>
-          <p class="note">Covers loss or damage above standard carrier liability — 1% of declared value (min $20), charged at cost on top of the freight rate.</p>
-        </fieldset>
-        <label class="inline" id="user-id-row">User ID (optional)
-          <input name="user_id" type="text" placeholder="paste your user UUID (auth coming later)">
-        </label>
-        <div class="actions">
-          <button type="submit" class="btn primary" id="quote-btn">Get rates</button>
+          <div class="qq-split-right">
+            <div id="quote-results"></div>
+          </div>
         </div>
       </form>
-      <p class="note">Instant rates come from uploaded carrier tariffs; live rates need carrier API keys. Transit times are estimates, not guaranteed.</p>
       <div id="rate-loading" class="hidden" role="status" aria-live="polite">
         <div class="rl-pill"><span class="rl-spin"></span>Assembling your best shipping options&hellip;</div>
       </div>
-      <div id="quote-results"></div>
       <h2>Saved quotes</h2>
       <div id="saved-quotes"><p class="note">Loading…</p></div>
       <div class="dash-orders-head">
@@ -1538,8 +1552,8 @@
           <p class="note">* Required — both numbers are stored on every shipment for reporting.</p>
           <label class="chk" style="margin-top:8px"><input type="checkbox" id="terms-accept"> I agree to the <a href="#" id="terms-link">Terms of Service</a> *</label>
           <div class="actions" style="margin-top:10px">
-            <button class="btn" id="save-quote-btn">Save This Quote</button>
-            <button class="btn primary" id="complete-shipment-btn">Complete This Shipment</button>
+            <button type="button" class="btn" id="save-quote-btn">Save This Quote</button>
+            <button type="button" class="btn primary" id="complete-shipment-btn">Complete This Shipment</button>
           </div>
           <div id="approval-note"></div>
         </div>
