@@ -719,3 +719,16 @@ dl.kv dd { margin: 0; font-weight: 600; }
 /* ---- Delivery notes: stacked full-width boxes ---- */
 .qq-notes-stack { display: grid; gap: 8px; }
 .qq-notes-stack label { margin-bottom: 0; }
+
+/* ---- Quote page rework: fetch button left, save/complete right ---- */
+.fetch-btn-left { width: 100%; margin-bottom: 12px; }
+.qq-split-right .quote-actions { border-top: 1px solid var(--line); margin-top: 0; }
+.qq-split-right .quote-actions .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.qq-split-right .quote-actions .btn { flex: 1 1 180px; }
+.qq-split-right .quote-actions .btn:disabled { opacity: .55; cursor: not-allowed; }
+.popup-list { margin: 10px 0 16px 18px; font-size: 14px; }
+.popup-list li { margin: 4px 0; }
+#complete-modal .modal-card label { display: block; margin: 0 0 12px; font-weight: 600; font-size: 13.5px; }
+#complete-modal .modal-card input[type="text"] { width: 100%; margin-top: 4px; }
+#complete-modal .modal-card .chk { font-weight: 500; }
+#complete-modal .modal-card h3 { margin-top: 0; }

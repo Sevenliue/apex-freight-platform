@@ -307,6 +307,7 @@
         </div>
         <div class="qq-split">
           <div class="qq-split-left">
+            <button type="submit" class="btn fetch-btn fetch-btn-left" id="fetch-rates-btn">Fetch Carrier Results</button>
             <section class="qq-panel">
               <h3 class="qq-head">Delivery Notes</h3>
               <div class="qq-body">
@@ -350,13 +351,34 @@
               <h3 class="qq-head">Best Available Freight Rates and Service Options for this shipment</h3>
               <div class="qq-body rate-empty" id="rate-empty">
                 <p class="note">Fill in the shipment details, then fetch carrier results.</p>
-                <button type="submit" class="btn fetch-btn hidden" id="fetch-rates-btn">Fetch Carrier Results</button>
               </div>
               <div id="quote-results"></div>
+              <div class="qq-body quote-actions">
+                <div class="actions">
+                  <button type="button" class="btn" id="save-quote-btn" disabled>Save This Quote</button>
+                  <button type="button" class="btn primary" id="complete-shipment-btn" disabled>Complete This Shipment</button>
+                </div>
+                <div id="approval-note"></div>
+                <div id="complete-result"></div>
+              </div>
             </section>
           </div>
         </div>
       </form>
+      <div id="complete-modal" class="modal-overlay hidden">
+        <div class="modal-card" role="dialog" aria-modal="true" aria-label="Complete this shipment">
+          <button type="button" class="modal-close" id="cm-close" aria-label="Close">\u00d7</button>
+          <h3>Complete This Shipment</h3>
+          <p class="note">These references are stored on every shipment for reporting.</p>
+          <p class="form-error hidden" id="cm-error"></p>
+          <label>Shipper's order # * <input id="cm-ref-num" type="text" placeholder="Your order number" autocomplete="off"></label>
+          <label>Receiver's PO # * <input id="cm-po-num" type="text" placeholder="Receiver's PO number" autocomplete="off"></label>
+          <label class="chk"><input type="checkbox" id="cm-terms"> I agree to the <a href="#" id="cm-terms-link">Terms of Service</a> *</label>
+          <div class="actions">
+            <button type="button" class="btn primary" id="cm-confirm">Confirm — Complete This Shipment</button>
+          </div>
+        </div>
+      </div>
       <div id="rate-loading" class="hidden" role="status" aria-live="polite">
         <div class="rl-pill"><span class="rl-spin"></span>Assembling your best shipping options&hellip;</div>
       </div>
@@ -1093,11 +1115,10 @@
         <td class="narrow"><input type="text" name="pkg_group" value="${esc(data.pkg_group || '')}" placeholder="II"></td>
         <td><button type="button" class="btn small danger pkg-del" title="Delete row">×</button></td>`;
       tr.querySelector('.pkg-del').addEventListener('click', () => {
-        if ($('#pkg-rows').rows.length > 1) { tr.remove(); syncFetchButton(); }
+        if ($('#pkg-rows').rows.length > 1) { tr.remove(); }
         else showAlert('At least one package line is required.');
       });
       $('#pkg-rows').appendChild(tr);
-      syncFetchButton();
     }
 
     function collectPackages() {
@@ -1148,7 +1169,7 @@
       $$('#quote-form input[name="acc"]').forEach((el) => { el.checked = set.has(el.value); });
     }
 
-    $('#add-pkg').addEventListener('click', () => { addPkgRow(); syncFetchButton(); });
+    $('#add-pkg').addEventListener('click', () => { addPkgRow(); });
 
     /* ---------- custom package types & product names ---------- */
     async function loadCustomLists() {
@@ -1288,7 +1309,6 @@
       });
     });
     addPkgRow();
-    syncFetchButton();
 
     /* ----- shipment type tabs + freight charges ----- */
     function currentRegion() {
@@ -1360,20 +1380,6 @@
       });
     }
 
-    // Show the "Fetch Carrier Results" button once the minimum shipment info is filled.
-    function syncFetchButton() {
-      const form = $('#quote-form');
-      const btn = $('#fetch-rates-btn');
-      if (!form || !btn) return;
-      const fd = new FormData(form);
-      const txt = (k) => ((fd.get(k) == null ? '' : fd.get(k)).toString().trim());
-      const required = ['o_street', 'o_city', 'o_state', 'o_zip',
-                        'd_street', 'd_city', 'd_state', 'd_zip', 'pickup_date'];
-      const fieldsOk = required.every((k) => txt(k) !== '');
-      let weightOk = false;
-      try { weightOk = collectPackages().some((pp) => pp.weight_lb > 0); } catch (err) { weightOk = false; }
-      btn.classList.toggle('hidden', !(fieldsOk && weightOk));
-    }
     function syncRateEmpty() {
       const empty = $('#rate-empty');
       const box = $('#quote-results');
@@ -1384,18 +1390,67 @@
       const empty = $('#rate-empty');
       if (empty) empty.classList.add('hidden');
     }
-    $('#quote-form').addEventListener('input', syncFetchButton);
-    $('#quote-form').addEventListener('change', syncFetchButton);
-    syncFetchButton();
-    // Browser autofill / restored form values don't fire input events — re-check briefly after load.
-    let _sfcN = 0;
-    const _sfcT = setInterval(() => {
-      syncFetchButton();
-      if (++_sfcN >= 12) clearInterval(_sfcT);
-    }, 500);
+
+    /* The Fetch button is always visible. If required info is missing when it
+       is clicked, pop up an error listing the fields to fill in. */
+    function missingQuoteFields() {
+      const f = new FormData($('#quote-form'));
+      const txt = (k) => ((f.get(k) == null ? '' : f.get(k)).toString().trim());
+      const need = [
+        ['o_street', 'Shipper street'], ['o_city', 'Shipper city'],
+        ['o_state', 'Shipper province'], ['o_zip', 'Shipper postal code'],
+        ['d_street', 'Consignee street'], ['d_city', 'Consignee city'],
+        ['d_state', 'Consignee province'], ['d_zip', 'Consignee postal code'],
+        ['pickup_date', 'Requested pickup date'],
+      ];
+      const missing = need.filter(([k]) => !txt(k)).map(([, label]) => label);
+      let weightOk = false;
+      try { weightOk = collectPackages().some((p) => p.weight_lb > 0); } catch (err) { weightOk = false; }
+      if (!weightOk) missing.push('Package weight');
+      return missing;
+    }
+
+    /* Small modal popup (title + bullet list), used for validation errors. */
+    function popupAlert(title, lines) {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.innerHTML =
+        '<div class="modal-card" role="alertdialog" aria-modal="true">' +
+        '<button type="button" class="modal-close" aria-label="Close">\u00d7</button>' +
+        '<h3>' + esc(title) + '</h3>' +
+        '<ul class="popup-list">' + lines.map((l) => '<li>' + esc(l) + '</li>').join('') + '</ul>' +
+        '<div class="actions"><button type="button" class="btn primary">OK</button></div></div>';
+      const close = () => overlay.remove();
+      overlay.querySelector('.modal-close').addEventListener('click', close);
+      overlay.querySelector('.btn').addEventListener('click', close);
+      overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+      document.body.appendChild(overlay);
+    }
+
+    /* Enable/disable the persistent Save / Complete buttons (right panel). */
+    function syncQuoteActions() {
+      const has = !!currentQuote;
+      const sq = $('#save-quote-btn');
+      const cs = $('#complete-shipment-btn');
+      if (sq) sq.disabled = !has;
+      if (cs) cs.disabled = !has;
+      gateCompleteButton();
+    }
+    // Persistent quote action buttons (right panel): enabled once rates are back.
+    $('#save-quote-btn').addEventListener('click', saveCurrentQuote);
+    $('#complete-shipment-btn').addEventListener('click', openCompleteModal);
+    $('#cm-confirm').addEventListener('click', confirmCompleteShipment);
+    $('#cm-close').addEventListener('click', () => $('#complete-modal').classList.add('hidden'));
+    $('#cm-terms-link').addEventListener('click', (e) => { e.preventDefault(); showTerms(); });
+    syncQuoteActions();
 
     $('#quote-form').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const missing = missingQuoteFields();
+      if (missing.length) {
+        popupAlert('Please fill in the required fields', missing);
+        return;
+      }
       const f = new FormData(e.target);
       // Safe text accessor: never throws on a missing field.
       const txt = (k) => ((f.get(k) == null ? '' : f.get(k)).toString().trim());
@@ -1519,6 +1574,7 @@
             <button type="button" class="btn primary" id="fl-request">Request full-load pricing</button>
           </div></div>`;
         $('#fl-request').addEventListener('click', requestFullLoad);
+        syncQuoteActions();
         return;
       }
       if (data && data.worldwide_notice) {
@@ -1526,6 +1582,7 @@
         syncRateEmptyHide();
         box.innerHTML = `<div class="card empty"><strong>Worldwide rates need a live carrier connection.</strong><br>
           <span class="note">${esc(data.message || 'Add your EasyPost key in Render (EASYPOST_API_KEY) to rate worldwide shipments.')}</span></div>`;
+        syncQuoteActions();
         return;
       }
       const rates = (data && data.rates) || [];
@@ -1543,6 +1600,7 @@
         html += '</div>';
         box.innerHTML = html;
         syncRateEmptyHide();
+        syncQuoteActions();
         box.querySelectorAll('[data-sug]').forEach((btn) =>
           btn.addEventListener('click', () => {
             const s = sugs[Number(btn.dataset.sug)];
@@ -1588,25 +1646,9 @@
           <thead><tr><th></th><th>Carrier</th><th>Estimated Transit (Not Guaranteed)</th><th>Est. Total Cost (excl. tax) <span class="tip" title="Includes all freight charges / services / fuel surcharges. Excludes gov't taxes.">ⓘ</span></th></tr></thead>
           <tbody>${rows}</tbody>
         </table></div>
-        <div class="card" style="margin-top:12px">
-          <div class="row-2">
-            <label>Shipper's order # * <input id="ref-num" type="text" required placeholder="Your order number"></label>
-            <label>Receiver's PO # * <input id="po-num" type="text" required placeholder="Receiver's PO number"></label>
-          </div>
-          <p class="note">* Required — both numbers are stored on every shipment for reporting.</p>
-          <label class="chk" style="margin-top:8px"><input type="checkbox" id="terms-accept"> I agree to the <a href="#" id="terms-link">Terms of Service</a> *</label>
-          <div class="actions" style="margin-top:10px">
-            <button type="button" class="btn" id="save-quote-btn">Save This Quote</button>
-            <button type="button" class="btn primary" id="complete-shipment-btn">Complete This Shipment</button>
-          </div>
-          <div id="approval-note"></div>
-        </div>
-        <div id="complete-result"></div>`;
+`;
 
-      $('#save-quote-btn').addEventListener('click', saveCurrentQuote);
-      $('#complete-shipment-btn').addEventListener('click', completeCurrentShipment);
-      gateCompleteButton();
-      $('#terms-link').addEventListener('click', (e) => { e.preventDefault(); showTerms(); });
+      syncQuoteActions();
       highlightPickedRow();
     }
 
@@ -1724,7 +1766,9 @@
       }
     }
 
-    async function completeCurrentShipment() {
+    /* The main page is for quoting: order # / PO # / terms live in this
+       modal and only appear when the user completes a shipment. */
+    function openCompleteModal() {
       if (!currentQuote) return;
       const gate = approvalGate();
       if (!gate.ok) {
@@ -1733,18 +1777,29 @@
       }
       const rateId = selectedRateId();
       if (!rateId) { showAlert('Pick a carrier rate first.'); return; }
-      const refNum = $('#ref-num').value.trim();
-      const poNum = $('#po-num').value.trim();
+      $('#cm-error').classList.add('hidden');
+      $('#complete-modal').classList.remove('hidden');
+      setTimeout(() => $('#cm-ref-num').focus(), 60);
+    }
+
+    async function confirmCompleteShipment() {
+      const errBox = $('#cm-error');
+      const refNum = $('#cm-ref-num').value.trim();
+      const poNum = $('#cm-po-num').value.trim();
       if (!refNum || !poNum) {
-        showAlert("Enter both the shipper's order # and the receiver's PO # — they're required on every shipment.");
+        errBox.textContent = "Enter both the shipper's order # and the receiver's PO # — they're required on every shipment.";
+        errBox.classList.remove('hidden');
         return;
       }
-      if (!$('#terms-accept').checked) {
-        showAlert('Please accept the Terms of Service to schedule this shipment.');
+      if (!$('#cm-terms').checked) {
+        errBox.textContent = 'Please accept the Terms of Service to schedule this shipment.';
+        errBox.classList.remove('hidden');
         return;
       }
+      $('#complete-modal').classList.add('hidden');
       const btn = $('#complete-shipment-btn');
       btn.disabled = true;
+      const origText = btn.textContent;
       btn.textContent = 'Starting secure payment…';
       try {
         const qf = document.querySelector('#quote-form');
@@ -1781,8 +1836,8 @@
       } catch (err) {
         showAlert('Could not complete shipment: ' + err.message);
       } finally {
-        btn.disabled = false;
-        btn.textContent = 'Complete This Shipment';
+        btn.textContent = origText;
+        syncQuoteActions();
       }
     }
 
