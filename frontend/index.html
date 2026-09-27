@@ -1339,44 +1339,37 @@
     $('#quote-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const f = new FormData(e.target);
+      // Safe text accessor: never throws on a missing field.
+      const txt = (k) => ((f.get(k) == null ? '' : f.get(k)).toString().trim());
       const btn = $('#quote-btn');
       btn.disabled = true;
       btn.textContent = 'Getting rates…';
       $('#quote-results').innerHTML = '';
+      try {
       const packages = collectPackages();
       if (packages.some((p) => !(p.weight_lb > 0))) {
         showAlert('Each package line needs a weight in lbs.');
-        btn.disabled = false;
-        btn.textContent = 'Get rates';
         return;
       }
       // Dangerous goods: TDG classification (UN number + class) is required
       // on every DG line before rating.
       if (packages.some((p) => p.dg && !(p.un_number && p.freight_class))) {
         showAlert('Dangerous goods need a UN number and class on every DG package line.');
-        btn.disabled = false;
-        btn.textContent = 'Get rates';
         return;
       }
       const pickupDate = (f.get('pickup_date') || '').toString();
       if (!pickupDate) {
         showAlert('Choose a requested pickup date.');
-        btn.disabled = false;
-        btn.textContent = 'Get rates';
         return;
       }
       if (pickupDate < new Date().toISOString().slice(0, 10)) {
         showAlert('The pickup date cannot be in the past.');
-        btn.disabled = false;
-        btn.textContent = 'Get rates';
         return;
       }
       const billToNeeded = syncBillToBlock();
       const bill_to = collectBillTo();
       if (billToNeeded && !(bill_to.name && bill_to.city && bill_to.state)) {
         showAlert('Third-party billing needs a company name, city, and province/state.');
-        btn.disabled = false;
-        btn.textContent = 'Get rates';
         return;
       }
       const params = {
@@ -1388,36 +1381,35 @@
         bill_to: billToNeeded ? bill_to : {},
         depot_dropoff: f.get('depot_dropoff') === 'on',
         depot_pickup: f.get('depot_pickup') === 'on',
-        delivery_note_1: (f.get('delivery_note_1') || '').toString().trim().slice(0, 60),
-        delivery_note_2: (f.get('delivery_note_2') || '').toString().trim().slice(0, 60),
-        private_notes: (f.get('private_notes') || '').toString().trim().slice(0, 4000),
+        delivery_note_1: txt('delivery_note_1').slice(0, 60),
+        delivery_note_2: txt('delivery_note_2').slice(0, 60),
+        private_notes: txt('private_notes').slice(0, 4000),
         add_insurance: f.get('add_insurance') === 'on',
         declared_value: Math.max(0, parseFloat(f.get('declared_value')) || 0),
         origin: {
-          street1: f.get('o_street').trim(), city: f.get('o_city').trim(),
-          state: f.get('o_state').trim(), zip: f.get('o_zip').trim(),
-          country: ((f.get('o_country') || '').trim() || 'CA').toUpperCase(),
+          street1: txt('o_street'), city: txt('o_city'),
+          state: txt('o_state'), zip: txt('o_zip'),
+          country: (txt('o_country') || 'CA').toUpperCase(),
         },
         destination: {
-          street1: f.get('d_street').trim(), city: f.get('d_city').trim(),
-          state: f.get('d_state').trim(), zip: f.get('d_zip').trim(),
-          country: ((f.get('d_country') || '').trim() || 'CA').toUpperCase(),
+          street1: txt('d_street'), city: txt('d_city'),
+          state: txt('d_state'), zip: txt('d_zip'),
+          country: (txt('d_country') || 'CA').toUpperCase(),
         },
         shipper: {
-          name: f.get('s_name').trim(), street1: f.get('o_street').trim(),
-          city: f.get('o_city').trim(), state: f.get('o_state').trim(),
-          zip: f.get('o_zip').trim(), phone: f.get('o_phone').trim(), email: f.get('o_email').trim(),
+          name: txt('s_name'), street1: txt('o_street'),
+          city: txt('o_city'), state: txt('o_state'),
+          zip: txt('o_zip'), phone: txt('o_phone'), email: txt('o_email'),
         },
         consignee: {
-          name: f.get('c_name').trim(), street1: f.get('d_street').trim(),
-          city: f.get('d_city').trim(), state: f.get('d_state').trim(),
-          zip: f.get('d_zip').trim(), phone: f.get('d_phone').trim(), email: f.get('d_email').trim(),
+          name: txt('c_name'), street1: txt('d_street'),
+          city: txt('d_city'), state: txt('d_state'),
+          zip: txt('d_zip'), phone: txt('d_phone'), email: txt('d_email'),
         },
         packages,
         accessorials: collectAccessorials(),
-        user_id: f.get('user_id').trim() || undefined,
+        user_id: txt('user_id') || undefined,
       };
-      try {
         const data = await api.getRates(params);
         lastQuoteParams = params;
         renderBoard(data);
