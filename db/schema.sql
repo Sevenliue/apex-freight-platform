@@ -66,6 +66,12 @@ CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at);
 ALTER TABLE address_book ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES users(id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS idx_address_book_user_id ON address_book(user_id);
 
+-- Depot service flags on quotes (added 2026-09-27): shipper drops off at the
+-- origin depot (no pickup dispatch); consignee collects at the destination
+-- depot (no carrier delivery).
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS depot_dropoff boolean NOT NULL DEFAULT false;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS depot_pickup boolean NOT NULL DEFAULT false;
+
 -- Custom per-account dropdown lists (added 2026-09-27): shippers can add
 -- their own package types and product names; kind is 'package_type' or
 -- 'product_name'.

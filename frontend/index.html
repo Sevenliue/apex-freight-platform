@@ -99,6 +99,7 @@
               <label>Phone <input name="o_phone" type="tel" placeholder="780-555-0100"></label>
               <label>Email <input name="o_email" type="email" placeholder="ship@example.com"></label>
             </div>
+            <label class="check"><input type="checkbox" name="depot_dropoff"> Drop off at depot — do not dispatch pickup</label>
           </fieldset>
           <fieldset>
             <legend>Consignee / To</legend>
@@ -114,6 +115,7 @@
               <label>Phone <input name="d_phone" type="tel" placeholder="403-555-0100"></label>
               <label>Email <input name="d_email" type="email" placeholder="receive@example.com"></label>
             </div>
+            <label class="check"><input type="checkbox" name="depot_pickup"> Pick up at depot — no carrier delivery</label>
           </fieldset>
         </div>
         <fieldset>
@@ -790,6 +792,8 @@
         direction: currentDirection(),
         freight_charges: (document.querySelector('#freight-charges') || {}).value || 'prepaid',
         bill_to: billToNeeded ? bill_to : {},
+        depot_dropoff: f.get('depot_dropoff') === 'on',
+        depot_pickup: f.get('depot_pickup') === 'on',
         origin: {
           street1: f.get('o_street').trim(), city: f.get('o_city').trim(),
           state: f.get('o_state').trim(), zip: f.get('o_zip').trim(),
@@ -958,6 +962,8 @@
           direction: lastQuoteParams.direction,
           freight_charges: lastQuoteParams.freight_charges,
           bill_to: lastQuoteParams.bill_to,
+          depot_dropoff: lastQuoteParams.depot_dropoff,
+          depot_pickup: lastQuoteParams.depot_pickup,
         });
         const label = res.label_url
           ? ` <a href="${esc(res.label_url)}" target="_blank" rel="noopener">Print label</a>` : '';
@@ -1051,6 +1057,9 @@
         $('#pkg-rows').innerHTML = '';
         (quote.packages && quote.packages.length ? quote.packages : [{}]).forEach((p) => addPkgRow(p));
         setAccessorials(quote.accessorials);
+        const setCheck = (n, v) => { const el = document.querySelector(`#quote-form [name="${n}"]`); if (el) el.checked = !!v; };
+        setCheck('depot_dropoff', quote.depot_dropoff);
+        setCheck('depot_pickup', quote.depot_pickup);
         // One tap: refill the form and re-rate fresh.
         document.querySelector('#quote-form').requestSubmit();
         document.querySelector('#tab-quote').scrollIntoView({ behavior: 'smooth' });

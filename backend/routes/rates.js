@@ -143,6 +143,8 @@ router.post('/', async (req, res) => {
     direction: rawDirection = 'outbound',
     freight_charges: rawFreightCharges = 'prepaid',
     bill_to = {},
+    depot_dropoff: rawDepotDropoff = false,
+    depot_pickup: rawDepotPickup = false,
   } = req.body || {};
 
   // The logged-in account wins over the optional guest user_id label.
@@ -156,6 +158,12 @@ router.post('/', async (req, res) => {
   const region = ['canada_usa', 'worldwide'].includes(rawRegion) ? rawRegion : 'canada_usa';
   const direction = ['outbound', 'inbound', 'third_party'].includes(rawDirection) ? rawDirection : 'outbound';
   const freight_charges = ['prepaid', 'collect', 'third_party'].includes(rawFreightCharges) ? rawFreightCharges : 'prepaid';
+
+  // Depot service flags (competitor parity): shipper drops off at the origin
+  // depot (no carrier pickup dispatch); consignee collects at the destination
+  // depot (no carrier delivery). Informational — recorded on the BOL.
+  const depot_dropoff = rawDepotDropoff === true || rawDepotDropoff === 'true';
+  const depot_pickup = rawDepotPickup === true || rawDepotPickup === 'true';
 
   if (region === 'worldwide') {
     if (!origin.city || !origin.country || !destination.city || !destination.country) {
@@ -195,6 +203,7 @@ router.post('/', async (req, res) => {
       origin, destination, shipper, consignee,
       packages, accessorials: accessorialCodes,
       region, direction, freight_charges, bill_to: billTo,
+      depot_dropoff, depot_pickup,
       parcel: { weight: totalWeightLbs },
       total_weight_lbs: totalWeightLbs,
       user_id: effectiveUserId,
@@ -287,6 +296,8 @@ router.post('/', async (req, res) => {
     direction,
     freight_charges,
     bill_to: billTo,
+    depot_dropoff,
+    depot_pickup,
     parcel: { weight: totalWeightLbs },
     total_weight_lbs: totalWeightLbs,
     user_id: effectiveUserId,
@@ -355,8 +366,9 @@ router.post('/', async (req, res) => {
                              dest_street1, dest_city, dest_state, dest_zip, dest_country,
                              parcel_weight, parcel_length, parcel_width, parcel_height,
                              shipper_json, consignee_json, packages_json, accessorials_json, rates_json,
-                             region, direction, freight_charges, bill_to_json)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+                             region, direction, freight_charges, bill_to_json,
+                             depot_dropoff, depot_pickup)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
          RETURNING id`,
         [
           userUuid,
@@ -367,6 +379,7 @@ router.post('/', async (req, res) => {
           JSON.stringify(shipper || {}), JSON.stringify(consignee || {}),
           JSON.stringify(packages), JSON.stringify(accessorialCodes), JSON.stringify(rates),
           region, direction, freight_charges, JSON.stringify(billTo),
+          depot_dropoff, depot_pickup,
         ]
       );
       db_quote_id = r.rows[0] && r.rows[0].id;
@@ -394,6 +407,8 @@ router.post('/', async (req, res) => {
     direction,
     freight_charges,
     bill_to: billTo,
+    depot_dropoff,
+    depot_pickup,
     accessorials_applied: rates[0] ? rates[0].accessorials_applied || [] : [],
   };
   if (db_quote_id != null) body.db_quote_id = db_quote_id;
