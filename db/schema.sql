@@ -247,3 +247,11 @@ ALTER TABLE quotes ADD COLUMN IF NOT EXISTS rates_json       jsonb;
 CREATE INDEX IF NOT EXISTS idx_quotes_is_saved ON quotes(is_saved);
 
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS bol_json jsonb;
+
+-- Shipment type + freight charges (Smart Shipping-style top options).
+-- Idempotent: safe to re-run on existing databases.
+-- ---------------------------------------------------------------------------
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS region          varchar(20) NOT NULL DEFAULT 'canada_usa';
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS direction       varchar(20) NOT NULL DEFAULT 'outbound';
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS freight_charges varchar(20) NOT NULL DEFAULT 'prepaid';
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS bill_to_json    jsonb;

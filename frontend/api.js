@@ -42,9 +42,11 @@ export function getHealth() {
 }
 
 /* Rates — packages[] in LBS; accessorials[] are catalog codes. Legacy
-   single-parcel {weight, length, width, height} still accepted. */
-export function getRates({ origin, destination, parcel, packages, accessorials, shipper, consignee, user_id }) {
-  return post('/api/rates', { origin, destination, parcel, packages, accessorials, shipper, consignee, user_id });
+   single-parcel {weight, length, width, height} still accepted. region /
+   direction / freight_charges / bill_to are the Smart Shipping-style top
+   options. */
+export function getRates({ origin, destination, parcel, packages, accessorials, shipper, consignee, user_id, region, direction, freight_charges, bill_to }) {
+  return post('/api/rates', { origin, destination, parcel, packages, accessorials, shipper, consignee, user_id, region, direction, freight_charges, bill_to });
 }
 
 /* Saved quotes + accessorial catalog. */
@@ -65,8 +67,8 @@ export function getQuote(id) {
 }
 
 /* Complete a shipment (book label or schedule pickup) + printable BOL. */
-export function completeShipment({ shipment_id, rate_id, shipper, consignee, references, delivery_notes, user_id }) {
-  return post('/api/shipments/complete', { shipment_id, rate_id, shipper, consignee, references, delivery_notes, user_id });
+export function completeShipment({ shipment_id, rate_id, shipper, consignee, references, delivery_notes, user_id, region, direction, freight_charges, bill_to }) {
+  return post('/api/shipments/complete', { shipment_id, rate_id, shipper, consignee, references, delivery_notes, user_id, region, direction, freight_charges, bill_to });
 }
 
 /* Buy a label for a rated shipment. */

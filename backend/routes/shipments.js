@@ -103,6 +103,7 @@ router.post('/complete', async (req, res) => {
     shipment_id, rate_id,
     shipper = {}, consignee = {}, references = {}, delivery_notes = '',
     user_id = null,
+    region = null, direction = null, freight_charges = null, bill_to = null,
   } = req.body || {};
 
   if (!shipment_id || !rate_id) {
@@ -116,6 +117,13 @@ router.post('/complete', async (req, res) => {
   if (!rate) {
     return res.status(404).json({ error: 'Unknown rate_id for this shipment' });
   }
+
+  // Shipment type + freight charges: prefer the completion payload, fall back
+  // to what was stored on the quote.
+  const shipRegion = region || quote.region || 'canada_usa';
+  const shipDirection = direction || quote.direction || 'outbound';
+  const shipFreight = freight_charges || quote.freight_charges || 'prepaid';
+  const shipBillTo = bill_to || quote.bill_to || {};
 
   const order = {
     id: id('ord'),
@@ -132,6 +140,10 @@ router.post('/complete', async (req, res) => {
     tracking_code: null,
     label_url: null,
     easypost_shipment_id: quote.easypost_shipment_id || null,
+    region: shipRegion,
+    direction: shipDirection,
+    freight_charges: shipFreight,
+    bill_to: shipBillTo,
     created_at: new Date().toISOString(),
   };
 
@@ -163,6 +175,10 @@ router.post('/complete', async (req, res) => {
     delivery_days: rate.delivery_days || null,
     cost_cad: order.cost_cad,
     charged_amount: order.charged_amount,
+    region: shipRegion,
+    direction: shipDirection,
+    freight_charges: shipFreight,
+    bill_to: shipBillTo,
   };
   order.bol = bol;
 
@@ -257,6 +273,18 @@ router.get('/bol/:id', async (req, res) => {
     .map(([k, v]) => `<tr><td>${escHtml(k)}</td><td>${escHtml(v)}</td></tr>`)
     .join('');
 
+  // Freight Charges / Bill To: who pays, and the address to bill.
+  const FREIGHT_LABELS = {
+    prepaid: 'Prepaid — bill shipper',
+    collect: 'Collect — bill consignee',
+    third_party: 'Third party — bill 3rd party',
+  };
+  const fc = b.freight_charges || 'prepaid';
+  const fcLabel = FREIGHT_LABELS[fc] || fc;
+  const payer = fc === 'collect' ? consignee : fc === 'third_party' ? (b.bill_to || {}) : shipper;
+  const payerAddr = addr(payer);
+  const payerName = payer.name ? `<strong>${escHtml(payer.name)}</strong><br>` : '';
+
   res.send(`<!doctype html><html><head><meta charset="utf-8">
 <title>Bill of Lading — ${escHtml(order.tracking_code || order.id)}</title>
 <style>
@@ -295,6 +323,9 @@ ${consignee.phone ? '<br>Tel: ' + escHtml(consignee.phone) : ''}${consignee.emai
 ${accRows}
 <tr><td><strong>Total (excl. tax)</strong></td><td class="num"><strong>${cadFmt(order.charged_amount)}</strong></td></tr>
 </tbody></table>
+<h2>Freight Charges / Bill To</h2>
+<div class="box">${escHtml(fcLabel)}<br>${payerName}${payerAddr || '—'}
+${payer.phone ? '<br>Tel: ' + escHtml(payer.phone) : ''}${payer.email ? '<br>' + escHtml(payer.email) : ''}</div>
 ${refRows ? `<h2>References</h2><table><tbody>${refRows}</tbody></table>` : ''}
 ${b.delivery_notes ? `<h2>Delivery Notes</h2><div class="box">${escHtml(b.delivery_notes)}</div>` : ''}
 <div class="sig"><div>Shipper signature / date</div><div>Carrier signature / date</div></div>

@@ -33,6 +33,47 @@
       <form id="quote-form" class="card">
         <div class="form-grid">
           <fieldset>
+            <legend>Shipment Type</legend>
+            <div class="segmented" role="radiogroup" aria-label="Region">
+              <label class="seg active"><input type="radio" name="region" value="canada_usa" checked> Canada &amp; USA</label>
+              <label class="seg"><input type="radio" name="region" value="worldwide"> Worldwide</label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Direction</legend>
+            <div class="segmented" role="radiogroup" aria-label="Direction">
+              <label class="seg active"><input type="radio" name="direction" value="outbound" checked> Outbound</label>
+              <label class="seg"><input type="radio" name="direction" value="inbound"> Inbound</label>
+              <label class="seg"><input type="radio" name="direction" value="third_party"> 3rd Party</label>
+            </div>
+          </fieldset>
+        </div>
+        <div class="form-grid">
+          <label class="inline">Freight Charges
+            <select name="freight_charges" id="freight-charges">
+              <option value="prepaid" selected>Prepaid — bill shipper</option>
+              <option value="collect">Collect — bill consignee</option>
+              <option value="third_party">Third party — bill 3rd party</option>
+            </select>
+          </label>
+        </div>
+        <fieldset id="bill-to-block" hidden>
+          <legend>Third-Party Billing</legend>
+          <div class="form-grid">
+            <label>Company name <input name="b_name" type="text" placeholder="Billing company"></label>
+            <label>Street <input name="b_street" type="text" placeholder="789 Billing Ave"></label>
+          </div>
+          <div class="form-grid">
+            <label>City <input name="b_city" type="text" placeholder="Toronto"></label>
+            <div class="row-2">
+              <label>Province / State <input name="b_state" type="text" placeholder="ON" maxlength="10"></label>
+              <label>Postal code <input name="b_zip" type="text" placeholder="M5V 1J1"></label>
+            </div>
+          </div>
+          <label class="inline">Country <input name="b_country" type="text" value="CA" maxlength="2" style="max-width:80px"></label>
+        </fieldset>
+        <div class="form-grid">
+          <fieldset>
             <legend>Shipper / From</legend>
             <label>Shipper name <input name="s_name" type="text" placeholder="Company name"></label>
             <label>Street <input name="o_street" type="text" required placeholder="123 Industrial Ave"></label>
@@ -41,6 +82,7 @@
               <label>Province <input name="o_state" type="text" required placeholder="AB" maxlength="2"></label>
               <label>Postal code <input name="o_zip" type="text" required placeholder="T5S 1A1"></label>
             </div>
+            <label class="inline">Country <input name="o_country" type="text" value="CA" maxlength="2" style="max-width:80px"></label>
             <div class="row-2">
               <label>Phone <input name="o_phone" type="tel" placeholder="780-555-0100"></label>
               <label>Email <input name="o_email" type="email" placeholder="ship@example.com"></label>
@@ -55,6 +97,7 @@
               <label>Province <input name="d_state" type="text" required placeholder="AB" maxlength="2"></label>
               <label>Postal code <input name="d_zip" type="text" required placeholder="T2P 3G8"></label>
             </div>
+            <label class="inline">Country <input name="d_country" type="text" value="CA" maxlength="2" style="max-width:80px"></label>
             <div class="row-2">
               <label>Phone <input name="d_phone" type="tel" placeholder="403-555-0100"></label>
               <label>Email <input name="d_email" type="email" placeholder="receive@example.com"></label>
@@ -334,6 +377,42 @@
     $('#add-pkg').addEventListener('click', () => addPkgRow());
     addPkgRow();
 
+    /* ----- shipment type tabs + freight charges ----- */
+    function currentRegion() {
+      return (document.querySelector('#quote-form input[name="region"]:checked') || {}).value || 'canada_usa';
+    }
+    function currentDirection() {
+      return (document.querySelector('#quote-form input[name="direction"]:checked') || {}).value || 'outbound';
+    }
+    function syncSegs() {
+      $$('#quote-form .seg').forEach((s) =>
+        s.classList.toggle('active', s.querySelector('input').checked)
+      );
+    }
+    function syncBillToBlock() {
+      const need =
+        currentDirection() === 'third_party' ||
+        (document.querySelector('#freight-charges') || {}).value === 'third_party';
+      document.querySelector('#bill-to-block').hidden = !need;
+      return need;
+    }
+    function collectBillTo() {
+      const g = (n) => (document.querySelector(`#quote-form [name="${n}"]`) || {}).value || '';
+      return {
+        name: g('b_name').trim(),
+        street1: g('b_street').trim(),
+        city: g('b_city').trim(),
+        state: g('b_state').trim(),
+        zip: g('b_zip').trim(),
+        country: (g('b_country').trim() || 'CA').toUpperCase(),
+      };
+    }
+    $$('#quote-form input[name="region"], #quote-form input[name="direction"]').forEach((r) =>
+      r.addEventListener('change', () => { syncSegs(); syncBillToBlock(); })
+    );
+    document.querySelector('#freight-charges').addEventListener('change', syncBillToBlock);
+    syncBillToBlock();
+
     $('#quote-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const f = new FormData(e.target);
@@ -348,14 +427,28 @@
         btn.textContent = 'Get rates';
         return;
       }
+      const billToNeeded = syncBillToBlock();
+      const bill_to = collectBillTo();
+      if (billToNeeded && !(bill_to.name && bill_to.city && bill_to.state)) {
+        showAlert('Third-party billing needs a company name, city, and province/state.');
+        btn.disabled = false;
+        btn.textContent = 'Get rates';
+        return;
+      }
       const params = {
+        region: currentRegion(),
+        direction: currentDirection(),
+        freight_charges: (document.querySelector('#freight-charges') || {}).value || 'prepaid',
+        bill_to: billToNeeded ? bill_to : {},
         origin: {
           street1: f.get('o_street').trim(), city: f.get('o_city').trim(),
-          state: f.get('o_state').trim(), zip: f.get('o_zip').trim(), country: 'CA',
+          state: f.get('o_state').trim(), zip: f.get('o_zip').trim(),
+          country: ((f.get('o_country') || '').trim() || 'CA').toUpperCase(),
         },
         destination: {
           street1: f.get('d_street').trim(), city: f.get('d_city').trim(),
-          state: f.get('d_state').trim(), zip: f.get('d_zip').trim(), country: 'CA',
+          state: f.get('d_state').trim(), zip: f.get('d_zip').trim(),
+          country: ((f.get('d_country') || '').trim() || 'CA').toUpperCase(),
         },
         shipper: {
           name: f.get('s_name').trim(), street1: f.get('o_street').trim(),
@@ -391,6 +484,12 @@
 
     function renderBoard(data) {
       const box = $('#quote-results');
+      if (data && data.worldwide_notice) {
+        currentQuote = null;
+        box.innerHTML = `<div class="card empty"><strong>Worldwide rates need a live carrier connection.</strong><br>
+          <span class="note">${esc(data.message || 'Add your EasyPost key in Render (EASYPOST_API_KEY) to rate worldwide shipments.')}</span></div>`;
+        return;
+      }
       const rates = (data && data.rates) || [];
       if (!rates.length) {
         const sugs = (data && data.suggestions) || [];
@@ -497,6 +596,10 @@
           references: { 'Ref #': $('#ref-num').value.trim(), 'PO #': $('#po-num').value.trim() },
           delivery_notes: $('#del-notes').value.trim(),
           user_id: lastQuoteParams.user_id,
+          region: lastQuoteParams.region,
+          direction: lastQuoteParams.direction,
+          freight_charges: lastQuoteParams.freight_charges,
+          bill_to: lastQuoteParams.bill_to,
         });
         const label = res.label_url
           ? ` <a href="${esc(res.label_url)}" target="_blank" rel="noopener">Print label</a>` : '';
@@ -559,11 +662,29 @@
       try {
         const { quote } = await api.getQuote(id);
         const set = (n, v) => { const el = document.querySelector(`#quote-form [name="${n}"]`); if (el && v != null) el.value = v; };
+        const setRadio = (n, v) => {
+          const el = document.querySelector(`#quote-form input[name="${n}"][value="${v}"]`);
+          if (el) el.checked = true;
+        };
+        setRadio('region', quote.region || 'canada_usa');
+        setRadio('direction', quote.direction || 'outbound');
+        syncSegs();
+        const fcSel = document.querySelector('#freight-charges');
+        if (fcSel && quote.freight_charges) fcSel.value = quote.freight_charges;
+        set('b_name', quote.bill_to && quote.bill_to.name);
+        set('b_street', quote.bill_to && quote.bill_to.street1);
+        set('b_city', quote.bill_to && quote.bill_to.city);
+        set('b_state', quote.bill_to && quote.bill_to.state);
+        set('b_zip', quote.bill_to && quote.bill_to.zip);
+        set('b_country', quote.bill_to && quote.bill_to.country);
+        syncBillToBlock();
         set('s_name', quote.shipper.name); set('o_street', quote.origin.street1);
         set('o_city', quote.origin.city); set('o_state', quote.origin.state); set('o_zip', quote.origin.zip);
+        set('o_country', quote.origin.country);
         set('o_phone', quote.shipper.phone); set('o_email', quote.shipper.email);
         set('c_name', quote.consignee.name); set('d_street', quote.destination.street1);
         set('d_city', quote.destination.city); set('d_state', quote.destination.state); set('d_zip', quote.destination.zip);
+        set('d_country', quote.destination.country);
         set('d_phone', quote.consignee.phone); set('d_email', quote.consignee.email);
         $('#pkg-rows').innerHTML = '';
         (quote.packages && quote.packages.length ? quote.packages : [{}]).forEach((p) => addPkgRow(p));

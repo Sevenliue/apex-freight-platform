@@ -9,7 +9,11 @@
 //     (legacy single `parcel` {weight, length, width, height} still works)
 //   accessorials[] — catalog codes from lib/accessorials.js
 //   shipper {}, consignee {} — carried through for Save/Complete
+//   region (canada_usa|worldwide), direction (outbound|inbound|third_party),
+//   freight_charges (prepaid|collect|third_party), bill_to {} — 3rd-party payer
 //   user_id (optional)
+// Worldwide skips the Canada-lane matrix and rates EasyPost-only; without an
+// EasyPost key it answers 200 with worldwide_notice instead of crashing.
 //
 // Pricing: total package weight prices off the rate matrix (engine untouched).
 // Accessorial fees (+ auto DG fee when any line is flagged DG) are added to
@@ -109,11 +113,33 @@ router.post('/', async (req, res) => {
     shipper = {},
     consignee = {},
     user_id = null,
+    region: rawRegion = 'canada_usa',
+    direction: rawDirection = 'outbound',
+    freight_charges: rawFreightCharges = 'prepaid',
+    bill_to = {},
   } = req.body || {};
 
-  if (!origin.city || !origin.state || !destination.city || !destination.state) {
+  // Shipment type + freight charges (parsed before validation: worldwide
+  // addresses need city+country, not necessarily a state/province).
+  const region = ['canada_usa', 'worldwide'].includes(rawRegion) ? rawRegion : 'canada_usa';
+  const direction = ['outbound', 'inbound', 'third_party'].includes(rawDirection) ? rawDirection : 'outbound';
+  const freight_charges = ['prepaid', 'collect', 'third_party'].includes(rawFreightCharges) ? rawFreightCharges : 'prepaid';
+
+  if (region === 'worldwide') {
+    if (!origin.city || !origin.country || !destination.city || !destination.country) {
+      return bad(res, 400, 'origin.city/country and destination.city/country are required for worldwide quotes');
+    }
+  } else if (!origin.city || !origin.state || !destination.city || !destination.state) {
     return bad(res, 400, 'origin.city/state and destination.city/state are required');
   }
+  const billTo = bill_to && typeof bill_to === 'object' ? {
+    name: String(bill_to.name || '').slice(0, 120),
+    street1: String(bill_to.street1 || bill_to.street || '').slice(0, 160),
+    city: String(bill_to.city || '').slice(0, 80),
+    state: String(bill_to.state || bill_to.province || '').slice(0, 40),
+    zip: String(bill_to.zip || bill_to.postal || '').slice(0, 20),
+    country: String(bill_to.country || 'CA').slice(0, 40),
+  } : {};
 
   let packages;
   try {
@@ -128,18 +154,47 @@ router.post('/', async (req, res) => {
 
   const shipment_id = id('q');
   const transit = acc.estimateTransit(origin.state, destination.state);
+  const worldwide = region === 'worldwide';
 
-  let matrixQuotes;
-  try {
-    matrixQuotes = matrix.quoteMatrix({
-      originCity: origin.city,
-      originProv: origin.state,
-      destCity: destination.city,
-      destProv: destination.state,
-      weightLbs: totalWeightLbs,
+  // Worldwide: the matrix is Canada lanes only, so rating is EasyPost-only.
+  if (worldwide && !easypost.isEnabled()) {
+    const quoteRec = {
+      shipment_id,
+      origin, destination, shipper, consignee,
+      packages, accessorials: accessorialCodes,
+      region, direction, freight_charges, bill_to: billTo,
+      parcel: { weight: totalWeightLbs },
+      total_weight_lbs: totalWeightLbs,
+      user_id,
+      rates: [],
+      easypost_shipment_id: null,
+      created_at: new Date().toISOString(),
+    };
+    store.quotes.set(shipment_id, quoteRec);
+    return res.json({
+      shipment_id,
+      rates: [],
+      total_weight_lbs: totalWeightLbs,
+      packages,
+      region, direction, freight_charges, bill_to: billTo,
+      worldwide_notice: true,
+      message: 'Worldwide rates need live carrier connection — add your EasyPost key in Render (EASYPOST_API_KEY).',
     });
-  } catch (err) {
-    return bad(res, 502, 'Rate matrix failed', err.message);
+  }
+
+  let matrixQuotes = [];
+  if (!worldwide) {
+    try {
+      matrixQuotes = matrix.quoteMatrix({
+        originCity: origin.city,
+        originProv: origin.state,
+        destCity: destination.city,
+        destProv: destination.state,
+        weightLbs: totalWeightLbs,
+      });
+    } catch (err) {
+      return bad(res, 502, 'Rate matrix failed', err.message);
+    }
   }
 
   // Price each matrix rate: freight + accessorials (+ DG) -> markup -> retail.
@@ -183,6 +238,10 @@ router.post('/', async (req, res) => {
     consignee,
     packages,
     accessorials: accessorialCodes,
+    region,
+    direction,
+    freight_charges,
+    bill_to: billTo,
     parcel: { weight: totalWeightLbs },
     total_weight_lbs: totalWeightLbs,
     user_id,
@@ -250,8 +309,9 @@ router.post('/', async (req, res) => {
         `INSERT INTO quotes (user_id, origin_street1, origin_city, origin_state, origin_zip, origin_country,
                              dest_street1, dest_city, dest_state, dest_zip, dest_country,
                              parcel_weight, parcel_length, parcel_width, parcel_height,
-                             shipper_json, consignee_json, packages_json, accessorials_json, rates_json)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+                             shipper_json, consignee_json, packages_json, accessorials_json, rates_json,
+                             region, direction, freight_charges, bill_to_json)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
          RETURNING id`,
         [
           userUuid,
@@ -261,6 +321,7 @@ router.post('/', async (req, res) => {
           packages[0].length, packages[0].width, packages[0].height,
           JSON.stringify(shipper || {}), JSON.stringify(consignee || {}),
           JSON.stringify(packages), JSON.stringify(accessorialCodes), JSON.stringify(rates),
+          region, direction, freight_charges, JSON.stringify(billTo),
         ]
       );
       db_quote_id = r.rows[0] && r.rows[0].id;
@@ -284,6 +345,10 @@ router.post('/', async (req, res) => {
     rates,
     total_weight_lbs: totalWeightLbs,
     packages,
+    region,
+    direction,
+    freight_charges,
+    bill_to: billTo,
     accessorials_applied: rates[0] ? rates[0].accessorials_applied || [] : [],
   };
   if (db_quote_id != null) body.db_quote_id = db_quote_id;
