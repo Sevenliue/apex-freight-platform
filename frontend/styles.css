@@ -67,7 +67,7 @@ body {
 .tab.active svg { color: var(--amber); opacity: 1; }
 /* Quick Quote CTA: top-left button under the brand + matching menu item */
 .tab.side-cta {
-  width: calc(100% - 24px); margin: 0 12px 12px; justify-content: center;
+  width: calc(66% - 16px); margin: 0 auto 12px; justify-content: center;
   background: var(--amber); border: 1px solid var(--amber-dark); color: var(--navy-dark);
   font-weight: 800; font-size: 16px; padding: 13px 12px; border-radius: 12px;
 }
