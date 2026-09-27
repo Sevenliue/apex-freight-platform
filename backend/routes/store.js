@@ -49,6 +49,7 @@ const SEED_PRODUCTS = [
       'New-Hire Training Tracker (Excel)',
       'ROI Calculator (Excel)',
       'Probation Review & PDP Toolkit (Excel)',
+      'Playbook Recurring Calendar (.ics)',
     ],
     sort_order: 2,
   },
@@ -114,6 +115,10 @@ async function ensureStoreTables() {
   await db.query(`UPDATE products SET price_cents = 2900 WHERE slug = 'playbook-ebook' AND price_cents = 4900`);
   await db.query(`UPDATE products SET price_cents = 4900 WHERE slug = 'playbook-bundle' AND price_cents = 9900`);
   await db.query(`UPDATE products SET price_cents = 7900 WHERE slug = 'playbook-team' AND price_cents = 19900`);
+  // 2026-09-27: advertise the recurring calendar in the bundle's includes
+  // (idempotent — skips rows that already list it, e.g. after an admin edit).
+  await db.query(`UPDATE products SET includes = includes || '["Playbook Recurring Calendar (.ics)"]'::jsonb
+                  WHERE slug = 'playbook-bundle' AND NOT (includes ? 'Playbook Recurring Calendar (.ics)')`);
 }
 ensureStoreTables().catch((e) => console.error('[store] table init failed:', e.message));
 
