@@ -68,6 +68,7 @@ router.get('/status', async (req, res) => {
     if (!state) return bad(res, 404, 'Account not found.');
     return res.json({
       tier: state.tier,
+      is_admin: !!state.isAdmin,
       status: state.status,
       billing_active: state.billingActive,
       quotes_used: state.quotesUsed,

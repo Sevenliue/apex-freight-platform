@@ -32,6 +32,7 @@ Copy `../.env.example` to `../.env` and fill in values to enable integrations.
 | `DATABASE_URL` | _(empty)_ | Postgres persistence + reports + admin |
 | `FRONTEND_ORIGIN` | _(empty)_ | public frontend URL (Stripe callbacks) |
 | `AUTH_TOKEN` | _(empty)_ | bearer-token auth stub (see below) |
+| `ADMIN_EMAILS` | _(empty)_ | owner/staff account emails: unlimited quotes, paywall bypass |
 
 `parcel.weight` on `/api/rates` is treated as **pounds (lbs)**; it is converted
 to ounces for EasyPost.

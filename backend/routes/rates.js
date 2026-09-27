@@ -400,7 +400,8 @@ router.post('/', async (req, res) => {
   if (warnings.length) body.warnings = warnings;
   if (suggestions.length) body.suggestions = suggestions;
   // Count the quote against the monthly quota only when rates were produced.
-  if (rates.length) {
+  // Admins (owner/staff bypass) are never counted.
+  if (rates.length && !(quotaState && quotaState.isAdmin)) {
     try {
       await billingLib.incrementQuota(req.user.id);
     } catch (err) {

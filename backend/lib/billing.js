@@ -4,16 +4,26 @@
 // A paid tier only counts while subscription_status is 'active' or
 // 'trialing'; any other status (past_due, canceled, ...) falls back to the
 // free tier. Quota usage resets on the first request of a new YYYY-MM period.
+//
+// Admins: account emails listed in the ADMIN_EMAILS env var get tier
+// 'admin' — unlimited quotes, no paywall — for the site owner and staff.
 'use strict';
 
+const config = require('../config');
 const db = require('../db');
 
 const TIERS = ['free', 'starter', 'pro'];
 
 // quotes_limit: null = unlimited.
-const QUOTA_LIMITS = { free: 5, starter: 50, pro: null };
+const QUOTA_LIMITS = { free: 5, starter: 50, pro: null, admin: null };
 
 const ACTIVE_STATUSES = new Set(['active', 'trialing']);
+
+// isAdminEmail(email): is this account on the owner/staff bypass list?
+function isAdminEmail(email) {
+  const e = String(email || '').trim().toLowerCase();
+  return !!e && config.adminEmails.includes(e);
+}
 
 function currentPeriod() {
   const d = new Date();
@@ -32,6 +42,7 @@ function effectiveTier(row) {
 }
 
 function quotesLimit(tier) {
+  if (tier === 'admin') return null; // owner/staff bypass: unlimited
   return QUOTA_LIMITS[normalizeTier(tier)];
 }
 
@@ -41,13 +52,27 @@ function quotesLimit(tier) {
 async function getBillingState(userId) {
   if (!db.isEnabled()) return null;
   const r = await db.query(
-    `SELECT id, subscription_tier, subscription_status, current_period_end,
+    `SELECT id, email, subscription_tier, subscription_status, current_period_end,
             quotes_used, quota_period, stripe_customer_id
        FROM users WHERE id = $1 LIMIT 1`,
     [userId]
   );
   if (!r.rows.length) return null;
   const row = r.rows[0];
+  // Owner/staff bypass: unlimited quotes, no subscription needed.
+  if (isAdminEmail(row.email)) {
+    return {
+      userId: row.id,
+      tier: 'admin',
+      isAdmin: true,
+      status: row.subscription_status,
+      billingActive: true,
+      quotesUsed: Number(row.quotes_used) || 0,
+      quotesLimit: null,
+      periodEnd: row.current_period_end || null,
+      stripeCustomerId: row.stripe_customer_id || null,
+    };
+  }
   const period = currentPeriod();
   let quotesUsed = Number(row.quotes_used) || 0;
   let quotaPeriod = row.quota_period || null;
@@ -65,6 +90,7 @@ async function getBillingState(userId) {
   return {
     userId: row.id,
     tier,
+    isAdmin: false,
     status: row.subscription_status,
     billingActive: ACTIVE_STATUSES.has(row.subscription_status),
     quotesUsed,
@@ -128,6 +154,7 @@ module.exports = {
   currentPeriod,
   effectiveTier,
   quotesLimit,
+  isAdminEmail,
   getBillingState,
   checkQuota,
   incrementQuota,

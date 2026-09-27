@@ -39,4 +39,11 @@ module.exports = {
 
   // Optional auth stub. Unset = auth disabled (see middleware/auth.js).
   authToken: process.env.AUTH_TOKEN || '',
+
+  // Admin bypass: comma-separated account emails (site owner + staff) that
+  // get unlimited quotes and skip the paywall. Empty = no admins.
+  adminEmails: (process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean),
 };
