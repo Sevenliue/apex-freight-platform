@@ -1006,12 +1006,12 @@
       btn.addEventListener('click', () => activateTab(btn));
     });
 
-    /* Marketing homepage preview: ?preview-home reveals the Home tab and
-       lands on it. Until approved, regular visitors never see it. */
-    const HOME_PREVIEW = new URLSearchParams(location.search).has('preview-home');
-    if (HOME_PREVIEW) {
-      const hb = $('#nav-home');
-      if (hb) { hb.style.display = ''; activateTab(hb); }
+    /* Marketing homepage: the Home tab is always visible. Signed-out
+       visitors land on it; signed-in users land on the dashboard as before. */
+    const hb = $('#nav-home');
+    if (hb) {
+      hb.style.display = '';
+      if (!api.getAuthToken()) activateTab(hb);
     }
     const landHowBtn = $('#land-how-btn');
     if (landHowBtn) landHowBtn.addEventListener('click', () => {
@@ -3437,6 +3437,8 @@
           api.setAuthToken(null); // stale token — drop it quietly
           renderAccount();
           gateQuoteForm();
+          const hb2 = document.getElementById('nav-home'); // signed out now — land on Home
+          if (hb2 && hb2.style.display !== 'none') activateTab(hb2);
         }
       }
     }
@@ -3926,17 +3928,13 @@
     }
     function applyQuoteOnlyMode() {
       // Reset any previous quote-only hiding first (auth changes).
-      // nav-home is preview-gated separately — leave it alone here.
+      // nav-home stays visible in every mode — leave it alone here.
       document.body.classList.remove('quote-only');
       document.querySelectorAll('.side-nav button.tab, .side-nav .nav-group').forEach((el) => {
         if (el.id === 'nav-admin' || el.id === 'nav-home') return;
         el.style.display = '';
       });
       document.querySelectorAll('.dash-card').forEach((c) => { c.style.display = ''; });
-      if (typeof HOME_PREVIEW !== 'undefined' && !HOME_PREVIEW) {
-        const hb = $('#nav-home');
-        if (hb) hb.style.display = 'none';
-      }
       if (SITE_MODE !== 'quote-only' || qoIsAdmin()) return;
       document.body.classList.add('quote-only');
       const labelOf = (btn) => (btn.textContent || '').trim().replace(/\s+/g, ' ');
