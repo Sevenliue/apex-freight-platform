@@ -4510,13 +4510,16 @@
       if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
-    /* Brand (sidebar + topbar) doubles as the home button: the dashboard
-       is the app's home page. */
+    /* Brand (sidebar + topbar) doubles as the home button. When the
+       marketing homepage is available (preview or live), the brand goes
+       there; otherwise it goes to the dashboard as before. */
     $$('.brand').forEach((b) => {
       b.setAttribute('role', 'button');
       b.setAttribute('tabindex', '0');
       b.setAttribute('title', 'Home');
       const goHome = () => {
+        const hb = document.getElementById('nav-home');
+        if (hb && hb.style.display !== 'none') { activateTab(hb); return; }
         // Click the real Dashboard tab button — not just the first
         // [data-tab="dashboard"] (the Quick Quote shortcuts share that value).
         const dash = document.getElementById('dashboard-tab-btn');
