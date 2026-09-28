@@ -20,6 +20,10 @@
         <span>Quick Quote</span>
       </button>
             <nav class="side-nav" role="tablist" aria-label="Sections">
+        <button class="tab" data-tab="home" id="nav-home" role="tab" aria-selected="false" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span>Home</span>
+        </button>
         <button class="tab nav-qq" data-tab="dashboard" data-scroll="quote-form" role="tab" aria-selected="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           <span>Quick Quote</span>
@@ -153,6 +157,60 @@
 
       <main class="wrap">
         <div id="alert" class="alert hidden" role="alert"></div>
+
+    <!-- HOME (marketing homepage — preview-gated until approved) -->
+    <section id="tab-home" class="panel" role="tabpanel">
+      <div class="landing">
+        <div class="land-hero">
+          <div class="land-badge">🍁 Canadian freight, simplified</div>
+          <h1>Instant LTL freight quotes,<br>Canada-wide.</h1>
+          <p class="land-sub">Apex Freight compares live carrier rates in seconds — built on real carrier rate sheets, priced in Canadian dollars, tuned lane by lane.</p>
+          <div class="land-ctas">
+            <button type="button" class="tab btn primary land-cta" data-tab="dashboard" data-scroll="quote-form">Get an instant quote</button>
+            <button type="button" class="btn land-ghost" id="land-how-btn">See how it works</button>
+          </div>
+          <div class="land-stats">
+            <div><strong>5,500+</strong><span>carrier lanes priced</span></div>
+            <div><strong>3</strong><span>Canadian carriers live</span></div>
+            <div><strong>CAD</strong><span>every quote in Canadian dollars</span></div>
+          </div>
+        </div>
+
+        <div class="land-section" id="land-how">
+          <h2>How it works</h2>
+          <div class="land-steps">
+            <div class="land-step"><div class="land-num">1</div><h3>Enter your shipment</h3><p>Origin, destination, weight and pieces — done in under a minute.</p></div>
+            <div class="land-step"><div class="land-num">2</div><h3>Compare carrier rates</h3><p>Live rates from Canadian carriers, cheapest first, fuel surcharges included.</p></div>
+            <div class="land-step"><div class="land-num">3</div><h3>Save, track, repeat</h3><p>Save quotes, keep your address book, and track shipments in one place.</p></div>
+          </div>
+        </div>
+
+        <div class="land-section land-alt">
+          <h2>Built for Canadian shippers</h2>
+          <div class="land-grid">
+            <div class="land-card"><h3>⚡ Instant rate board</h3><p>Carrier results in seconds — cheapest first, fuel surcharges baked in.</p></div>
+            <div class="land-card"><h3>📦 LTL + Full Load</h3><p>Palletized freight and full trailer loads on one quote form.</p></div>
+            <div class="land-card"><h3>📇 Address book</h3><p>Save shippers and consignees, then fill them in with one tap.</p></div>
+            <div class="land-card"><h3>💾 Saved quotes</h3><p>Keep every quote, reload it and re-price any time.</p></div>
+            <div class="land-card"><h3>📍 Shipment tracking</h3><p>Follow your freight from pickup to delivery.</p></div>
+            <div class="land-card"><h3>🍁 Priced for Canada</h3><p>Canadian carriers, Canadian dollars, Canada-wide lanes.</p></div>
+          </div>
+        </div>
+
+        <div class="land-section land-beta">
+          <h2>Fine-tuning, lane by lane</h2>
+          <p>We're working with real shippers right now to dial in every lane against real invoices. Join free, run your lanes, and help us build the most accurate freight quotes in Canada.</p>
+        </div>
+
+        <div class="land-cta-band">
+          <h2>Ready to compare rates?</h2>
+          <p>Free account. First quote in under a minute.</p>
+          <button type="button" class="tab btn primary land-cta" data-tab="dashboard" data-scroll="quote-form">Get an instant quote</button>
+        </div>
+
+        <footer class="land-foot">© 2026 Apex Freight &amp; Shipping Canada · Edmonton, Alberta</footer>
+      </div>
+    </section>
 
     <!-- DASHBOARD -->
     <section id="tab-dashboard" class="panel active" role="tabpanel">
@@ -946,6 +1004,19 @@
     }
     $$('.tab[data-tab]').forEach((btn) => {
       btn.addEventListener('click', () => activateTab(btn));
+    });
+
+    /* Marketing homepage preview: ?preview-home reveals the Home tab and
+       lands on it. Until approved, regular visitors never see it. */
+    const HOME_PREVIEW = new URLSearchParams(location.search).has('preview-home');
+    if (HOME_PREVIEW) {
+      const hb = $('#nav-home');
+      if (hb) { hb.style.display = ''; activateTab(hb); }
+    }
+    const landHowBtn = $('#land-how-btn');
+    if (landHowBtn) landHowBtn.addEventListener('click', () => {
+      const t = $('#land-how');
+      if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 
     /* ---------- sidebar dropdown groups ---------- */
@@ -3846,7 +3917,7 @@
        address book, saved quotes, tracking). Admins keep the full site so
        work continues behind the scenes. Idempotent. */
     const QO_KEEP_LABELS = new Set([
-      'Dashboard', 'Quick Quote', 'Full Load',
+      'Dashboard', 'Quick Quote', 'Full Load', 'Home',
       'Tracking', 'Tracking Shipment', 'Tracking Dashboard',
       'Resources', 'Address Book', 'Saved Quotes',
     ]);
@@ -3855,11 +3926,17 @@
     }
     function applyQuoteOnlyMode() {
       // Reset any previous quote-only hiding first (auth changes).
+      // nav-home is preview-gated separately — leave it alone here.
       document.body.classList.remove('quote-only');
       document.querySelectorAll('.side-nav button.tab, .side-nav .nav-group').forEach((el) => {
-        if (el.id !== 'nav-admin') el.style.display = '';
+        if (el.id === 'nav-admin' || el.id === 'nav-home') return;
+        el.style.display = '';
       });
       document.querySelectorAll('.dash-card').forEach((c) => { c.style.display = ''; });
+      if (typeof HOME_PREVIEW !== 'undefined' && !HOME_PREVIEW) {
+        const hb = $('#nav-home');
+        if (hb) hb.style.display = 'none';
+      }
       if (SITE_MODE !== 'quote-only' || qoIsAdmin()) return;
       document.body.classList.add('quote-only');
       const labelOf = (btn) => (btn.textContent || '').trim().replace(/\s+/g, ' ');
