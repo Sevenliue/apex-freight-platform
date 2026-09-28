@@ -48,4 +48,10 @@ module.exports = {
     .split(',')
     .map(e => e.trim().toLowerCase())
     .filter(Boolean),
+
+  // Phase-one site mode. 'quote-only' (default) = the public site runs the
+  // freight quote only; shipment creation is disabled for non-admins and the
+  // frontend hides everything beyond quoting. Set SITE_MODE=full in the
+  // environment to restore the complete site. Admins always see everything.
+  siteMode: (process.env.SITE_MODE || 'quote-only').toLowerCase() === 'full' ? 'full' : 'quote-only',
 };

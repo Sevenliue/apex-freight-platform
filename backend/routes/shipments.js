@@ -378,6 +378,15 @@ router.post('/checkout', async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Sign in to schedule a shipment.' });
   }
+  // Phase-one site mode: shipment creation is disabled for everyone except
+  // admins while the site runs as a quote-only tool.
+  if (config.siteMode === 'quote-only') {
+    let isAdmin = false;
+    try { isAdmin = !!((await billing.getBillingState(req.user.id) || {}).isAdmin); } catch { /* ignore */ }
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'Creating shipments is currently disabled while we fine-tune our quotes.' });
+    }
+  }
   if (!db.isEnabled()) {
     return res.status(501).json({ error: 'Shipment payment requires a database. Set DATABASE_URL.' });
   }

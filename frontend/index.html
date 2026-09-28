@@ -3379,6 +3379,15 @@
     let billingState = null; // GET /api/billing/status — null when logged out
     let billingCycle = 'monthly';
 
+    // Phase-one site mode from GET /api/site-config ('quote-only' default).
+    // In quote-only mode the public site runs the freight quote only for
+    // non-admin accounts; admins always see the full site.
+    let SITE_MODE = 'quote-only';
+    fetch('/api/site-config')
+      .then((r) => r.json())
+      .then((c) => { if (c && c.siteMode) SITE_MODE = c.siteMode; applyQuoteOnlyMode(); })
+      .catch(() => applyQuoteOnlyMode());
+
     const PLANS = [
       {
         tier: 'free', name: 'Free', monthly: 0, annual: 0,
@@ -3417,6 +3426,7 @@
       gateQuoteForm();
       loadCustomLists();
       syncAdminNav();
+      applyQuoteOnlyMode();
     }
 
     function quotaLabel() {
@@ -3830,6 +3840,58 @@
         showTab('dashboard');
       }
     }
+
+    /* Phase-one quote-only mode: for non-admin accounts, hide every sidebar
+       item and dashboard card that goes beyond the freight quote (quote form,
+       address book, saved quotes, tracking). Admins keep the full site so
+       work continues behind the scenes. Idempotent. */
+    const QO_KEEP_LABELS = new Set([
+      'Dashboard', 'Quick Quote', 'Full Load',
+      'Tracking', 'Tracking Shipment', 'Tracking Dashboard',
+      'Resources', 'Address Book', 'Saved Quotes',
+    ]);
+    function qoIsAdmin() {
+      return !!(billingState && billingState.is_admin);
+    }
+    function applyQuoteOnlyMode() {
+      // Reset any previous quote-only hiding first (auth changes).
+      document.body.classList.remove('quote-only');
+      document.querySelectorAll('.side-nav button.tab, .side-nav .nav-group').forEach((el) => {
+        if (el.id !== 'nav-admin') el.style.display = '';
+      });
+      document.querySelectorAll('.dash-card').forEach((c) => { c.style.display = ''; });
+      if (SITE_MODE !== 'quote-only' || qoIsAdmin()) return;
+      document.body.classList.add('quote-only');
+      const labelOf = (btn) => (btn.textContent || '').trim().replace(/\s+/g, ' ');
+      document.querySelectorAll('.side-nav button.tab.sub').forEach((btn) => {
+        if (!QO_KEEP_LABELS.has(labelOf(btn))) btn.style.display = 'none';
+      });
+      document.querySelectorAll('.side-nav > button.tab:not(.group-toggle)').forEach((btn) => {
+        if (btn.id === 'nav-admin') return;
+        if (!QO_KEEP_LABELS.has(labelOf(btn))) btn.style.display = 'none';
+      });
+      // Hide nav groups left with no visible sub-tabs.
+      document.querySelectorAll('.side-nav .nav-group').forEach((g) => {
+        const vis = [...g.querySelectorAll('.nav-sub button.tab')].filter((b) => b.style.display !== 'none');
+        if (!vis.length) g.style.display = 'none';
+      });
+      // Hide the Schedule Pickup + Billing Center dashboard cards.
+      document.querySelectorAll('.dash-card[data-dash-goto="pickups"], .dash-card[data-dash-goto="pricing"]').forEach((c) => {
+        c.style.display = 'none';
+      });
+    }
+
+    /* Phase one: the Create This Shipment button stays visible, but for
+       non-admins in quote-only mode it explains the function is disabled
+       instead of opening the shipment modal. Capture phase runs before the
+       modal opener; the server also rejects the request. */
+    document.querySelector('#complete-shipment-btn').addEventListener('click', (e) => {
+      if (SITE_MODE === 'quote-only' && !qoIsAdmin()) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        showAlert('Creating shipments is currently disabled while we fine-tune our quotes. You can still get quotes, save them, use your address book, and track shipments.');
+      }
+    }, true);
 
     /* Mobile drawer. */
     function closeSidebar() {

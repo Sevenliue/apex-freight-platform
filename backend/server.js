@@ -66,6 +66,12 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'online', timestamp: new Date().toISOString() });
 });
 
+// Public site configuration the frontend needs before rendering
+// (no auth required; contains no secrets).
+app.get('/api/site-config', (req, res) => {
+  res.json({ siteMode: config.siteMode });
+});
+
 app.use('/api/rates', require('./routes/rates'));
 app.use('/api/billing', require('./routes/billing'));
 app.use('/api/quotes', require('./routes/quotes'));
