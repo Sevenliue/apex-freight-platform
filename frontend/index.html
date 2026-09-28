@@ -3881,16 +3881,41 @@
       });
     }
 
-    /* Phase one: the Create This Shipment button stays visible, but for
-       non-admins in quote-only mode it explains the function is disabled
-       instead of opening the shipment modal. Capture phase runs before the
-       modal opener; the server also rejects the request. */
-    document.querySelector('#complete-shipment-btn').addEventListener('click', (e) => {
-      if (SITE_MODE === 'quote-only' && !qoIsAdmin()) {
-        e.stopImmediatePropagation();
-        e.preventDefault();
-        showAlert('Creating shipments is currently disabled while we fine-tune our quotes. You can still get quotes, save them, use your address book, and track shipments.');
-      }
+    /* Phase one: every Create Shipment button stays visible, but for
+       non-admins in quote-only mode it shows a "currently disabled" tooltip
+       right where the user clicked, instead of doing anything. One delegated
+       capture listener covers the quote-page button and both My Orders
+       buttons (the empty-orders one is rendered dynamically). The server
+       also rejects the request. */
+    function showQoTooltip(x, y, msg) {
+      document.querySelectorAll('.qo-tip').forEach((t) => t.remove());
+      const tip = document.createElement('div');
+      tip.className = 'qo-tip';
+      tip.textContent = msg;
+      document.body.appendChild(tip);
+      const pad = 12;
+      const r = tip.getBoundingClientRect();
+      let left = (x == null ? window.innerWidth / 2 : x) + 14;
+      let top = (y == null ? 140 : y) + 16;
+      if (left + r.width > window.innerWidth - pad) left = x - r.width - 14;
+      if (top + r.height > window.innerHeight - pad) top = y - r.height - 14;
+      tip.style.left = Math.max(pad, left) + 'px';
+      tip.style.top = Math.max(pad, top) + 'px';
+      setTimeout(() => {
+        tip.classList.add('qo-tip-out');
+        setTimeout(() => tip.remove(), 320);
+      }, 4000);
+    }
+    document.addEventListener('click', (e) => {
+      if (SITE_MODE !== 'quote-only' || qoIsAdmin()) return;
+      const t = e.target && e.target.closest
+        ? e.target.closest('#complete-shipment-btn, #dash-create, #dash-empty-create')
+        : null;
+      if (!t) return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+      showQoTooltip(e.clientX, e.clientY,
+        'Creating shipments is currently disabled while we fine-tune our quotes. You can still get quotes, save them, use your address book, and track shipments.');
     }, true);
 
     /* Mobile drawer. */

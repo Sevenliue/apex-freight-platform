@@ -745,3 +745,13 @@ dl.kv dd { margin: 0; font-weight: 600; }
 #complete-modal .modal-card .chk { font-weight: 500; }
 #complete-modal .modal-card h3 { margin-top: 0; }
 .badge.primary { background: #e6f2ec; color: #0f4c2d; border: 1px solid #a8d4bc; }
+
+/* Phase-one quote-only: "currently disabled" tooltip shown at the click point. */
+.qo-tip {
+  position: fixed; z-index: 9999; max-width: 290px;
+  background: #1e3a5f; color: #fff;
+  padding: 10px 14px; border-radius: 8px; font-size: 14px; line-height: 1.45;
+  box-shadow: 0 6px 20px rgba(0,0,0,.35);
+  pointer-events: none; transition: opacity .3s ease;
+}
+.qo-tip.qo-tip-out { opacity: 0; }
