@@ -771,7 +771,7 @@ dl.kv dd { margin: 0; font-weight: 600; }
   color: var(--accent); border: 1px solid rgba(224,177,62,.5); border-radius: 999px;
   padding: 6px 14px; margin-bottom: 20px;
 }
-.land-hero h1 { font-size: 44px; line-height: 1.15; margin: 0 0 16px; letter-spacing: -0.01em; }
+.land-hero h1 { font-size: 44px; line-height: 1.15; margin: 0 0 16px; letter-spacing: -0.01em; color: #fff; }
 .land-sub { font-size: 18px; max-width: 620px; margin: 0 0 28px; color: rgba(255,255,255,.88); }
 .land-ctas { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 40px; }
 .land-cta { font-size: 17px; padding: 14px 30px; }
