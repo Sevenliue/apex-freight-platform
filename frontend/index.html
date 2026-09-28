@@ -2156,7 +2156,9 @@
           b.addEventListener('click', () => reloadQuote(b.dataset.reload, b))
         );
       } catch (err) {
-        box.innerHTML = '<p class="note">Could not load saved quotes.</p>';
+        box.innerHTML = currentUser
+          ? '<p class="note">Could not load saved quotes.</p>'
+          : '<p class="note">Sign up free to save quotes here.</p>';
       }
     }
 
