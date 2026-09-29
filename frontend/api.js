@@ -426,6 +426,17 @@ export function listQuoteLog(limit) {
   return get(`/api/admin/quotes?limit=${encodeURIComponent(limit || 50)}`);
 }
 
+/* Admin — per-carrier fuel surcharge overrides. */
+export function getFsc() {
+  return get('/api/admin/fsc');
+}
+export function setFsc(carrierId, fscLtlPercent, fscTlPercent) {
+  return request('PUT', `/api/admin/fsc/${encodeURIComponent(carrierId)}`, {
+    fsc_ltl_percent: fscLtlPercent,
+    fsc_tl_percent: fscTlPercent,
+  });
+}
+
 /* Address book */
 export function listAddresses() {
   return get('/api/address-book');

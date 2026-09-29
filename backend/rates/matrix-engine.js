@@ -27,6 +27,33 @@ const laneKey = (carrierId, city, prov, dCity, dProv) =>
 
 let _state = null; // { data, laneIndex: Map<key, laneArrayIndex>, carriersById: Map }
 
+// Admin-set fuel-surcharge overrides (from the carrier_fsc DB table), applied
+// on top of the rate-sheet values in matrix-data.json. Keyed by carrier_id:
+// { ltl: number, tl: number|null, updated_at: string|null }. Loaded at server
+// startup and refreshed periodically + on every admin write, so the sync
+// quoteMatrix() path stays fast.
+const _fscOverrides = new Map();
+
+function setFscOverride(carrierId, ov) {
+  if (!carrierId) return;
+  if (!ov) { _fscOverrides.delete(carrierId); return; }
+  _fscOverrides.set(carrierId, {
+    ltl: Number(ov.ltl),
+    tl: ov.tl == null ? null : Number(ov.tl),
+    updated_at: ov.updated_at || null,
+  });
+}
+
+function clearFscOverride(carrierId) {
+  if (carrierId) _fscOverrides.delete(carrierId);
+}
+
+function getFscOverrides() {
+  const out = {};
+  for (const [k, v] of _fscOverrides) out[k] = { ...v };
+  return out;
+}
+
 function ensureLoaded() {
   if (_state) return _state;
   const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
@@ -48,8 +75,14 @@ function loadMatrix() {
 }
 
 // Resolve the fuel-surcharge percent for a carrier at a given weight.
+// Admin overrides (carrier_fsc table) win over the rate-sheet values.
 function fscFor(carrier, weightLbs) {
   if (!carrier) return 0;
+  const ov = _fscOverrides.get(carrier.carrier_id);
+  if (ov && Number.isFinite(ov.ltl)) {
+    if (weightLbs >= ROSENAU_TL_MIN_LB && ov.tl != null && Number.isFinite(ov.tl)) return ov.tl;
+    return ov.ltl;
+  }
   if (carrier.carrier_id === 'rosenau' && weightLbs >= ROSENAU_TL_MIN_LB) return ROSENAU_TL_FSC;
   return Number(carrier.fsc_percent) || 0;
 }
@@ -169,12 +202,18 @@ function listCarriers() {
   }
   const out = [];
   for (const c of st.data.carriers) {
+    const ov = _fscOverrides.get(c.carrier_id);
     out.push({
       carrier_id: c.carrier_id,
       carrier_label: c.carrier_label,
       lane_count: counts.get(c.carrier_id) || 0,
-      fsc_percent: c.fsc_percent,
-      fsc_as_of: c.fsc_as_of,
+      // Effective (live) FSC percents: admin override wins over rate sheet.
+      fsc_ltl_percent: ov && Number.isFinite(ov.ltl) ? ov.ltl : (Number(c.fsc_percent) || 0),
+      fsc_tl_percent: ov && ov.tl != null && Number.isFinite(ov.tl) ? ov.tl
+        : (c.carrier_id === 'rosenau' ? ROSENAU_TL_FSC : null),
+      fsc_overridden: !!(ov && Number.isFinite(ov.ltl)),
+      fsc_percent: c.fsc_percent, // rate-sheet value, for reference
+      fsc_as_of: (ov && ov.updated_at) || c.fsc_as_of,
     });
     counts.delete(c.carrier_id);
   }
@@ -231,4 +270,4 @@ function upsertCarrierRows(carrierId, rows) {
   return count;
 }
 
-module.exports = { loadMatrix, quoteMatrix, listCarriers, getAccessorials, upsertCarrierRows, suggestCity };
+module.exports = { loadMatrix, quoteMatrix, listCarriers, getAccessorials, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides };

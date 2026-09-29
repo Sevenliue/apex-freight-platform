@@ -9,6 +9,7 @@ const db = require('../db');
 const config = require('../config');
 const { round2 } = require('../lib/money');
 const { sanitizeMarkup } = require('../lib/markup');
+const matrix = require('../lib/matrix');
 
 const router = express.Router();
 
@@ -292,5 +293,73 @@ router.get('/quotes', async (req, res) => {
     return res.json({ quotes });
   } catch (err) {
     return res.status(502).json({ error: 'Could not load quote log: ' + err.message });
+  }
+});
+
+// GET /api/admin/fsc — carriers with their effective fuel-surcharge percents
+// (admin override wins over the rate-sheet value).
+router.get('/fsc', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const carriers = matrix.listCarriers().map((c) => ({
+      carrier_id: c.carrier_id,
+      carrier_label: c.carrier_label,
+      lane_count: c.lane_count,
+      rate_sheet_ltl: c.fsc_percent == null ? null : Number(c.fsc_percent),
+      fsc_ltl_percent: c.fsc_ltl_percent,
+      fsc_tl_percent: c.fsc_tl_percent,
+      fsc_overridden: !!c.fsc_overridden,
+      fsc_as_of: c.fsc_as_of,
+    }));
+    return res.json({ carriers });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not load fuel surcharges: ' + err.message });
+  }
+});
+
+// PUT /api/admin/fsc/:carrier_id — set the fuel-surcharge override for a
+// carrier. Body {fsc_ltl_percent, fsc_tl_percent}: numbers 0–500; blank/null
+// fsc_tl_percent means no TL tier. Blank fsc_ltl_percent resets the carrier
+// to its rate-sheet value.
+router.put('/fsc/:carrier_id', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  const carrierId = String(req.params.carrier_id || '').trim();
+  const known = matrix.listCarriers().some((c) => c.carrier_id === carrierId);
+  if (!known) return res.status(404).json({ error: 'Unknown carrier.' });
+  const body = req.body || {};
+  const clean = (v) => {
+    if (v === '' || v == null) return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 && n <= 500 ? Math.round(n * 100) / 100 : undefined;
+  };
+  const ltl = clean(body.fsc_ltl_percent);
+  const tl = clean(body.fsc_tl_percent);
+  if (ltl === undefined || tl === undefined) {
+    return res.status(400).json({ error: 'Fuel surcharge must be a number between 0 and 500 (percent).' });
+  }
+  try {
+    if (ltl == null) {
+      await db.query('DELETE FROM carrier_fsc WHERE carrier_id = $1', [carrierId]);
+      if (typeof matrix.clearFscOverride === 'function') matrix.clearFscOverride(carrierId);
+      return res.json({ carrier_id: carrierId, reset: true });
+    }
+    const email = (req.user && req.user.email) || null;
+    await db.query(
+      `INSERT INTO carrier_fsc (carrier_id, fsc_ltl_percent, fsc_tl_percent, updated_at, updated_by)
+       VALUES ($1, $2, $3, now(), $4)
+       ON CONFLICT (carrier_id) DO UPDATE SET
+         fsc_ltl_percent = EXCLUDED.fsc_ltl_percent,
+         fsc_tl_percent = EXCLUDED.fsc_tl_percent,
+         updated_at = now(), updated_by = EXCLUDED.updated_by`,
+      [carrierId, ltl, tl, email]
+    );
+    if (typeof matrix.setFscOverride === 'function') {
+      matrix.setFscOverride(carrierId, { ltl, tl, updated_at: new Date().toISOString() });
+    }
+    return res.json({ carrier_id: carrierId, fsc_ltl_percent: ltl, fsc_tl_percent: tl });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not save fuel surcharge: ' + err.message });
   }
 });

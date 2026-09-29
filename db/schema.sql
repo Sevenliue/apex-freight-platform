@@ -361,6 +361,19 @@ CREATE TABLE IF NOT EXISTS carriers (
   created_at        timestamptz     NOT NULL DEFAULT now()
 );
 
+-- Admin-set fuel-surcharge overrides per rate-matrix carrier. When a row
+-- exists, its percents win over the rate-sheet values baked into
+-- backend/rates/matrix-data.json. fsc_tl_percent applies at 10,000+ lb
+-- (Rosenau's TL tier); NULL means no TL tier. Deleting the row restores the
+-- rate-sheet value.
+CREATE TABLE IF NOT EXISTS carrier_fsc (
+  carrier_id      varchar(80)     PRIMARY KEY,
+  fsc_ltl_percent numeric         NOT NULL,
+  fsc_tl_percent  numeric,
+  updated_at      timestamptz     NOT NULL DEFAULT now(),
+  updated_by      varchar(160)
+);
+
 -- Seed the carriers the rate matrix already quotes (names must match the
 -- carrier_label strings in backend/rates/build-matrix.js).
 INSERT INTO carriers (name) VALUES

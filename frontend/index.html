@@ -972,6 +972,7 @@
       <div id="pickup-queue" style="margin-top:16px"></div>
       <div id="store-admin" style="margin-top:16px"></div>
       <div id="quote-log" style="margin-top:16px"></div>
+      <div id="fsc-admin" style="margin-top:16px"></div>
     </section>
       </main>
     </div><!-- /.content -->
@@ -2860,6 +2861,7 @@
       loadAccountQueue();
       loadStoreAdmin();
       loadQuoteLog();
+      loadFscAdmin();
     }
 
     /* Pickup requests: customer-booked carrier pickups awaiting admin confirmation. */
@@ -4810,6 +4812,75 @@
             return rateRows || `<tr><td>${esc(when)}</td><td>${who}</td><td><strong>${lane}</strong></td><td class="num">${wt}</td><td colspan="7" class="note">No rates returned for this quote.</td></tr>`;
           }).join('') +
           '</tbody></table></div>';
+      } catch (err) {
+        // Not an admin (or DB off): hide the section silently.
+        box.innerHTML = '';
+      }
+    }
+
+    /* Fuel surcharges: per-carrier admin overrides. When a carrier changes
+       its fuel surcharge, update it here — quotes use the new value
+       immediately. Clearing the LTL value restores the rate-sheet value. */
+    async function loadFscAdmin() {
+      const box = $('#fsc-admin');
+      if (!box) return;
+      box.innerHTML = '<div class="card empty">Loading fuel surcharges…</div>';
+      const pct = (n) => (n == null || !Number.isFinite(Number(n)) ? '—' : Number(n).toFixed(2) + '%');
+      try {
+        const { carriers } = await api.getFsc();
+        if (!carriers.length) {
+          box.innerHTML = '<h2>Fuel surcharges</h2><div class="card empty">No rate-matrix carriers found.</div>';
+          return;
+        }
+        box.innerHTML =
+          '<h2>Fuel surcharges</h2><p class="lede">Update a carrier\'s fuel surcharge here when it changes — new quotes use the value immediately. TL applies at 10,000+ lb (Rosenau\'s full-load tier). Leave TL blank when a carrier has no TL tier. Clearing LTL restores the rate-sheet value.</p>' +
+          '<div class="table-wrap"><table class="data"><thead><tr>' +
+          '<th>Carrier</th><th class="num">Rate sheet</th><th class="num">Current LTL</th><th class="num">Current TL</th>' +
+          '<th>Last updated</th><th></th><th></th>' +
+          '</tr></thead><tbody>' +
+          carriers.map((c) => {
+            const asOf = c.fsc_as_of ? new Date(c.fsc_as_of).toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' }) : '—';
+            return `<tr data-fsc-row="${esc(c.carrier_id)}" data-cur-ltl="${c.fsc_ltl_percent == null ? '' : esc(String(c.fsc_ltl_percent))}">
+              <td><strong>${esc(c.carrier_label)}</strong>${c.fsc_overridden ? ' <span class="badge">custom</span>' : ''}<br><span class="note">${esc(String(c.lane_count || 0))} lanes</span></td>
+              <td class="num">${pct(c.rate_sheet_ltl)}</td>
+              <td class="num"><input type="number" min="0" max="500" step="0.01" data-f="ltl" value="${c.fsc_ltl_percent == null ? '' : esc(String(c.fsc_ltl_percent))}" placeholder="${c.rate_sheet_ltl == null ? '' : Number(c.rate_sheet_ltl).toFixed(2)}" style="width:90px"> %</td>
+              <td class="num"><input type="number" min="0" max="500" step="0.01" data-f="tl" value="${c.fsc_tl_percent == null ? '' : esc(String(c.fsc_tl_percent))}" placeholder="—" style="width:90px"> %</td>
+              <td>${esc(asOf)}</td>
+              <td><button type="button" class="btn primary small" data-fsc-save="${esc(c.carrier_id)}">Save</button></td>
+              <td>${c.fsc_overridden ? `<button type="button" class="btn small" data-fsc-reset="${esc(c.carrier_id)}">Reset</button>` : ''}</td>
+            </tr>`;
+          }).join('') + '</tbody></table></div>';
+        const reload = () => loadFscAdmin();
+        box.querySelectorAll('[data-fsc-save]').forEach((btn) =>
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-fsc-save');
+            const row = box.querySelector(`[data-fsc-row="${CSS.escape(id)}"]`);
+            const ltlRaw = row.querySelector('[data-f="ltl"]').value.trim();
+            const tlRaw = row.querySelector('[data-f="tl"]').value.trim();
+            // Blank LTL: keep the current effective value when TL is being
+            // set, otherwise blank LTL (with blank TL) resets to the
+            // rate-sheet value.
+            let ltl = ltlRaw;
+            if (ltl === '' && tlRaw !== '') ltl = row.getAttribute('data-cur-ltl') || '';
+            btn.disabled = true;
+            try {
+              await api.setFsc(id, ltl === '' ? '' : Number(ltl), tlRaw === '' ? null : Number(tlRaw));
+              showAlert('Fuel surcharge updated — new quotes use it immediately.');
+              reload();
+            } catch (err) { showAlert('Could not save: ' + err.message); btn.disabled = false; }
+          })
+        );
+        box.querySelectorAll('[data-fsc-reset]').forEach((btn) =>
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-fsc-reset');
+            btn.disabled = true;
+            try {
+              await api.setFsc(id, '', null);
+              showAlert('Fuel surcharge reset to the rate-sheet value.');
+              reload();
+            } catch (err) { showAlert('Could not reset: ' + err.message); btn.disabled = false; }
+          })
+        );
       } catch (err) {
         // Not an admin (or DB off): hide the section silently.
         box.innerHTML = '';
