@@ -383,6 +383,7 @@
               <div class="qq-split-left">
                 <p class="lede" id="total-weight-line">Total weight: <strong>0 lb</strong></p>
                 <button type="submit" class="btn fetch-btn fetch-btn-left" id="fetch-rates-btn">Get Carrier Rates</button>
+                <p class="note rate-disclaimer" id="rate-disclaimer">Rates are estimates only &mdash; final pricing is confirmed at booking and may change with fuel surcharges and carrier rate updates.</p>
                 <div class="rate-empty" id="rate-empty">
                   <p class="note">Fill in the shipment details, then fetch carrier results.</p>
                 </div>
@@ -637,13 +638,15 @@
         <p>You warrant that weights, dimensions, piece counts, and commodity descriptions you enter are accurate. Accessorial charges (re-weighs, re-classes, missed pickups) caused by inaccurate information are your responsibility. Dangerous goods must be declared with a valid UN number and class before rating; undeclared dangerous goods may be refused and any resulting carrier penalties charged back to you.</p>
         <h2>4. Quotes, payment, cancellation</h2>
         <p>Quoted rates exclude taxes unless stated. Payment is collected when a shipment is scheduled. You may cancel an unscheduled load at any time at no charge. Paid loads cancelled before carrier dispatch are refunded to the original payment method; loads already tendered to a carrier may incur carrier cancellation fees, which will be disclosed before you confirm.</p>
-        <h2>5. Liability</h2>
+        <h2>5. Quoted rates are estimates</h2>
+        <p>All freight rates displayed by the quote tool are estimates based on current carrier rate data and fuel surcharges, which are subject to change without notice. Actual charges may differ due to fuel surcharge volatility, carrier rate changes, re-weigh, reclassification, or additional accessorial services. A quote does not constitute an offer or guarantee of service, pricing, or carrier availability. Final pricing is confirmed only at the time of booking. Quoted rates include Apex Freight's service margin of 15%.</p>
+        <h2>6. Liability</h2>
         <p>To the maximum extent permitted by law, our total liability for any shipment is limited to the freight charges you paid for that shipment. We are not liable for indirect, incidental, or consequential damages, including lost profits or production downtime. Carrier liability for loss or damage in transit is governed by the carrier's terms and applicable transportation law; we will help you file a claim but do not underwrite cargo ourselves unless you purchase additional insurance through us.</p>
-        <h2>6. Acceptable use</h2>
+        <h2>7. Acceptable use</h2>
         <p>You agree not to misuse the service, probe or disrupt our systems, misrepresent shipment details, or use the service for unlawful purposes. We may suspend accounts that do so.</p>
-        <h2>7. Changes and termination</h2>
+        <h2>8. Changes and termination</h2>
         <p>We may update these terms; material changes will be posted here. Either party may terminate the account relationship at any time; you can delete your account from Account settings.</p>
-        <h2>8. Governing law</h2>
+        <h2>9. Governing law</h2>
         <p>These terms are governed by the laws of Alberta and the federal laws of Canada applicable there.</p>
         <p class="muted">Questions about these terms: use the <a href="/contact" data-page="contact">contact page</a>.</p>
       </div>
@@ -1816,6 +1819,47 @@
         popupAlert('Please fill in the required fields', missing);
         return;
       }
+      // Rate disclaimer: shown once per session before the first fetch.
+      if (!rateDisclaimerSeen()) {
+        const ok = await rateDisclaimerModal();
+        if (!ok) return;
+        markRateDisclaimerSeen();
+      }
+      await runQuoteFetch(e);
+    });
+
+    function rateDisclaimerSeen() {
+      try { return sessionStorage.getItem('rateDisclaimerSeen') === '1'; }
+      catch (_) { return false; }
+    }
+    function markRateDisclaimerSeen() {
+      try { sessionStorage.setItem('rateDisclaimerSeen', '1'); } catch (_) {}
+    }
+    /* Rate-estimate disclaimer modal. Resolves true when the user
+       acknowledges and wants to continue fetching rates. */
+    function rateDisclaimerModal() {
+      return new Promise((resolve) => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        overlay.innerHTML =
+          '<div class="modal-card" role="alertdialog" aria-modal="true" aria-label="Rate disclaimer">' +
+          '<button type="button" class="modal-close" aria-label="Close">\u00d7</button>' +
+          '<h3>Please note</h3>' +
+          '<p>Rates shown are estimates only. Actual charges may differ due to fuel surcharge fluctuations and recent carrier rate changes. Final pricing is confirmed at booking and may be adjusted after carrier verification (re-weigh, reclassification, or accessorials).</p>' +
+          '<div class="actions"><button type="button" class="btn">Cancel</button>' +
+          '<button type="button" class="btn primary">I Understand &mdash; Get Rates</button></div></div>';
+        let done = false;
+        const finish = (ok) => { if (!done) { done = true; overlay.remove(); resolve(ok); } };
+        const btns = overlay.querySelectorAll('.btn');
+        btns[0].addEventListener('click', () => finish(false));
+        btns[1].addEventListener('click', () => finish(true));
+        overlay.querySelector('.modal-close').addEventListener('click', () => finish(false));
+        overlay.addEventListener('click', (ev) => { if (ev.target === overlay) finish(false); });
+        document.body.appendChild(overlay);
+      });
+    }
+
+    async function runQuoteFetch(e) {
       const f = new FormData(e.target);
       // Safe text accessor: never throws on a missing field.
       const txt = (k) => ((f.get(k) == null ? '' : f.get(k)).toString().trim());
@@ -1903,7 +1947,7 @@
         btn.disabled = false;
         btn.textContent = 'Get Carrier Rates';
       }
-    });
+    }
 
     function sourceBadge(source) {
       return source === 'easypost'
