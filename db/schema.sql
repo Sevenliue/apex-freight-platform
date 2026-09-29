@@ -470,3 +470,20 @@ CREATE TABLE IF NOT EXISTS pickup_requests (
 );
 CREATE INDEX IF NOT EXISTS idx_pickup_requests_user_id ON pickup_requests(user_id);
 CREATE INDEX IF NOT EXISTS idx_pickup_requests_status ON pickup_requests(status);
+
+-- ---------------------------------------------------------------------------
+-- Single-use auth tokens: password resets + email verification (added 2026-09-29).
+-- Only the SHA-256 hash of the raw token is stored; the raw value is emailed
+-- to the account holder and never persisted or returned by any endpoint.
+-- Idempotent: CREATE TABLE / INDEX IF NOT EXISTS.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS auth_tokens (
+    id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     uuid        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    purpose     varchar(32) NOT NULL CHECK (purpose IN ('password_reset', 'email_verify')),
+    token_hash  varchar(64) NOT NULL UNIQUE,
+    expires_at  timestamptz NOT NULL,
+    used_at     timestamptz,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_auth_tokens_user_purpose ON auth_tokens(user_id, purpose);

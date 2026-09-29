@@ -3,7 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Apex Freight &amp; Shipping Canada</title>
+  <meta name="description" content="Apex Freight & Shipping Canada — instant LTL freight quotes from Edmonton across Canada. Compare carrier rates, save quotes, and track shipments. Free account.">
+  <meta property="og:title" content="Apex Freight & Shipping Canada">
+  <meta property="og:description" content="Instant LTL freight quotes across Canada. Compare carrier rates, save quotes, and track shipments — free account.">
+  <meta property="og:type" content="website">
+  <title>Apex Freight &amp; Shipping Canada — Instant LTL Freight Quotes</title>
   <link rel="stylesheet" href="styles.css">
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
 </head>
@@ -208,7 +212,12 @@
           <button type="button" class="tab btn primary land-cta" data-tab="dashboard" data-scroll="quote-form">Get an instant quote</button>
         </div>
 
-        <footer class="land-foot">© 2026 Apex Freight &amp; Shipping Canada · Edmonton, Alberta</footer>
+        <footer class="land-foot">© 2026 Apex Freight &amp; Shipping Canada · Edmonton, Alberta ·
+          <a href="/terms" data-page="terms">Terms</a> ·
+          <a href="/privacy" data-page="privacy">Privacy</a> ·
+          <a href="/contact" data-page="contact">Contact</a> ·
+          <a href="/faq" data-page="faq">FAQ</a>
+        </footer>
       </div>
     </section>
 
@@ -615,6 +624,101 @@
       </div>
     </section>
 
+    <!-- TERMS OF SERVICE -->
+    <section id="tab-terms" class="panel" role="tabpanel">
+      <h1>Terms of Service</h1>
+      <div class="card legal">
+        <p class="muted">Last updated: September 29, 2026</p>
+        <h2>1. The service</h2>
+        <p>Apex Freight &amp; Shipping Canada ("Apex", "we") provides online freight quoting, shipment scheduling, tracking, and related logistics tools. Quotes are estimates based on carrier tariffs on file; the final charge is confirmed when your shipment is scheduled.</p>
+        <h2>2. Your account</h2>
+        <p>You must provide accurate registration information and keep your password confidential. You are responsible for everything done under your account. New accounts can get quotes immediately; scheduling shipments is enabled after we approve your account.</p>
+        <h2>3. Your responsibilities as a shipper</h2>
+        <p>You warrant that weights, dimensions, piece counts, and commodity descriptions you enter are accurate. Accessorial charges (re-weighs, re-classes, missed pickups) caused by inaccurate information are your responsibility. Dangerous goods must be declared with a valid UN number and class before rating; undeclared dangerous goods may be refused and any resulting carrier penalties charged back to you.</p>
+        <h2>4. Quotes, payment, cancellation</h2>
+        <p>Quoted rates exclude taxes unless stated. Payment is collected when a shipment is scheduled. You may cancel an unscheduled load at any time at no charge. Paid loads cancelled before carrier dispatch are refunded to the original payment method; loads already tendered to a carrier may incur carrier cancellation fees, which will be disclosed before you confirm.</p>
+        <h2>5. Liability</h2>
+        <p>To the maximum extent permitted by law, our total liability for any shipment is limited to the freight charges you paid for that shipment. We are not liable for indirect, incidental, or consequential damages, including lost profits or production downtime. Carrier liability for loss or damage in transit is governed by the carrier's terms and applicable transportation law; we will help you file a claim but do not underwrite cargo ourselves unless you purchase additional insurance through us.</p>
+        <h2>6. Acceptable use</h2>
+        <p>You agree not to misuse the service, probe or disrupt our systems, misrepresent shipment details, or use the service for unlawful purposes. We may suspend accounts that do so.</p>
+        <h2>7. Changes and termination</h2>
+        <p>We may update these terms; material changes will be posted here. Either party may terminate the account relationship at any time; you can delete your account from Account settings.</p>
+        <h2>8. Governing law</h2>
+        <p>These terms are governed by the laws of Alberta and the federal laws of Canada applicable there.</p>
+        <p class="muted">Questions about these terms: use the <a href="/contact" data-page="contact">contact page</a>.</p>
+      </div>
+    </section>
+
+    <!-- PRIVACY POLICY -->
+    <section id="tab-privacy" class="panel" role="tabpanel">
+      <h1>Privacy Policy</h1>
+      <div class="card legal">
+        <p class="muted">Last updated: September 29, 2026</p>
+        <h2>What we collect</h2>
+        <p><strong>Account information:</strong> name, company, email, and password (stored as a one-way hash — we never see your password). <strong>Shipment information:</strong> addresses, package details, and references you enter to get quotes or schedule freight. <strong>Payment information:</strong> processed by Stripe; we never see or store your card numbers. <strong>Usage data:</strong> basic request logs we use to keep the service running and prevent abuse.</p>
+        <h2>How we use it</h2>
+        <p>To provide quotes, schedule and track shipments, operate your account, prevent fraud, and communicate with you about the service (quotes, approvals, receipts). We do not sell your personal information.</p>
+        <h2>Who we share it with</h2>
+        <p>Carriers (only the shipment details needed to move your freight), Stripe (payments), and our hosting/email providers — each bound to use it only for the service. We disclose information if required by law.</p>
+        <h2>Your rights</h2>
+        <p>You can view and update your profile in Account settings, and delete your account (with all personal data we hold) there at any time. To request a copy of your data or ask questions, use the <a href="/contact" data-page="contact">contact page</a>. We respond to Canadian privacy requests under PIPEDA.</p>
+        <h2>Cookies and storage</h2>
+        <p>We use browser local storage for your sign-in session token and interface preferences (like navigation state). We do not use third-party advertising trackers.</p>
+        <h2>Retention and security</h2>
+        <p>Shipment records are kept as long as needed for accounting, tax, and legal obligations. Passwords are hashed with bcrypt; sessions are revocable tokens that expire after 30 days.</p>
+      </div>
+    </section>
+
+    <!-- CONTACT -->
+    <section id="tab-contact" class="panel" role="tabpanel">
+      <h1>Contact us</h1>
+      <div class="card">
+        <p class="lede">Questions about a quote, your account, or a shipment? Send us a message — we reply within one business day.</p>
+        <form id="contact-form" autocomplete="on">
+          <label>Your name <input name="name" type="text" required autocomplete="name"></label>
+          <label>Email <input name="email" type="email" required autocomplete="email"></label>
+          <label>Message <textarea name="message" rows="5" required minlength="10" placeholder="How can we help?"></textarea></label>
+          <p class="form-error hidden" id="contact-error" role="alert"></p>
+          <p class="form-ok hidden" id="contact-ok" role="status"></p>
+          <div class="actions"><button class="btn primary" type="submit" id="contact-submit">Send message</button></div>
+        </form>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section id="tab-faq" class="panel" role="tabpanel">
+      <h1>Frequently asked questions</h1>
+      <div class="card legal">
+        <h2>Do I need an account to get a quote?</h2>
+        <p>Yes — a free account. It takes less than a minute, and it lets us save your quotes, address book, and shipments under your name.</p>
+        <h2>How do the instant quotes work?</h2>
+        <p>We rate your shipment against contracted carrier tariffs on file, so you see real buy rates plus our margin instantly. Live carrier API rates appear automatically once our carrier integrations are connected.</p>
+        <h2>Why can't I schedule a shipment yet?</h2>
+        <p>New accounts start quote-only while we verify them — scheduling unlocks after we approve your account, and we'll notify you. If you need it urgently, contact us.</p>
+        <h2>How many quotes do I get?</h2>
+        <p>Free accounts get 5 quotes per month, Starter 50, Pro unlimited. Unused quotes don't roll over.</p>
+        <h2>Can I ship dangerous goods?</h2>
+        <p>Declared dangerous goods only: enter a valid UN number and class before rating. DG shipments go through a review step before scheduling, at no charge until a carrier accepts the load.</p>
+        <h2>How do I pay?</h2>
+        <p>By card through Stripe when you schedule a shipment. Paid loads cancelled before carrier dispatch are refunded automatically.</p>
+        <h2>Where do you ship?</h2>
+        <p>Across Canada and cross-border to the US, wherever our contracted carriers run. If a lane returns no rates, contact us — we'll price it manually.</p>
+        <h2>I forgot my password.</h2>
+        <p>Click "Forgot password?" on the log-in form and we'll email you a reset link.</p>
+      </div>
+    </section>
+
+    <!-- ABOUT -->
+    <section id="tab-about" class="panel" role="tabpanel">
+      <h1>About Apex Freight</h1>
+      <div class="card legal">
+        <p class="lede">Apex Freight &amp; Shipping Canada is an Edmonton-based freight quoting platform built by people who have run warehouse floors.</p>
+        <p>We started with a simple frustration: getting an LTL freight quote in Canada meant phone calls, emailed spreadsheets, and waiting. Apex puts contracted carrier tariffs behind an instant quote form — enter your shipment once, compare real rates, save the quote, and schedule when you're ready.</p>
+        <p>We're in phase one now: instant quoting is live, and shipment scheduling is rolling out account by account as we bring carrier integrations online.</p>
+        <p><a href="/contact" data-page="contact">Get in touch</a> — we read everything.</p>
+      </div>
+    </section>
+
     <!-- TRACKING -->
     <section id="tab-tracking" class="panel" role="tabpanel">
       <h1>Track a shipment</h1>
@@ -882,16 +986,65 @@
         <label>Password <input name="password" type="password" required autocomplete="current-password"></label>
         <p class="form-error hidden" id="login-error" role="alert"></p>
         <div class="actions"><button class="btn primary" type="submit" id="login-submit">Log in</button></div>
+        <p class="form-link"><a href="#" id="forgot-link">Forgot password?</a></p>
       </form>
       <form id="auth-signup-form" class="hidden" autocomplete="on">
         <label>Full name <input name="name" type="text" required autocomplete="name"></label>
         <label>Company <input name="company" type="text" autocomplete="organization" placeholder="Optional"></label>
         <label>Email <input name="email" type="email" required autocomplete="email"></label>
         <label>Password <input name="password" type="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters"></label>
+        <p class="hint">At least 8 characters — a mix of upper and lowercase letters, numbers, and symbols is much harder to guess.</p>
         <p class="form-error hidden" id="signup-error" role="alert"></p>
         <div class="actions"><button class="btn primary" type="submit" id="signup-submit">Create account</button></div>
       </form>
+      <form id="auth-forgot-form" class="hidden" autocomplete="on">
+        <p class="lede">Enter your account email and we'll send you a password-reset link (good for 1 hour).</p>
+        <label>Email <input name="email" type="email" required autocomplete="email"></label>
+        <p class="form-error hidden" id="forgot-error" role="alert"></p>
+        <p class="form-ok hidden" id="forgot-ok" role="status"></p>
+        <div class="actions"><button class="btn primary" type="submit" id="forgot-submit">Send reset link</button></div>
+        <p class="form-link"><a href="#" id="forgot-back">Back to log in</a></p>
+      </form>
+      <form id="auth-reset-form" class="hidden" autocomplete="on">
+        <p class="lede">Choose a new password for your account.</p>
+        <label>New password <input name="password" type="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters"></label>
+        <label>Confirm new password <input name="password2" type="password" required minlength="8" autocomplete="new-password"></label>
+        <p class="hint">At least 8 characters — a mix of upper and lowercase letters, numbers, and symbols is much harder to guess.</p>
+        <p class="form-error hidden" id="reset-error" role="alert"></p>
+        <div class="actions"><button class="btn primary" type="submit" id="reset-submit">Set new password</button></div>
+      </form>
       <p class="note">Accounts keep your saved quotes, shipments, and address book under your name. New accounts can get quotes right away — scheduling is enabled after we approve your account.</p>
+    </div>
+  </div>
+
+  <!-- ACCOUNT SETTINGS MODAL -->
+  <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Account settings">
+    <div class="modal-card">
+      <button class="modal-close" id="settings-close" aria-label="Close">×</button>
+      <h2>Account settings</h2>
+      <p class="form-error hidden" id="settings-error" role="alert"></p>
+      <p class="form-ok hidden" id="settings-ok" role="status"></p>
+      <h3>Profile</h3>
+      <form id="settings-profile-form" autocomplete="on">
+        <p class="note hidden" id="verify-note">Your email isn't verified yet — <a href="#" id="verify-resend">resend the verification email</a>.</p>
+        <label>Full name <input name="name" type="text" required autocomplete="name"></label>
+        <label>Company <input name="company" type="text" autocomplete="organization"></label>
+        <label>Email <input name="email" type="email" required autocomplete="email"></label>
+        <div class="actions"><button class="btn primary" type="submit" id="profile-submit">Save profile</button></div>
+      </form>
+      <h3>Change password</h3>
+      <form id="settings-password-form" autocomplete="on">
+        <label>Current password <input name="current_password" type="password" required autocomplete="current-password"></label>
+        <label>New password <input name="new_password" type="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters"></label>
+        <div class="actions"><button class="btn primary" type="submit" id="pw-submit">Change password</button></div>
+        <p class="note">You'll be signed out everywhere and need to sign in again.</p>
+      </form>
+      <h3>Delete account</h3>
+      <p class="note">This permanently deletes your account, saved quotes, and address book. It can't be undone.</p>
+      <form id="settings-delete-form" autocomplete="on">
+        <label>Confirm your password <input name="password" type="password" required autocomplete="current-password"></label>
+        <div class="actions"><button class="btn danger" type="submit" id="delete-submit">Delete my account</button></div>
+      </form>
     </div>
   </div>
 
@@ -922,9 +1075,20 @@
   </div>
 
   <footer class="site-footer">
-    <div class="wrap">
-      <span>Apex Freight &amp; Shipping Canada — Edmonton, AB · All rates in CAD</span>
+    <div class="wrap foot-grid">
+      <div>
+        <strong>Apex Freight &amp; Shipping Canada</strong><br>
+        <span class="muted">Edmonton, AB · All rates in CAD</span>
+      </div>
+      <nav class="foot-links" aria-label="Site">
+        <a href="/terms" data-page="terms">Terms of Service</a>
+        <a href="/privacy" data-page="privacy">Privacy Policy</a>
+        <a href="/contact" data-page="contact">Contact</a>
+        <a href="/faq" data-page="faq">FAQ</a>
+        <a href="/about" data-page="about">About</a>
+      </nav>
     </div>
+    <div class="wrap foot-base"><span class="muted">© 2026 Apex Freight &amp; Shipping Canada</span></div>
   </footer>
 
   <script src="fsa.js"></script>
@@ -1232,9 +1396,9 @@
         <td><input type="number" name="height" min="0" step="0.1" value="${esc(dd(data.height))}" placeholder="${m ? '91' : '36'}"></td>
         <td class="chk"><input type="checkbox" name="stackable"${data.stackable ? ' checked' : ''}></td>
         <td class="chk"><input type="checkbox" name="dg"${data.dg ? ' checked' : ''}></td>
-        <td class="narrow"><input type="text" name="un_number" value="${esc(data.un_number || '')}" placeholder="UN1202"></td>
-        <td class="narrow"><input type="text" name="freight_class" value="${esc(data.freight_class || '')}" placeholder="150"></td>
-        <td class="narrow"><input type="text" name="pkg_group" value="${esc(data.pkg_group || '')}" placeholder="II"></td>
+        <td class="narrow"><input type="text" name="un_number" value="${esc(data.un_number || '')}" placeholder="UN number"></td>
+        <td class="narrow"><input type="text" name="freight_class" value="${esc(data.freight_class || '')}" placeholder="Class"></td>
+        <td class="narrow"><input type="text" name="pkg_group" value="${esc(data.pkg_group || '')}" placeholder="PG"></td>
         <td><button type="button" class="btn small danger pkg-del" title="Delete row">×</button></td>`;
       tr.querySelector('.pkg-del').addEventListener('click', () => {
         if ($('#pkg-rows').rows.length > 1) { tr.remove(); syncTotalWeightLine(); }
@@ -3288,8 +3452,10 @@
         area.innerHTML =
           `<span class="account-name">${esc(currentUser.name || currentUser.email || 'Account')}</span>` +
           badge + usage +
+          `<button class="btn small account-btn" id="settings-btn" type="button">Settings</button>` +
           `<button class="btn small account-btn" id="logout-btn" type="button">Log out</button>`;
         $('#logout-btn').addEventListener('click', signOut);
+        $('#settings-btn').addEventListener('click', openSettingsModal);
       } else {
         area.innerHTML =
           `<button class="btn small account-btn" id="login-btn" type="button">Log in</button>` +
@@ -3297,7 +3463,40 @@
         $('#login-btn').addEventListener('click', () => openAuthModal('login'));
         $('#signup-btn').addEventListener('click', () => openAuthModal('signup'));
       }
+      renderVerifyBanner();
       syncUserIdField();
+    }
+
+    // Nudge unverified accounts to confirm their email (non-blocking).
+    function renderVerifyBanner() {
+      let bar = $('#verify-banner');
+      const show = !!(currentUser && currentUser.is_verified === false);
+      if (show && !bar) {
+        bar = document.createElement('div');
+        bar.id = 'verify-banner';
+        bar.className = 'verify-banner';
+        const alert = $('#alert');
+        (alert && alert.parentNode ? alert.parentNode : document.body).insertBefore(bar, alert ? alert.nextSibling : null);
+      }
+      if (!bar) return;
+      bar.style.display = show ? '' : 'none';
+      if (show) {
+        bar.innerHTML =
+          `Please verify your email to secure your account — check your inbox. ` +
+          `<a href="#" id="verify-resend-top">Resend email</a>`;
+        const link = $('#verify-resend-top');
+        if (link) link.addEventListener('click', async (e) => {
+          e.preventDefault();
+          link.textContent = 'Sending…';
+          try {
+            const r = await api.resendVerification();
+            showAlert(r.message || 'Verification email sent.');
+          } catch (err) {
+            showAlert(err.message || 'Could not send the email.');
+          }
+          renderVerifyBanner();
+        });
+      }
     }
 
     // When logged in, the manual "User ID (optional)" field is replaced by a
@@ -3333,14 +3532,24 @@
       $('#signup-error').classList.add('hidden');
     }
 
-    function switchAuthTab(tab) {
+    function showAuthForm(name) {
+      const forms = { login: '#auth-login-form', signup: '#auth-signup-form', forgot: '#auth-forgot-form', reset: '#auth-reset-form' };
+      Object.entries(forms).forEach(([k, sel]) => $(sel).classList.toggle('hidden', k !== name));
+      // The Login/Sign up tabs only reflect the two main forms.
       $$('#auth-modal .modal-tab').forEach((b) => {
-        const on = b.dataset.authTab === tab;
+        const on = b.dataset.authTab === name;
         b.classList.toggle('active', on);
         b.setAttribute('aria-selected', on ? 'true' : 'false');
       });
-      $('#auth-login-form').classList.toggle('hidden', tab !== 'login');
-      $('#auth-signup-form').classList.toggle('hidden', tab !== 'signup');
+      // Hide the tab bar on the auxiliary forms so the flow reads clearly.
+      $('.modal-tabs', $('#auth-modal')).style.display = (name === 'forgot' || name === 'reset') ? 'none' : '';
+      ['#login-error', '#signup-error', '#forgot-error', '#reset-error'].forEach((s) => $(s).classList.add('hidden'));
+      const ok = $('#forgot-ok');
+      if (ok) ok.classList.add('hidden');
+    }
+
+    function switchAuthTab(tab) {
+      showAuthForm(tab === 'signup' ? 'signup' : 'login');
     }
 
     function authFail(elId, err) {
@@ -3352,6 +3561,7 @@
     async function afterAuth(data) {
       api.setAuthToken(data.token);
       currentUser = data.user;
+      sessionExpiredFired = false; // re-arm the global 401 handler
       closeAuthModal();
       // Refresh the account-scoped views + billing plan.
       loadBilling();
@@ -3992,7 +4202,7 @@
       e.stopImmediatePropagation();
       e.preventDefault();
       showQoTooltip(e.clientX, e.clientY,
-        'Creating shipments is currently disabled while we fine-tune our quotes. You can still get quotes, save them, use your address book, and track shipments.');
+        'Creating shipments is currently disabled while we fine-tune our quotes. Sign up free to get quotes, save them, use your address book, and track shipments.');
     }, true);
 
     /* Mobile drawer. */
@@ -4587,6 +4797,298 @@
       });
     }
     if (sideOverlay) sideOverlay.addEventListener('click', closeSidebar);
+
+    /* ---------- PUBLIC PAGES, AUTH RECOVERY & ACCOUNT SECURITY ---------- */
+    let pendingResetToken = '';
+    let sessionExpiredFired = false;
+
+    // Public legal/info pages live outside the sidebar tab system.
+    function showPanel(name) {
+      $$('.tab[data-tab]').forEach((b) => {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+      });
+      $$('.panel').forEach((p) => p.classList.toggle('active', p.id === 'tab-' + name));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      closeSidebar();
+    }
+
+    // Footer / legal links use real hrefs (SEO + direct visits work); the app
+    // intercepts clicks for instant in-app navigation.
+    document.addEventListener('click', (e) => {
+      const a = e.target && e.target.closest ? e.target.closest('a[data-page]') : null;
+      if (!a) return;
+      e.preventDefault();
+      showPanel(a.dataset.page);
+    });
+
+    // Deep links: /reset-password?token=, /verify-email?token=, /terms, …
+    // (the server's SPA fallback serves index.html for all of these).
+    (function handleDeepLinks() {
+      const path = location.pathname.replace(/\/+$/, '') || '/';
+      const q = new URLSearchParams(location.search);
+      if (path === '/reset-password') {
+        const token = q.get('token') || '';
+        history.replaceState(null, '', '/');
+        if (token) {
+          pendingResetToken = token;
+          openAuthModal('login');
+          showAuthForm('reset');
+        } else {
+          openAuthModal('login');
+          showAuthForm('forgot');
+          authFail('#forgot-error', new Error('That reset link is missing its token — request a new one below.'));
+        }
+        return;
+      }
+      if (path === '/verify-email') {
+        const token = q.get('token') || '';
+        history.replaceState(null, '', '/');
+        (async () => {
+          if (!token) {
+            showAlert('That verification link is missing its token — request a new one from Settings.');
+          } else {
+            try {
+              await api.verifyEmail(token);
+              showAlert('Email verified — thanks!');
+            } catch (err) {
+              showAlert((err && err.message) || 'Email verification failed.');
+            }
+          }
+          try {
+            const r = await api.me();
+            currentUser = r.user;
+          } catch { /* stays signed out */ }
+          renderAccount();
+        })();
+        return;
+      }
+      const pages = { '/terms': 'terms', '/privacy': 'privacy', '/contact': 'contact', '/faq': 'faq', '/about': 'about' };
+      if (pages[path]) setTimeout(() => showPanel(pages[path]), 0);
+    })();
+
+    // Forgot-password flow inside the auth modal.
+    $('#forgot-link').addEventListener('click', (e) => { e.preventDefault(); showAuthForm('forgot'); });
+    $('#forgot-back').addEventListener('click', (e) => { e.preventDefault(); showAuthForm('login'); });
+    $('#auth-forgot-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = $('#forgot-submit');
+      btn.disabled = true;
+      try {
+        const f = new FormData(e.target);
+        const r = await api.forgotPassword(String(f.get('email') || '').trim());
+        const ok = $('#forgot-ok');
+        ok.textContent = (r && r.message) || 'If an account exists for that email, a reset link is on its way.';
+        ok.classList.remove('hidden');
+      } catch (err) {
+        authFail('#forgot-error', err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    $('#auth-reset-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = new FormData(e.target);
+      const p1 = String(f.get('password') || '');
+      const p2 = String(f.get('password2') || '');
+      if (p1 !== p2) {
+        authFail('#reset-error', new Error("The two passwords don't match."));
+        return;
+      }
+      if (!pendingResetToken) {
+        authFail('#reset-error', new Error('This reset link has expired — please request a new one.'));
+        return;
+      }
+      const btn = $('#reset-submit');
+      btn.disabled = true;
+      try {
+        await api.resetPassword(pendingResetToken, p1);
+        pendingResetToken = '';
+        closeAuthModal();
+        showAlert('Password updated — please sign in with your new password.');
+        openAuthModal('login');
+      } catch (err) {
+        authFail('#reset-error', err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // Account settings modal.
+    function openSettingsModal() {
+      if (!currentUser) return;
+      $('#settings-error').classList.add('hidden');
+      $('#settings-ok').classList.add('hidden');
+      const pf = $('#settings-profile-form');
+      pf.name.value = currentUser.name || '';
+      pf.company.value = currentUser.company || '';
+      pf.email.value = currentUser.email || '';
+      $('#verify-note').classList.toggle('hidden', currentUser.is_verified !== false);
+      $('#settings-modal').classList.remove('hidden');
+    }
+    function closeSettingsModal() {
+      $('#settings-modal').classList.add('hidden');
+    }
+    function settingsOk(msg) {
+      const el = $('#settings-ok');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      $('#settings-error').classList.add('hidden');
+    }
+    function settingsFail(err) {
+      const el = $('#settings-error');
+      el.textContent = (err && err.message) || 'Something went wrong. Please try again.';
+      el.classList.remove('hidden');
+      $('#settings-ok').classList.add('hidden');
+    }
+    $('#settings-close').addEventListener('click', closeSettingsModal);
+    $('#settings-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'settings-modal') closeSettingsModal();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !$('#settings-modal').classList.contains('hidden')) closeSettingsModal();
+    });
+    $('#verify-resend').addEventListener('click', async (e) => {
+      e.preventDefault();
+      try {
+        const r = await api.resendVerification();
+        settingsOk((r && r.message) || 'Verification email sent — check your inbox.');
+      } catch (err) {
+        settingsFail(err);
+      }
+    });
+    $('#settings-profile-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = $('#profile-submit');
+      btn.disabled = true;
+      try {
+        const f = new FormData(e.target);
+        const r = await api.updateProfile({
+          name: String(f.get('name') || '').trim(),
+          company: String(f.get('company') || '').trim(),
+          email: String(f.get('email') || '').trim(),
+        });
+        currentUser = r.user;
+        renderAccount();
+        settingsOk(
+          r.user.is_verified === false
+            ? 'Profile saved. We sent a verification link to your email — check your inbox.'
+            : 'Profile saved.'
+        );
+      } catch (err) {
+        settingsFail(err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    $('#settings-password-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = $('#pw-submit');
+      btn.disabled = true;
+      try {
+        const f = new FormData(e.target);
+        await api.changePassword(
+          String(f.get('current_password') || ''),
+          String(f.get('new_password') || '')
+        );
+        closeSettingsModal();
+        await signOut();
+        showAlert('Password changed — please sign in again with your new password.');
+        openAuthModal('login');
+      } catch (err) {
+        settingsFail(err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    $('#settings-delete-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!window.confirm('Delete your account permanently? Your saved quotes and address book go with it. This cannot be undone.')) return;
+      const btn = $('#delete-submit');
+      btn.disabled = true;
+      try {
+        const f = new FormData(e.target);
+        await api.deleteAccount(String(f.get('password') || ''));
+        closeSettingsModal();
+        api.setAuthToken(null);
+        currentUser = null;
+        billingState = null;
+        primeAddress = null;
+        renderAccount();
+        loadBilling();
+        loadSavedQuotes();
+        if (typeof loadAddressBook === 'function') loadAddressBook();
+        showAlert('Your account has been deleted.');
+        showPanel('home');
+      } catch (err) {
+        settingsFail(err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // Global session-expiry handling: any authenticated API call that comes
+    // back 401 fires this once — sign out locally with a clear message.
+    window.addEventListener('apex:session-expired', async () => {
+      if (sessionExpiredFired) return;
+      sessionExpiredFired = true;
+      try { await api.logout(); } catch { /* token already dead */ }
+      api.setAuthToken(null);
+      currentUser = null;
+      billingState = null;
+      primeAddress = null;
+      renderAccount();
+      try { loadSavedQuotes(); } catch { /* noop */ }
+      try { loadBilling(); } catch { /* noop */ }
+      if (typeof loadAddressBook === 'function') { try { loadAddressBook(); } catch { /* noop */ } }
+      showAlert('Your session expired — please sign in again.');
+      openAuthModal('login');
+    });
+
+    // Contact form.
+    const contactForm = $('#contact-form');
+    if (contactForm) contactForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = $('#contact-submit');
+      btn.disabled = true;
+      $('#contact-error').classList.add('hidden');
+      $('#contact-ok').classList.add('hidden');
+      try {
+        const f = new FormData(e.target);
+        const r = await api.sendContact({
+          name: String(f.get('name') || '').trim(),
+          email: String(f.get('email') || '').trim(),
+          message: String(f.get('message') || '').trim(),
+        });
+        const ok = $('#contact-ok');
+        ok.textContent = (r && r.message) || 'Message sent — thanks!';
+        ok.classList.remove('hidden');
+        contactForm.reset();
+      } catch (err) {
+        const el = $('#contact-error');
+        el.textContent = (err && err.message) || 'Could not send your message.';
+        el.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // One-time cookie/storage notice (dismissed state in localStorage).
+    try {
+      if (!localStorage.getItem('apex-cookie-seen')) {
+        const bar = document.createElement('div');
+        bar.className = 'cookie-banner';
+        bar.innerHTML =
+          '<span>We use local storage to keep you signed in and remember your preferences — no ad trackers. ' +
+          '<a href="/privacy" data-page="privacy">Privacy policy</a></span>' +
+          '<button type="button" class="btn small" id="cookie-ok">Got it</button>';
+        document.body.appendChild(bar);
+        $('#cookie-ok').addEventListener('click', () => {
+          try { localStorage.setItem('apex-cookie-seen', '1'); } catch { /* noop */ }
+          bar.remove();
+        });
+      }
+    } catch { /* storage unavailable — skip the banner */ }
 
     initAccount();
     initBilling();

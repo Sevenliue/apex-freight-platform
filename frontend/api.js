@@ -73,6 +73,15 @@ async function request(method, path, body) {
     // Callers (quote gating) need the status: 401 = sign in, 402 = quota.
     err.status = res.status;
     err.data = data;
+    // A 401 on an authenticated call (not the auth endpoints themselves)
+    // means the session expired or was revoked elsewhere: tell the app once
+    // so it can sign the user out with a clear message instead of failing
+    // silently on every button.
+    if (res.status === 401 && token && !path.startsWith('/api/auth/')) {
+      try {
+        window.dispatchEvent(new CustomEvent('apex:session-expired'));
+      } catch { /* non-browser env */ }
+    }
     throw err;
   }
   return data;
@@ -123,6 +132,41 @@ export function logout() {
 
 export function me() {
   return get('/api/auth/me');
+}
+
+/* Password reset + email verification. */
+export function forgotPassword(email) {
+  return post('/api/auth/forgot-password', { email });
+}
+
+export function resetPassword(token, password) {
+  return post('/api/auth/reset-password', { token, password });
+}
+
+export function verifyEmail(token) {
+  return post('/api/auth/verify-email', { token });
+}
+
+export function resendVerification() {
+  return post('/api/auth/resend-verification', {});
+}
+
+/* Signed-in account management. */
+export function changePassword(current_password, new_password) {
+  return post('/api/auth/change-password', { current_password, new_password });
+}
+
+export function updateProfile(patch) {
+  return request('PATCH', '/api/auth/me', patch);
+}
+
+export function deleteAccount(password) {
+  return request('DELETE', '/api/auth/me', { password });
+}
+
+/* Contact form. */
+export function sendContact({ name, email, message }) {
+  return post('/api/contact', { name, email, message });
 }
 
 /* Rates — packages[] in LBS; accessorials[] are catalog codes. Legacy

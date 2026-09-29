@@ -264,6 +264,39 @@ details form { margin-top: 10px; }
   background: var(--brand-dark); color: #9fb0bd; font-size: 13.5px;
   padding: 18px 0; margin-top: 20px;
 }
+.foot-grid {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 16px; flex-wrap: wrap;
+}
+.foot-grid strong { color: #e8eef2; }
+.foot-links { display: flex; gap: 16px; flex-wrap: wrap; }
+.foot-links a { color: #c7d3dc; text-decoration: none; }
+.foot-links a:hover { color: #fff; text-decoration: underline; }
+.foot-base { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.12); }
+.land-foot a { color: inherit; }
+
+/* ---------- account recovery / settings / public pages ---------- */
+.form-ok { color: #1c6b2f; font-size: 13.5px; margin: 0 0 10px; }
+.form-ok.hidden { display: none; }
+.form-link { margin: 8px 0 0; font-size: 13.5px; }
+.form-link a { color: var(--link, #1a56db); }
+p.hint { font-size: 12.5px; color: var(--muted); margin: -4px 0 10px; }
+.card.legal h2 { font-size: 16px; margin: 18px 0 6px; }
+.card.legal p { margin: 6px 0; line-height: 1.55; }
+#settings-modal h3 { font-size: 15px; margin: 20px 0 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+#settings-modal h3:first-of-type { border-top: none; padding-top: 0; margin-top: 12px; }
+.verify-banner {
+  background: #fff8e6; border: 1px solid #f0d98c; color: #7a5b00;
+  border-radius: var(--radius); padding: 10px 14px; margin: 0 0 14px; font-size: 13.5px;
+}
+.verify-banner a { color: #7a5b00; font-weight: 700; }
+.cookie-banner {
+  position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 200;
+  background: var(--brand-dark); color: #e8eef2; border-radius: var(--radius);
+  padding: 12px 16px; display: flex; gap: 12px; align-items: center;
+  justify-content: space-between; box-shadow: var(--shadow); font-size: 13.5px;
+}
+.cookie-banner a { color: #ffd98a; }
 
 /* ---------- responsive ---------- */
 @media (max-width: 960px) {

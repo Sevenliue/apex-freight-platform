@@ -6,17 +6,22 @@
 'use strict';
 
 const express = require('express');
-const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
 const config = require('./config');
 const db = require('./db');
 const authStub = require('./middleware/auth');
+const { securityHeaders, corsPolicy } = require('./lib/security');
 
 const app = express();
 
-app.use(cors());
+// Baseline security headers on every response (incl. static + errors).
+app.use(securityHeaders());
+// Same-origin-first CORS: the frontend is served from this same origin, so
+// browsers never need cross-origin access. Cross-origin callers must be
+// allowlisted via CORS_ORIGINS (see lib/security.js).
+app.use(corsPolicy());
 
 // Stripe webhook needs the RAW request body for signature verification, so
 // it is mounted BEFORE express.json(). Stripe authenticates via the webhook
@@ -62,6 +67,20 @@ app.use('/api', async (req, res, next) => {
   next();
 });
 
+// Optional email-verification gate: when REQUIRE_EMAIL_VERIFICATION=true,
+// signed-in accounts must have a verified email to get rates. Off by default
+// (leave off until the email provider is configured, or new accounts could
+// never receive their verification link).
+function requireVerified(req, res, next) {
+  if (String(process.env.REQUIRE_EMAIL_VERIFICATION || '').toLowerCase() !== 'true') {
+    return next();
+  }
+  if (req.user && req.user.is_verified) return next();
+  return res.status(403).json({
+    error: 'Please verify your email address first — check your inbox for the verification link.',
+  });
+}
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'online', timestamp: new Date().toISOString() });
 });
@@ -72,7 +91,8 @@ app.get('/api/site-config', (req, res) => {
   res.json({ siteMode: config.siteMode });
 });
 
-app.use('/api/rates', require('./routes/rates'));
+app.use('/api/rates', requireVerified, require('./routes/rates'));
+app.use('/api/contact', require('./routes/contact'));
 app.use('/api/billing', require('./routes/billing'));
 app.use('/api/quotes', require('./routes/quotes'));
 app.use('/api/shipments', require('./routes/shipments'));
@@ -104,7 +124,43 @@ app.get('/', (req, res) => {
   });
 });
 
+// SEO basics: robots.txt + sitemap.xml for the public pages.
+function siteOrigin(req) {
+  const env = String(process.env.PUBLIC_URL || process.env.FRONTEND_ORIGIN || '').trim().replace(/\/+$/, '');
+  if (env) return env;
+  const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
+  return `${proto}://${req.headers.host}`;
+}
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain').send(
+    `User-agent: *\nAllow: /\nSitemap: ${siteOrigin(req)}/sitemap.xml\n`
+  );
+});
+app.get('/sitemap.xml', (req, res) => {
+  const origin = siteOrigin(req);
+  const pages = ['', '/terms', '/privacy', '/contact', '/faq', '/about'];
+  const urls = pages
+    .map((p) => `  <url><loc>${origin}${p || '/'}</loc><changefreq>monthly</changefreq></url>`)
+    .join('\n');
+  res.type('application/xml').send(
+    `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>`
+  );
+});
+
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
+
+// SPA deep-link fallback: emailed links like /reset-password?token=… or
+// /terms must render the app instead of "Cannot GET". Only for GETs outside
+// /api and without a file extension (real missing assets still 404).
+app.use((req, res, next) => {
+  if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
+  if (path.extname(req.path)) {
+    return res.status(404).send('Not found');
+  }
+  const index = path.join(FRONTEND_DIR, 'index.html');
+  if (fs.existsSync(index)) return res.sendFile(index);
+  return next();
+});
 
 // Central error handler (keeps stack traces out of responses).
 // eslint-disable-next-line no-unused-vars
