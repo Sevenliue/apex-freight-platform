@@ -7,6 +7,8 @@
 const express = require('express');
 const db = require('../db');
 const config = require('../config');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { round2 } = require('../lib/money');
 const { sanitizeMarkup } = require('../lib/markup');
 const matrix = require('../lib/matrix');
@@ -185,6 +187,32 @@ router.post('/users/:id/unlimited-quotes', async (req, res) => {
     return res.json({ id: r.rows[0].id, unlimited_quotes: !!r.rows[0].unlimited_quotes });
   } catch (err) {
     return res.status(502).json({ error: 'Could not update quote limit: ' + err.message });
+  }
+});
+
+// POST /api/admin/users/:id/reset-password — admin-initiated password reset.
+// Generates a one-time temporary password, stores its bcrypt hash, and
+// returns the plaintext ONCE for the admin to pass to the customer (or use
+// for testing). Staff accounts are excluded: admins use the normal
+// forgot-password flow for their own passwords.
+router.post('/users/:id/reset-password', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const r = await db.query('SELECT id, email FROM users WHERE id = $1 LIMIT 1', [req.params.id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Unknown account.' });
+    if (billing.isAdminEmail(r.rows[0].email)) {
+      return res.status(403).json({ error: 'Staff passwords cannot be reset here. Use the forgot-password flow.' });
+    }
+    const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    const bytes = crypto.randomBytes(16);
+    let temp = '';
+    for (let i = 0; i < 12; i++) temp += alphabet[bytes[i] % alphabet.length];
+    const hash = await bcrypt.hash(temp, 10);
+    await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hash, req.params.id]);
+    return res.json({ id: req.params.id, email: r.rows[0].email, temp_password: temp });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not reset password: ' + err.message });
   }
 });
 

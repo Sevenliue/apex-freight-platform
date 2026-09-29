@@ -415,6 +415,12 @@ export function revokeUser(id) {
   return post(`/api/admin/users/${encodeURIComponent(id)}/revoke`, {});
 }
 
+/* Admin — reset a customer's password. Returns a one-time temporary
+   password to pass along. Staff accounts are excluded server-side. */
+export function resetUserPassword(id) {
+  return post(`/api/admin/users/${encodeURIComponent(id)}/reset-password`, {});
+}
+
 /* Admin — per-customer freight markup override. markupPercent is a number
    0–100, or null/'' to reset the account to the global default. */
 export function setUserMarkup(id, markupPercent) {

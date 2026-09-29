@@ -2970,9 +2970,10 @@
                   : '<span class="badge warn">Quote-only</span>'}</td>
               <td>${u.is_admin
                 ? ''
-                : u.shipping_approved
-                  ? `<button class="btn small" data-acct-revoke="${esc(u.id)}">Revoke</button>`
-                  : `<button class="btn small primary" data-acct-approve="${esc(u.id)}">Approve</button>`}</td>
+                : `${u.shipping_approved
+                    ? `<button class="btn small" data-acct-revoke="${esc(u.id)}">Revoke</button>`
+                    : `<button class="btn small primary" data-acct-approve="${esc(u.id)}">Approve</button>`}
+                   <button class="btn small" data-acct-resetpw="${esc(u.id)}" data-email="${esc(u.email || '')}" style="margin-left:4px">Reset PW</button>`}</td>
             </tr>`
             )
             .join('')}</tbody></table></div>`;
@@ -3018,6 +3019,23 @@
               showAlert('Could not update quote limit: ' + err.message);
               btn.disabled = false;
             }
+          })
+        );
+        box.querySelectorAll('[data-acct-resetpw]').forEach((btn) =>
+          btn.addEventListener('click', async () => {
+            const email = btn.getAttribute('data-email') || 'this account';
+            const ok = confirm(
+              `Reset the password for ${email}?\n\nA new temporary password will be generated. The old password stops working immediately.`
+            );
+            if (!ok) return;
+            btn.disabled = true;
+            try {
+              const { temp_password } = await api.resetUserPassword(btn.getAttribute('data-acct-resetpw'));
+              prompt('Temporary password — copy it now, it will not be shown again:', temp_password || '');
+            } catch (err) {
+              showAlert('Could not reset password: ' + err.message);
+            }
+            btn.disabled = false;
           })
         );
         box.querySelectorAll('[data-acct-approve]').forEach((btn) =>
