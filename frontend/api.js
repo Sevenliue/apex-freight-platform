@@ -421,6 +421,11 @@ export function setUserMarkup(id, markupPercent) {
   return post(`/api/admin/users/${encodeURIComponent(id)}/markup`, { markup_percent: markupPercent });
 }
 
+/* Admin — quote log: every quote anyone ran, with carrier cost breakdowns. */
+export function listQuoteLog(limit) {
+  return get(`/api/admin/quotes?limit=${encodeURIComponent(limit || 50)}`);
+}
+
 /* Address book */
 export function listAddresses() {
   return get('/api/address-book');

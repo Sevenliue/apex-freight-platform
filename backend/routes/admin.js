@@ -241,3 +241,56 @@ router.put('/store/products/:id', async (req, res) => {
     res.status(502).json({ error: 'Could not update product: ' + err.message });
   }
 });
+
+// GET /api/admin/quotes — every quote anyone ran, newest first, with the
+// carrier cost breakdown (pre-markup) on each rate so the admin can compare
+// against actual carrier invoices. Admin-only, DB required.
+router.get('/quotes', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
+  try {
+    const r = await db.query(
+      `SELECT q.id, q.created_at, q.origin_city, q.origin_state, q.dest_city, q.dest_state,
+              q.parcel_weight, q.region, q.rates_json, u.email AS user_email
+         FROM quotes q LEFT JOIN users u ON u.id = q.user_id
+        ORDER BY q.created_at DESC LIMIT $1`,
+      [limit]
+    );
+    const quotes = r.rows.map((row) => {
+      let rates = [];
+      try {
+        const raw = typeof row.rates_json === 'string' ? JSON.parse(row.rates_json) : (row.rates_json || []);
+        rates = (Array.isArray(raw) ? raw : []).map((x) => ({
+          carrier: x.carrier,
+          service: x.service,
+          source: x.source,
+          base_cad: x.base_cad == null ? null : Number(x.base_cad),
+          fsc_percent: x.fsc_percent == null ? null : Number(x.fsc_percent),
+          fsc_cad: x.fsc_cad == null ? null : Number(x.fsc_cad),
+          accessorials_applied: (x.accessorials_applied || []).map((a) => ({
+            label: a.label || a.code,
+            fee_cad: Number(a.fee_cad) || 0,
+          })),
+          accessorial_total_cad: x.accessorial_total_cad == null ? 0 : Number(x.accessorial_total_cad),
+          cost_cad: x.cost_cad == null ? null : Number(x.cost_cad),
+          retail_cad: x.retail_cad == null ? null : Number(x.retail_cad),
+          delivery_days: x.delivery_days || null,
+        }));
+      } catch { /* malformed rates_json: leave empty */ }
+      return {
+        id: row.id,
+        created_at: row.created_at,
+        user_email: row.user_email,
+        origin: [row.origin_city, row.origin_state].filter(Boolean).join(', '),
+        destination: [row.dest_city, row.dest_state].filter(Boolean).join(', '),
+        weight_lbs: row.parcel_weight == null ? null : Number(row.parcel_weight),
+        region: row.region,
+        rates,
+      };
+    });
+    return res.json({ quotes });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not load quote log: ' + err.message });
+  }
+});
