@@ -100,7 +100,8 @@ router.get('/users', async (req, res) => {
   if (!(await requireAdmin(req, res))) return;
   try {
     const r = await db.query(
-      `SELECT id, email, full_name, company_name, phone, shipping_approved, markup_percent, created_at
+      `SELECT id, email, full_name, company_name, phone, shipping_approved, markup_percent,
+              unlimited_quotes, created_at
          FROM users ORDER BY created_at DESC LIMIT 500`
     );
     const users = r.rows.map((u) => ({
@@ -111,6 +112,7 @@ router.get('/users', async (req, res) => {
       phone: u.phone,
       shipping_approved: !!u.shipping_approved,
       markup_percent: u.markup_percent == null ? null : Number(u.markup_percent),
+      unlimited_quotes: !!u.unlimited_quotes,
       is_admin: billing.isAdminEmail(u.email),
       created_at: u.created_at,
     }));
@@ -163,6 +165,26 @@ router.post('/users/:id/markup', async (req, res) => {
     });
   } catch (err) {
     return res.status(502).json({ error: 'Could not update markup: ' + err.message });
+  }
+});
+
+// POST /api/admin/users/:id/unlimited-quotes — grant or revoke unlimited
+// monthly quotes for one account. Body {unlimited}: boolean. This bypasses
+// the quote cap only; it grants no admin rights and does not approve the
+// account for shipping.
+router.post('/users/:id/unlimited-quotes', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  const unlimited = !!(req.body && req.body.unlimited);
+  try {
+    const r = await db.query(
+      'UPDATE users SET unlimited_quotes = $1 WHERE id = $2 RETURNING id, email, unlimited_quotes',
+      [unlimited, req.params.id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Unknown account.' });
+    return res.json({ id: r.rows[0].id, unlimited_quotes: !!r.rows[0].unlimited_quotes });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not update quote limit: ' + err.message });
   }
 });
 
@@ -293,6 +315,120 @@ router.get('/quotes', async (req, res) => {
     return res.json({ quotes });
   } catch (err) {
     return res.status(502).json({ error: 'Could not load quote log: ' + err.message });
+  }
+});
+
+// GET /api/admin/analytics/quotes?from=YYYY-MM-DD&to=YYYY-MM-DD — quote
+// volume analytics for carrier rate negotiation. Aggregates quotes in the
+// date range (default: last 90 days) by carrier, by customer, and by lane.
+// "Cheapest" counts use the lowest pre-markup carrier cost on each quote —
+// the volume figure to bring to the negotiating table.
+router.get('/analytics/quotes', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  const parseDay = (s, fallback) => {
+    if (typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    return fallback;
+  };
+  const today = new Date();
+  const dfltTo = today.toISOString().slice(0, 10);
+  const dfltFrom = new Date(today.getTime() - 90 * 864e5).toISOString().slice(0, 10);
+  const from = parseDay(req.query.from, dfltFrom);
+  const to = parseDay(req.query.to, dfltTo);
+  try {
+    const r = await db.query(
+      `SELECT q.created_at, q.origin_city, q.origin_state, q.dest_city, q.dest_state,
+              q.parcel_weight, q.rates_json, u.email AS user_email,
+              u.full_name AS user_name, u.company_name AS company_name
+         FROM quotes q LEFT JOIN users u ON u.id = q.user_id
+        WHERE q.created_at >= ($1 || 'T00:00:00Z')::timestamptz
+          AND q.created_at < (($2 || 'T00:00:00Z')::timestamptz + interval '1 day')
+        ORDER BY q.created_at DESC LIMIT 5000`,
+      [from, to]
+    );
+    const num = (v) => (v == null || !Number.isFinite(Number(v)) ? null : Number(v));
+    const byCarrier = new Map();
+    const byCustomer = new Map();
+    const byLane = new Map();
+    let totalWeight = 0, totalCost = 0, totalRetail = 0;
+    for (const row of r.rows) {
+      let rates = [];
+      try {
+        const raw = typeof row.rates_json === 'string' ? JSON.parse(row.rates_json) : (row.rates_json || []);
+        rates = (Array.isArray(raw) ? raw : []).map((x) => ({
+          carrier: x.carrier || 'Unknown',
+          cost_cad: num(x.cost_cad),
+          retail_cad: num(x.retail_cad),
+        }));
+      } catch { /* malformed: no rates */ }
+      const rated = rates.filter((x) => x.cost_cad != null);
+      let cheapest = null;
+      for (const x of rated) {
+        if (!cheapest || x.cost_cad < cheapest.cost_cad) cheapest = x;
+      }
+      const wt = num(row.parcel_weight) || 0;
+      totalWeight += wt;
+      if (cheapest) {
+        totalCost += cheapest.cost_cad;
+        if (cheapest.retail_cad != null) totalRetail += cheapest.retail_cad;
+      }
+      for (const x of rated) {
+        let c = byCarrier.get(x.carrier);
+        if (!c) { c = { carrier: x.carrier, quotes_rated: 0, quotes_cheapest: 0, weight_lbs: 0, cost_cad: 0 }; byCarrier.set(x.carrier, c); }
+        c.quotes_rated += 1;
+        c.weight_lbs = round2(c.weight_lbs + wt);
+        c.cost_cad = round2(c.cost_cad + x.cost_cad);
+        if (cheapest && x.carrier === cheapest.carrier && x.cost_cad === cheapest.cost_cad) c.quotes_cheapest += 1;
+      }
+      const custKey = row.user_email || 'unknown account';
+      let cu = byCustomer.get(custKey);
+      if (!cu) { cu = { email: row.user_email || null, name: row.user_name || null, company: row.company_name || null, quotes: 0, weight_lbs: 0, cost_cad: 0, retail_cad: 0 }; byCustomer.set(custKey, cu); }
+      cu.quotes += 1;
+      cu.weight_lbs = round2(cu.weight_lbs + wt);
+      if (cheapest) {
+        cu.cost_cad = round2(cu.cost_cad + cheapest.cost_cad);
+        if (cheapest.retail_cad != null) cu.retail_cad = round2(cu.retail_cad + cheapest.retail_cad);
+      }
+      const laneKey = `${row.origin_city || '?'}, ${row.origin_state || '?'}\u2192${row.dest_city || '?'}, ${row.dest_state || '?'}`;
+      let ln = byLane.get(laneKey);
+      if (!ln) { ln = { lane: laneKey, quotes: 0, weight_lbs: 0, carriers: new Map() }; byLane.set(laneKey, ln); }
+      ln.quotes += 1;
+      ln.weight_lbs = round2(ln.weight_lbs + wt);
+      if (cheapest) {
+        let lc = ln.carriers.get(cheapest.carrier);
+        if (!lc) { lc = { carrier: cheapest.carrier, cheapest_count: 0, cost_cad: 0 }; ln.carriers.set(cheapest.carrier, lc); }
+        lc.cheapest_count += 1;
+        lc.cost_cad = round2(lc.cost_cad + cheapest.cost_cad);
+      }
+    }
+    const carriers = [...byCarrier.values()]
+      .map((c) => ({ ...c, avg_cost_per_lb: c.weight_lbs > 0 ? round2(c.cost_cad / c.weight_lbs) : null }))
+      .sort((a, b) => b.quotes_cheapest - a.quotes_cheapest || b.weight_lbs - a.weight_lbs);
+    const customers = [...byCustomer.values()].sort((a, b) => b.weight_lbs - a.weight_lbs);
+    const lanes = [...byLane.values()]
+      .map((ln) => ({
+        lane: ln.lane,
+        quotes: ln.quotes,
+        weight_lbs: ln.weight_lbs,
+        carriers: [...ln.carriers.values()]
+          .map((c) => ({ ...c, avg_cost_cad: c.cheapest_count ? round2(c.cost_cad / c.cheapest_count) : null }))
+          .sort((a, b) => b.cheapest_count - a.cheapest_count),
+      }))
+      .sort((a, b) => b.weight_lbs - a.weight_lbs);
+    return res.json({
+      from, to,
+      summary: {
+        quotes: r.rows.length,
+        weight_lbs: round2(totalWeight),
+        carrier_cost_cad: round2(totalCost),
+        quoted_cad: round2(totalRetail),
+      },
+      by_carrier: carriers,
+      by_customer: customers,
+      by_lane: lanes,
+    });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not load quote analytics: ' + err.message });
   }
 });
 

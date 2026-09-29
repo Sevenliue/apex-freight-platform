@@ -426,6 +426,9 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status text NOT NULL DEF
 ALTER TABLE users ADD COLUMN IF NOT EXISTS current_period_end timestamptz;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS quotes_used integer NOT NULL DEFAULT 0;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS quota_period text;
+-- Per-account unlimited-quote grant (admin toggle). Bypasses the monthly
+-- quote cap without granting any admin rights.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS unlimited_quotes boolean NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS idx_users_stripe_customer_id ON users(stripe_customer_id);
 
 -- ---------------------------------------------------------------------------

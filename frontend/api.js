@@ -421,6 +421,21 @@ export function setUserMarkup(id, markupPercent) {
   return post(`/api/admin/users/${encodeURIComponent(id)}/markup`, { markup_percent: markupPercent });
 }
 
+/* Admin — grant/revoke unlimited monthly quotes for one account (no admin
+   rights attached). */
+export function setUserUnlimited(id, unlimited) {
+  return post(`/api/admin/users/${encodeURIComponent(id)}/unlimited-quotes`, { unlimited: !!unlimited });
+}
+
+/* Admin — quote analytics: volume by carrier / customer / lane for rate
+   negotiation. from/to are YYYY-MM-DD. */
+export function getQuoteAnalytics(from, to) {
+  const q = [];
+  if (from) q.push(`from=${encodeURIComponent(from)}`);
+  if (to) q.push(`to=${encodeURIComponent(to)}`);
+  return get(`/api/admin/analytics/quotes${q.length ? '?' + q.join('&') : ''}`);
+}
+
 /* Admin — quote log: every quote anyone ran, with carrier cost breakdowns. */
 export function listQuoteLog(limit) {
   return get(`/api/admin/quotes?limit=${encodeURIComponent(limit || 50)}`);

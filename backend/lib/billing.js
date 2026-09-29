@@ -53,7 +53,8 @@ async function getBillingState(userId) {
   if (!db.isEnabled()) return null;
   const r = await db.query(
     `SELECT id, email, subscription_tier, subscription_status, current_period_end,
-            quotes_used, quota_period, stripe_customer_id, shipping_approved
+            quotes_used, quota_period, stripe_customer_id, shipping_approved,
+            unlimited_quotes
        FROM users WHERE id = $1 LIMIT 1`,
     [userId]
   );
@@ -66,9 +67,27 @@ async function getBillingState(userId) {
       userId: row.id,
       tier: 'admin',
       isAdmin: true,
+      unlimitedQuotes: true,
       shippingApproved: true, // staff always bypass the shipping gate
       status: row.subscription_status,
       billingActive: true,
+      quotesUsed: Number(row.quotes_used) || 0,
+      quotesLimit: null,
+      periodEnd: row.current_period_end || null,
+      stripeCustomerId: row.stripe_customer_id || null,
+    };
+  }
+  // Admin-granted unlimited quotes: no monthly cap, but NOT an admin —
+  // no admin UI, no shipping bypass, stays on the account's own plan tier.
+  if (row.unlimited_quotes) {
+    return {
+      userId: row.id,
+      tier: effectiveTier(row),
+      isAdmin: false,
+      unlimitedQuotes: true,
+      shippingApproved,
+      status: row.subscription_status,
+      billingActive: ACTIVE_STATUSES.has(row.subscription_status),
       quotesUsed: Number(row.quotes_used) || 0,
       quotesLimit: null,
       periodEnd: row.current_period_end || null,

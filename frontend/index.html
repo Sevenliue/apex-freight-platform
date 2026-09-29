@@ -972,6 +972,7 @@
       <div id="pickup-queue" style="margin-top:16px"></div>
       <div id="store-admin" style="margin-top:16px"></div>
       <div id="quote-log" style="margin-top:16px"></div>
+      <div id="quote-analytics" style="margin-top:16px"></div>
       <div id="fsc-admin" style="margin-top:16px"></div>
     </section>
       </main>
@@ -2861,6 +2862,7 @@
       loadAccountQueue();
       loadStoreAdmin();
       loadQuoteLog();
+      loadQuoteAnalytics();
       loadFscAdmin();
     }
 
@@ -2942,7 +2944,7 @@
             ? `<div class="card warn" style="margin-bottom:10px">⏳ ${pending.length} account${pending.length === 1 ? '' : 's'} waiting for approval.</div>`
             : '') +
           `<div class="table-wrap"><table class="data"><thead><tr>
-            <th>Registered</th><th>Name</th><th>Company</th><th>Email</th><th>Markup</th><th>Status</th><th></th>
+            <th>Registered</th><th>Name</th><th>Company</th><th>Email</th><th>Markup</th><th>Quotes</th><th>Status</th><th></th>
           </tr></thead><tbody>${users
             .map(
               (u) => `<tr>
@@ -2956,6 +2958,11 @@
                     ? `${defaultMarkup}% <span class="note">(default)</span>`
                     : `${esc(String(u.markup_percent))}%`}</span>
                    <button class="btn small" data-acct-markup="${esc(u.id)}" data-current="${u.markup_percent == null ? '' : esc(String(u.markup_percent))}">Edit</button>`}</td>
+              <td>${u.is_admin
+                ? '—'
+                : u.unlimited_quotes
+                  ? `<span class="badge ok">Unlimited</span><br><button class="btn small" data-acct-unlimited="${esc(u.id)}" data-unlimited="1" style="margin-top:4px">Remove</button>`
+                  : `<span class="note">Plan limit</span><br><button class="btn small" data-acct-unlimited="${esc(u.id)}" data-unlimited="0" style="margin-top:4px">Make unlimited</button>`}</td>
               <td>${u.is_admin
                 ? '<span class="badge staff">Staff</span>'
                 : u.shipping_approved
@@ -2990,6 +2997,25 @@
               reload();
             } catch (err) {
               showAlert('Could not update markup: ' + err.message);
+              btn.disabled = false;
+            }
+          })
+        );
+        box.querySelectorAll('[data-acct-unlimited]').forEach((btn) =>
+          btn.addEventListener('click', async () => {
+            const granting = btn.getAttribute('data-unlimited') === '0';
+            const ok = confirm(
+              granting
+                ? 'Give this account UNLIMITED monthly quotes?\n\nQuoting only — no admin rights, no shipping approval.'
+                : 'Remove unlimited quotes from this account?\n\nThey go back to their plan\'s monthly limit.'
+            );
+            if (!ok) return;
+            btn.disabled = true;
+            try {
+              await api.setUserUnlimited(btn.getAttribute('data-acct-unlimited'), granting);
+              reload();
+            } catch (err) {
+              showAlert('Could not update quote limit: ' + err.message);
               btn.disabled = false;
             }
           })
@@ -4816,6 +4842,80 @@
         // Not an admin (or DB off): hide the section silently.
         box.innerHTML = '';
       }
+    }
+
+    /* Quote analytics: volume by carrier / customer / lane, for carrier
+       rate negotiation. "Won" = the carrier had the cheapest pre-markup
+       cost on that quote — the volume figure to bring to the table. */
+    async function loadQuoteAnalytics() {
+      const box = $('#quote-analytics');
+      if (!box) return;
+      const money = (n) => (n == null || !Number.isFinite(Number(n)) ? '—' : cad(Number(n)));
+      const today = new Date();
+      const iso = (d) => d.toISOString().slice(0, 10);
+      const dfltTo = iso(today);
+      const dfltFrom = iso(new Date(today.getTime() - 90 * 864e5));
+      const render = async (from, to) => {
+        box.innerHTML = '<div class="card empty">Loading analytics…</div>';
+        try {
+          const data = await api.getQuoteAnalytics(from, to);
+          const s = data.summary || {};
+          const carrierRows = (data.by_carrier || []).map((c) =>
+            `<tr><td><strong>${esc(c.carrier)}</strong></td><td class="num">${c.quotes_rated}</td>` +
+            `<td class="num"><strong>${c.quotes_cheapest}</strong></td>` +
+            `<td class="num">${Number(c.weight_lbs || 0).toLocaleString('en-CA')} lb</td>` +
+            `<td class="num">${money(c.cost_cad)}</td>` +
+            `<td class="num">${c.avg_cost_per_lb == null ? '—' : '$' + Number(c.avg_cost_per_lb).toFixed(2) + '/lb'}</td></tr>`
+          ).join('');
+          const customerRows = (data.by_customer || []).map((c) => {
+            const who = !c.email ? 'unknown account'
+              : (c.company || c.name)
+                ? `${esc(c.company || c.name)}<br><span class="note">${esc(c.email)}</span>`
+                : esc(c.email);
+            return `<tr><td>${who}</td><td class="num">${c.quotes}</td>` +
+              `<td class="num">${Number(c.weight_lbs || 0).toLocaleString('en-CA')} lb</td>` +
+              `<td class="num">${money(c.cost_cad)}</td><td class="num">${money(c.retail_cad)}</td></tr>`;
+          }).join('');
+          const laneRows = (data.by_lane || []).map((l) => {
+            const top = (l.carriers || []).map((c) =>
+              `${esc(c.carrier)} × ${c.cheapest_count} (avg ${money(c.avg_cost_cad)})`
+            ).join('<br>') || '—';
+            return `<tr><td><strong>${esc(l.lane)}</strong></td><td class="num">${l.quotes}</td>` +
+              `<td class="num">${Number(l.weight_lbs || 0).toLocaleString('en-CA')} lb</td><td>${top}</td></tr>`;
+          }).join('');
+          box.innerHTML =
+            '<h2>Quote analytics</h2><p class="lede">Volume data for carrier rate negotiation. ' +
+            'Carrier cost is pre-markup (rate sheet + fuel surcharge + accessorials).</p>' +
+            `<div class="actions" style="margin-bottom:10px">
+              <label class="note">From <input type="date" id="qa-from" value="${esc(from)}"></label>
+              <label class="note">To <input type="date" id="qa-to" value="${esc(to)}"></label>
+              <button type="button" class="btn small primary" id="qa-apply">Apply</button>
+            </div>` +
+            `<div class="cards" style="margin-bottom:10px">` +
+            `<div class="card"><div class="note">Quotes</div><div style="font-size:22px;font-weight:700">${s.quotes || 0}</div></div>` +
+            `<div class="card"><div class="note">Total weight</div><div style="font-size:22px;font-weight:700">${Number(s.weight_lbs || 0).toLocaleString('en-CA')} lb</div></div>` +
+            `<div class="card"><div class="note">Carrier cost</div><div style="font-size:22px;font-weight:700">${money(s.carrier_cost_cad)}</div></div>` +
+            `<div class="card"><div class="note">Quoted</div><div style="font-size:22px;font-weight:700">${money(s.quoted_cad)}</div></div>` +
+            `</div>` +
+            '<h3>By carrier</h3><div class="table-wrap"><table class="data"><thead><tr>' +
+            '<th>Carrier</th><th class="num">Quotes rated</th><th class="num">Won (cheapest)</th>' +
+            '<th class="num">Weight</th><th class="num">Carrier cost</th><th class="num">Avg cost</th>' +
+            '</tr></thead><tbody>' + (carrierRows || '<tr><td colspan="6" class="note">No data in range.</td></tr>') + '</tbody></table></div>' +
+            '<h3 style="margin-top:14px">By customer</h3><div class="table-wrap"><table class="data"><thead><tr>' +
+            '<th>Customer</th><th class="num">Quotes</th><th class="num">Weight</th><th class="num">Carrier cost</th><th class="num">Quoted</th>' +
+            '</tr></thead><tbody>' + (customerRows || '<tr><td colspan="5" class="note">No data in range.</td></tr>') + '</tbody></table></div>' +
+            '<h3 style="margin-top:14px">By lane</h3><div class="table-wrap"><table class="data"><thead><tr>' +
+            '<th>Lane</th><th class="num">Quotes</th><th class="num">Weight</th><th>Cheapest carrier (wins / avg cost)</th>' +
+            '</tr></thead><tbody>' + (laneRows || '<tr><td colspan="4" class="note">No data in range.</td></tr>') + '</tbody></table></div>';
+          $('#qa-apply').addEventListener('click', () => {
+            render($('#qa-from').value || dfltFrom, $('#qa-to').value || dfltTo);
+          });
+        } catch (err) {
+          // Not an admin (or DB off): hide the section silently.
+          box.innerHTML = '';
+        }
+      };
+      render(dfltFrom, dfltTo);
     }
 
     /* Fuel surcharges: per-carrier admin overrides. When a carrier changes
