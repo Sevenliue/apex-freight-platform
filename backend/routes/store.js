@@ -50,6 +50,7 @@ const SEED_PRODUCTS = [
       'ROI Calculator (Excel)',
       'Probation Review & PDP Toolkit (Excel)',
       'Playbook Recurring Calendar (.ics)',
+      'Playbook Annual Operations Calendar (.ics)',
     ],
     sort_order: 2,
   },
@@ -119,6 +120,10 @@ async function ensureStoreTables() {
   // (idempotent — skips rows that already list it, e.g. after an admin edit).
   await db.query(`UPDATE products SET includes = includes || '["Playbook Recurring Calendar (.ics)"]'::jsonb
                   WHERE slug = 'playbook-bundle' AND NOT (includes ? 'Playbook Recurring Calendar (.ics)')`);
+  // 2026-09-29: advertise the annual operations calendar in the bundle's includes
+  // (idempotent — skips rows that already list it, e.g. after an admin edit).
+  await db.query(`UPDATE products SET includes = includes || '["Playbook Annual Operations Calendar (.ics)"]'::jsonb
+                  WHERE slug = 'playbook-bundle' AND NOT (includes ? 'Playbook Annual Operations Calendar (.ics)')`);
 }
 ensureStoreTables().catch((e) => console.error('[store] table init failed:', e.message));
 
