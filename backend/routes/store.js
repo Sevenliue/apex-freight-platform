@@ -40,7 +40,7 @@ const SEED_PRODUCTS = [
     title: 'Playbook + Template Pack',
     subtitle: 'eBook + companion tools (ZIP)',
     description:
-      'The full playbook plus the companion tools from the book: the new-hire training tracker, the ROI calculator, and the probation review & PDP toolkit. Everything you need to put the chapters to work.',
+      'Stop building spreadsheets. Start running your warehouse. You could spend hours building your own KPI dashboard, training tracker, and maintenance sheets — testing formulas, fixing layouts, wondering if the math is right. Or you could trust a generic template from someone who has never run a shift. This pack was built by someone who has: years on the warehouse floor, now running distribution operations across Canada. You get the full Playbook (29 chapters of practical operations leadership) plus the exact tools from its pages — the new-hire training tracker, the ROI calculator, the probation review & PDP toolkit, and the annual operations calendar. $49 CAD: less than an hour of your time, for tools that took years to get right.',
     price_cents: 4900,
     currency: 'cad',
     file_name: 'playbook-bundle.zip',
@@ -101,6 +101,17 @@ async function ensureStoreTables() {
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
   await db.query(`CREATE INDEX IF NOT EXISTS digital_orders_user_idx ON digital_orders (user_id)`);
+  // 2026-09-29: download log — every served product download, so refund
+  // requests can be checked against actual download history.
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS digital_downloads (
+      id UUID PRIMARY KEY,
+      user_id UUID NOT NULL REFERENCES users(id),
+      product_id UUID NOT NULL REFERENCES products(id),
+      downloaded_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`);
+  await db.query(`CREATE INDEX IF NOT EXISTS digital_downloads_user_idx ON digital_downloads (user_id)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS digital_downloads_product_idx ON digital_downloads (product_id)`);
   for (const p of SEED_PRODUCTS) {
     await db.query(
       `INSERT INTO products (id, slug, title, subtitle, description, price_cents, currency, file_name, includes, active, sort_order)
@@ -124,6 +135,14 @@ async function ensureStoreTables() {
   // (idempotent — skips rows that already list it, e.g. after an admin edit).
   await db.query(`UPDATE products SET includes = includes || '["Playbook Annual Operations Calendar (.ics)"]'::jsonb
                   WHERE slug = 'playbook-bundle' AND NOT (includes ? 'Playbook Annual Operations Calendar (.ics)')`);
+  // 2026-09-29: sales-pitch rewrite of the bundle description. Keyed on the old
+  // description text so it fires once and never clobbers an admin edit.
+  await db.query(
+    `UPDATE products SET description = $2
+     WHERE slug = 'playbook-bundle' AND description = $1`,
+    ['The full playbook plus the companion tools from the book: the new-hire training tracker, the ROI calculator, and the probation review & PDP toolkit. Everything you need to put the chapters to work.',
+     'Stop building spreadsheets. Start running your warehouse. You could spend hours building your own KPI dashboard, training tracker, and maintenance sheets — testing formulas, fixing layouts, wondering if the math is right. Or you could trust a generic template from someone who has never run a shift. This pack was built by someone who has: years on the warehouse floor, now running distribution operations across Canada. You get the full Playbook (29 chapters of practical operations leadership) plus the exact tools from its pages — the new-hire training tracker, the ROI calculator, the probation review & PDP toolkit, and the annual operations calendar. $49 CAD: less than an hour of your time, for tools that took years to get right.']
+  );
 }
 ensureStoreTables().catch((e) => console.error('[store] table init failed:', e.message));
 
@@ -262,7 +281,7 @@ router.get('/download/:id', async (req, res) => {
   if (!db.isEnabled()) return res.status(501).json({ error: 'Store requires a database.' });
   try {
     const r = await db.query(
-      `SELECT p.file_name, p.title FROM digital_orders o
+      `SELECT p.id AS product_id, p.file_name, p.title FROM digital_orders o
        JOIN products p ON p.id = o.product_id
        WHERE o.user_id = $1 AND p.id = $2 AND o.status = 'paid' LIMIT 1`,
       [req.user.id, req.params.id]
@@ -274,6 +293,13 @@ router.get('/download/:id', async (req, res) => {
     const file = path.join(DIGITAL_DIR, safeName);
     if (!fs.existsSync(file)) return res.status(404).json({ error: 'File not available yet.' });
     const dlName = r.rows[0].title.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') + path.extname(safeName);
+    // 2026-09-29: log every served download for refund verification.
+    try {
+      await db.query(
+        `INSERT INTO digital_downloads (id, user_id, product_id) VALUES ($1, $2, $3)`,
+        [db.newId('ddlr'), req.user.id, r.rows[0].product_id]
+      );
+    } catch (e) { console.error('[store/download] log failed:', e.message); }
     res.download(file, dlName);
   } catch (e) {
     console.error('[store/download]', e.message);
