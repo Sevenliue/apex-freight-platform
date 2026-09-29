@@ -4777,17 +4777,28 @@
         }
         box.innerHTML =
           '<h2>Quote log</h2><p class="lede">Every quote run on the platform. <strong>Carrier cost</strong> is the pre-markup charge (rate sheet + fuel surcharge + accessorials) — compare it against the carrier\'s invoice. Quoted is what the customer saw.</p>' +
-          quotes.map((q, qi) => {
+          '<div class="table-wrap"><table class="data"><thead><tr>' +
+          '<th>Date</th><th>Customer</th><th>Lane</th><th class="num">Weight</th>' +
+          '<th>Carrier</th><th class="num">Base</th><th class="num">Fuel surcharge</th><th>Accessorials</th>' +
+          '<th class="num">Carrier cost</th><th class="num">Quoted</th><th class="num">Margin</th>' +
+          '</tr></thead><tbody>' +
+          quotes.map((q) => {
             const when = q.created_at ? new Date(q.created_at).toLocaleString('en-CA', { timeZone: 'America/Edmonton' }) : '—';
-            const rows = (q.rates || []).map((r) => {
+            const lane = `${esc(q.origin || '?')} → ${esc(q.destination || '?')}`;
+            const who = esc(q.user_email || 'unknown account');
+            const wt = q.weight_lbs != null ? esc(String(q.weight_lbs)) + ' lb' : '—';
+            const rateRows = (q.rates || []).map((r, ri) => {
               const margin = (r.retail_cad != null && r.cost_cad != null)
                 ? round2(r.retail_cad - r.cost_cad) : null;
               const acc = (r.accessorials_applied || [])
                 .map((a) => `${esc(a.label)} (${cad(a.fee_cad)})`).join('<br>') || '—';
               const fsc = r.fsc_percent != null
                 ? `${Number(r.fsc_percent).toFixed(2)}% (${money(r.fsc_cad)})` : '—';
+              const svc = r.service ? `<br><span class="note">${esc(r.service)}${r.source ? ' · ' + esc(r.source) : ''}</span>` : '';
+              const first = ri === 0;
               return `<tr>
-                <td>${esc(r.carrier || '—')}<br><span class="note">${esc(r.service || '')}${r.source ? ' · ' + esc(r.source) : ''}</span></td>
+                ${first ? `<td rowspan="${q.rates.length}">${esc(when)}</td><td rowspan="${q.rates.length}">${who}</td><td rowspan="${q.rates.length}"><strong>${lane}</strong></td><td class="num" rowspan="${q.rates.length}">${wt}</td>` : ''}
+                <td>${esc(r.carrier || '—')}${svc}</td>
                 <td class="num">${money(r.base_cad)}</td>
                 <td class="num">${fsc}</td>
                 <td>${acc}</td>
@@ -4796,24 +4807,9 @@
                 <td class="num">${margin == null ? '—' : cad(margin)}</td>
               </tr>`;
             }).join('');
-            return `<div class="card" style="margin-bottom:12px">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-                <div><strong>${esc(q.origin || '?')} → ${esc(q.destination || '?')}</strong>
-                  <span class="note">${q.weight_lbs != null ? esc(String(q.weight_lbs)) + ' lb · ' : ''}${esc(q.user_email || 'unknown account')} · ${esc(when)}</span></div>
-                <button type="button" class="btn small" data-ql-toggle="${qi}">${(q.rates || []).length} rate(s) — details</button>
-              </div>
-              <div class="table-wrap hidden" id="ql-${qi}" style="margin-top:10px"><table class="data"><thead><tr>
-                <th>Carrier</th><th class="num">Base</th><th class="num">Fuel surcharge</th><th>Accessorials</th>
-                <th class="num">Carrier cost</th><th class="num">Quoted</th><th class="num">Margin</th>
-              </tr></thead><tbody>${rows || '<tr><td colspan="7" class="note">No rates returned for this quote.</td></tr>'}</tbody></table></div>
-            </div>`;
-          }).join('');
-        box.querySelectorAll('[data-ql-toggle]').forEach((btn) =>
-          btn.addEventListener('click', () => {
-            const t = document.getElementById('ql-' + btn.getAttribute('data-ql-toggle'));
-            if (t) t.classList.toggle('hidden');
-          })
-        );
+            return rateRows || `<tr><td>${esc(when)}</td><td>${who}</td><td><strong>${lane}</strong></td><td class="num">${wt}</td><td colspan="7" class="note">No rates returned for this quote.</td></tr>`;
+          }).join('') +
+          '</tbody></table></div>';
       } catch (err) {
         // Not an admin (or DB off): hide the section silently.
         box.innerHTML = '';
