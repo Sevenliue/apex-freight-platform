@@ -18,7 +18,7 @@
  * - On select of an address-book entry, every address field (plus contact
  *   name/phone/email where the block has them) fills instantly — no Google call.
  * - Coexists with the offline postal auto-fill: after a suggestion is applied,
- *   window.APEX_postalFilled(zipName, fsa) is called when present so the
+ *   window.SHIPRATE_postalFilled(zipName, fsa) is called when present so the
  *   postal auto-fill treats those fields as set and doesn't fight it.
  * - When the backend reports { configured: false }, the inputs stay plain
  *   text fields — no errors, no console noise, no visible broken feature.
@@ -106,7 +106,7 @@
 
   function signedIn() {
     try {
-      return !!localStorage.getItem('apex_auth_token');
+      return !!localStorage.getItem('shiprate_auth_token');
     } catch (e) {
       return false;
     }
@@ -164,13 +164,13 @@
     if (group.email) setVal(group.email, addr.email);
     var z = el(group.zip);
     var fsa = '';
-    if (window.APEX_fsaOf) fsa = window.APEX_fsaOf(addr.postal || '');
+    if (window.SHIPRATE_fsaOf) fsa = window.SHIPRATE_fsaOf(addr.postal || '');
     else {
       var c = String(addr.postal || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (/^[A-Z]\d[A-Z]/.test(c)) fsa = c.slice(0, 3);
     }
-    if (window.APEX_postalFilled) {
-      window.APEX_postalFilled(group.zip, fsa);
+    if (window.SHIPRATE_postalFilled) {
+      window.SHIPRATE_postalFilled(group.zip, fsa);
     } else {
       var cEl = el(group.city);
       var sEl = el(group.state);
@@ -199,13 +199,13 @@
       setVal(group.country, data.country);
       // Tell postal auto-fill about the fill so it doesn't fight it.
       var fsa = '';
-      if (window.APEX_fsaOf) fsa = window.APEX_fsaOf(data.postal || '');
+      if (window.SHIPRATE_fsaOf) fsa = window.SHIPRATE_fsaOf(data.postal || '');
       else {
         var c = String(data.postal || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
         if (/^[A-Z]\d[A-Z]/.test(c)) fsa = c.slice(0, 3);
       }
-      if (window.APEX_postalFilled) {
-        window.APEX_postalFilled(group.zip, fsa);
+      if (window.SHIPRATE_postalFilled) {
+        window.SHIPRATE_postalFilled(group.zip, fsa);
       } else {
         // Same flag pattern the postal auto-fill uses, in case it loads later.
         var z = el(group.zip);

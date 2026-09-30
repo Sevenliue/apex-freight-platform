@@ -51,7 +51,7 @@ async function ensureUser(userId, role) {
   if (UUID_RE.test(raw)) {
     await query(
       `INSERT INTO users (id, email, role) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
-      [raw, `${raw}@apex.local`, roleName]
+      [raw, `${raw}@shiprate.local`, roleName]
     );
     return raw;
   }
@@ -60,7 +60,7 @@ async function ensureUser(userId, role) {
   const uuid = randomUUID();
   await query(
     `INSERT INTO users (id, email, full_name, role) VALUES ($1, $2, $3, $4)`,
-    [uuid, `${uuid}@apex.local`, raw || null, roleName]
+    [uuid, `${uuid}@shiprate.local`, raw || null, roleName]
   );
   return uuid;
 }

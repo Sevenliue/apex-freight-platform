@@ -1,4 +1,4 @@
-# Apex Freight & Shipping Canada — Database Setup
+# ShipRate — Database Setup
 
 PostgreSQL schema for the freight brokerage marketplace. All amounts in **CAD**.
 Files live in this folder: `platform/db/schema.sql`.
@@ -12,7 +12,7 @@ Files live in this folder: `platform/db/schema.sql`.
 
 1. Go to [supabase.com](https://supabase.com) and sign in (or create an account).
 2. **Create a project**: New project → pick an organization → name it
-   (e.g. `apex-freight`), choose a region close to you (e.g. `Canada — Montreal`
+   (e.g. `shiprate-freight`), choose a region close to you (e.g. `Canada — Montreal`
    or `US — Oregon`), and set a strong database password. Save that password
    somewhere safe (a password manager, not this repo).
 3. Open the project dashboard → **SQL Editor** (left sidebar) → **New query**.
@@ -29,11 +29,11 @@ Files live in this folder: `platform/db/schema.sql`.
 ## B. Render (managed Postgres)
 
 1. Sign in at [render.com](https://render.com) → **New → PostgreSQL**.
-2. Name it (e.g. `apex-freight-db`), choose a region and plan, then **Create Database**.
+2. Name it (e.g. `shiprate-freight-db`), choose a region and plan, then **Create Database**.
 3. On the database page, copy the **External Database URL** (starts with
    `postgresql://...`). It looks like:
    ```
-   postgresql://apex_freight_user:[YOUR-PASSWORD]@<host>.render.com:5432/apex_freight
+   postgresql://shiprate_freight_user:[YOUR-PASSWORD]@<host>.render.com:5432/shiprate_freight
    ```
 4. Run `schema.sql` against it once — options:
    - **psql locally**: `psql "$DATABASE_URL" -f platform/db/schema.sql`

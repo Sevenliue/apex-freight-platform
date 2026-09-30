@@ -1,4 +1,4 @@
-// config.js — runtime configuration for the Apex Freight backend.
+// config.js — runtime configuration for the ShipRate backend.
 // Loads ../.env (platform root) via dotenv. Every credential comes from the
 // environment; nothing is invented here. All money is CAD.
 'use strict';

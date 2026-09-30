@@ -1,4 +1,4 @@
-/* api.js — REST wrapper for the Apex Freight & Shipping Canada backend.
+/* api.js — REST wrapper for the ShipRate backend.
    The backend serves these files statically, so the API is on the SAME origin.
    No dependencies. */
 
@@ -8,7 +8,7 @@ const API_BASE_URL = ''; // same origin; set to full URL only if API is hosted s
    The server issues an opaque session token on signup/login. It is stored
    in localStorage and sent as `Authorization: Bearer <token>` on every API
    call. Public flows (rating, guest quotes) work with or without it. */
-const TOKEN_KEY = 'apex_auth_token';
+const TOKEN_KEY = 'shiprate_auth_token';
 
 export function getAuthToken() {
   try {
@@ -79,7 +79,7 @@ async function request(method, path, body) {
     // silently on every button.
     if (res.status === 401 && token && !path.startsWith('/api/auth/')) {
       try {
-        window.dispatchEvent(new CustomEvent('apex:session-expired'));
+        window.dispatchEvent(new CustomEvent('shiprate:session-expired'));
       } catch { /* non-browser env */ }
     }
     throw err;
@@ -385,7 +385,7 @@ export async function downloadReport(kind, opts = {}) {
   const blob = await res.blob();
   const cd = res.headers.get('content-disposition') || '';
   const m = cd.match(/filename="([^"]+)"/);
-  const name = m ? m[1] : `apex-${kind}.xlsx`;
+  const name = m ? m[1] : `shiprate-${kind}.xlsx`;
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = name;

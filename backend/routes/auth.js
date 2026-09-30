@@ -65,7 +65,7 @@ function validPassword(pw) {
 
 function publicSiteUrl() {
   const env = String(process.env.PUBLIC_URL || process.env.FRONTEND_ORIGIN || '').trim().replace(/\/+$/, '');
-  return env || 'https://apex-freight-platform.onrender.com';
+  return env || 'https://shiprate-freight-platform.onrender.com';
 }
 
 // Token helpers -----------------------------------------------------------
@@ -177,8 +177,8 @@ router.post('/signup', signupLimit, async (req, res) => {
       const link = `${publicSiteUrl()}/verify-email?token=${raw}`;
       await sendAccountEmail(
         email,
-        'Verify your Apex Freight email',
-        `Welcome to Apex Freight & Shipping Canada.\n\nPlease verify your email address (link expires in 24 hours):\n${link}\n\nIf you didn't create this account, just ignore this email.`,
+        'Verify your ShipRate email',
+        `Welcome to ShipRate.\n\nPlease verify your email address (link expires in 24 hours):\n${link}\n\nIf you didn't create this account, just ignore this email.`,
         'verify_email',
         link
       );
@@ -268,8 +268,8 @@ router.post('/forgot-password', forgotLimit, async (req, res) => {
       const link = `${publicSiteUrl()}/reset-password?token=${raw}`;
       await sendAccountEmail(
         row.email,
-        'Reset your Apex Freight password',
-        `Someone requested a password reset for your Apex Freight account.\n\nReset it here (link expires in 1 hour, one-time use):\n${link}\n\nIf that wasn't you, just ignore this email — your password stays the same.`,
+        'Reset your ShipRate password',
+        `Someone requested a password reset for your ShipRate account.\n\nReset it here (link expires in 1 hour, one-time use):\n${link}\n\nIf that wasn't you, just ignore this email — your password stays the same.`,
         'password_reset',
         link
       );
@@ -336,7 +336,7 @@ router.post('/resend-verification', verifyLimit, async (req, res) => {
     const link = `${publicSiteUrl()}/verify-email?token=${raw}`;
     await sendAccountEmail(
       row.email,
-      'Verify your Apex Freight email',
+      'Verify your ShipRate email',
       `Here's a fresh verification link (expires in 24 hours):\n${link}\n\nIf you didn't ask for this, just ignore it.`,
       'verify_email',
       link
@@ -424,7 +424,7 @@ router.patch('/me', async (req, res) => {
         const link = `${publicSiteUrl()}/verify-email?token=${raw}`;
         await sendAccountEmail(
           newEmail,
-          'Verify your new Apex Freight email',
+          'Verify your new ShipRate email',
           `Your account email was changed. Please verify the new address (link expires in 24 hours):\n${link}`,
           'verify_email',
           link

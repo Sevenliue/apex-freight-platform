@@ -1,6 +1,6 @@
 # Rate Matrix — Data Engine
 
-Pure-Node (zero dependencies) LTL rating engine for Apex Freight & Shipping Canada.
+Pure-Node (zero dependencies) LTL rating engine for ShipRate.
 All money in **CAD**. UI and comments in English.
 
 | File | Purpose |
@@ -11,7 +11,7 @@ All money in **CAD**. UI and comments in English.
 
 ## Data sources
 
-Source rate sheets (read-only, in `~/workspace/apex-freight/rate_tables/`). Account numbers,
+Source rate sheets (read-only, in `~/workspace/shiprate-freight/rate_tables/`). Account numbers,
 contact names, emails, and customer company names were stripped during normalization —
 carrier names and sheet numbers are the only identifiers kept.
 
@@ -59,7 +59,7 @@ To refresh: edit the carrier's `fsc_percent`/`fsc_as_of` in `matrix-data.json` (
 
 ## Adding a new carrier's lanes
 
-1. Add the carrier's CSV to `~/workspace/apex-freight/rate_tables/` using the same column
+1. Add the carrier's CSV to `~/workspace/shiprate-freight/rate_tables/` using the same column
    layout as the other LTL files (`origin_city, origin_prov, dest_city, dest_prov,
    min_charge_cad, rate_*_cwt ...`).
 2. In `build-matrix.js`, add the carrier id to `SOURCE_FILES` and its break columns (in

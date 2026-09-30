@@ -1,4 +1,4 @@
-// server.js — Apex Freight & Shipping Canada backend (Express).
+// server.js — ShipRate backend (Express).
 // Currency CAD. Boots with zero configuration: no API keys and no database
 // needed — matrix quoting and the load-board marketplace run in-memory, while
 // EasyPost/Stripe/DB-backed routes answer 501 with clear messages when their
@@ -185,7 +185,7 @@ if (require.main === module) {
     }
     app.listen(config.port, () => {
       console.log(
-        `Apex Freight backend listening on :${config.port} ` +
+        `ShipRate backend listening on :${config.port} ` +
           `(markup ${config.markupPercent}%, db ${db.isEnabled() ? 'enabled' : 'disabled — in-memory mode'}, ` +
           `easypost ${config.easypostKey ? 'on' : 'off'}, stripe ${config.stripeKey ? 'on' : 'off'})`
       );

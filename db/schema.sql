@@ -1,5 +1,5 @@
 -- ============================================================================
--- Apex Freight & Shipping Canada — PostgreSQL schema
+-- ShipRate — PostgreSQL schema
 -- Currency: CAD. Owner city: Edmonton, AB.
 -- Idempotent: safe to run more than once.
 -- ============================================================================

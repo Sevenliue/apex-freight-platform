@@ -126,8 +126,8 @@ async function notify(event, order, opts = {}) {
       case 'shipping_approved': {
         const u = opts.user || {};
         await sendEmail({
-          to: u.email || customer, event, subject: 'Your Apex Freight account is approved',
-          text: `Good news — your Apex Freight account has been approved.\nYou can now schedule and pay for shipments on the site. Thanks for shipping with us.`,
+          to: u.email || customer, event, subject: 'Your ShipRate account is approved',
+          text: `Good news — your ShipRate account has been approved.\nYou can now schedule and pay for shipments on the site. Thanks for shipping with us.`,
         });
         break;
       }

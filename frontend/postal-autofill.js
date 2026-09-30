@@ -1,7 +1,7 @@
 /* Postal-code auto-fill for the quote form (offline FSA lookup, no API key).
  *
  * When a postal field holds a Canadian FSA (first 3 chars, e.g. "T5J") that
- * exists in window.APEX_FSA (frontend/fsa.js), the matching city + province
+ * exists in window.SHIPRATE_FSA (frontend/fsa.js), the matching city + province
  * fields fill in automatically.
  *
  * - Manual edits are never clobbered: a city/province the user typed is left
@@ -9,7 +9,7 @@
  *   auto-filled, and previously auto-filled values update when the FSA changes.
  * - Unknown FSAs are ignored quietly (no error).
  * - Postal display is normalized to uppercase "A1A 1A1" on blur.
- * - window.APEX_postalFilled(zipName, fsa) is called by the address-book
+ * - window.SHIPRATE_postalFilled(zipName, fsa) is called by the address-book
  *   "Use as shipper/consignee" fill so auto-fill doesn't fight it.
  */
 (function () {
@@ -59,7 +59,7 @@
   }
 
   function setup() {
-    var FSA = (typeof window !== 'undefined' && window.APEX_FSA) || {};
+    var FSA = (typeof window !== 'undefined' && window.SHIPRATE_FSA) || {};
     GROUPS.forEach(function (g) {
       var z = el(g.zip);
       var c = el(g.city);
@@ -112,9 +112,9 @@
   }
 
   if (typeof window !== 'undefined') {
-    window.APEX_fsaOf = fsaOf;
-    window.APEX_normalizePostal = normalizePostal;
-    window.APEX_postalFilled = markFilled;
+    window.SHIPRATE_fsaOf = fsaOf;
+    window.SHIPRATE_normalizePostal = normalizePostal;
+    window.SHIPRATE_postalFilled = markFilled;
   }
 
   // Export for node-based tests.

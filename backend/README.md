@@ -1,6 +1,6 @@
-# Apex Freight backend
+# ShipRate backend
 
-Express backend for the **Apex Freight & Shipping Canada** freight brokerage
+Express backend for the **ShipRate** freight brokerage
 marketplace. Currency **CAD**, English UI/comments.
 
 ## Zero-setup run

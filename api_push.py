@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Push local file changes to the Apex Freight GitHub repo via the GitHub API.
+"""Push local file changes to the ShipRate GitHub repo via the GitHub API.
 
 Usage: api_push.py OWNER REPO <file1> [file2 ...]
 Files are paths relative to the repo root (cwd). Builds the new tree on top

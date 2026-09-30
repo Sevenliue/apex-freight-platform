@@ -1,4 +1,4 @@
-# Render blueprint for Apex Freight & Shipping Canada.
+# Render blueprint for ShipRate.
 # Deploy: push platform/ to a repo and point Render at render.yaml
 # ("New" -> "Blueprint" -> select the repo).
 #
@@ -9,7 +9,7 @@
 
 services:
   - type: web
-    name: apex-freight-platform
+    name: shiprate-freight-platform
     runtime: node
     # Single-origin hosting: the backend serves the static frontend from
     # platform/frontend/, so no separate static site is needed.
@@ -27,12 +27,12 @@ services:
       - key: STRIPE_PUBLISHABLE_KEY
         sync: false # set in the Render dashboard (Stripe publishable key)
       - key: FRONTEND_ORIGIN
-        sync: false # set in the Render dashboard (public URL, e.g. https://www.apexfreight.ca)
+        sync: false # set in the Render dashboard (public URL, e.g. https://www.shiprate.ca)
       - key: DATABASE_URL
         fromDatabase:
-          name: apex-freight-db
+          name: shiprate-freight-db
           property: connectionString
 
 databases:
-  - name: apex-freight-db
+  - name: shiprate-freight-db
     plan: free

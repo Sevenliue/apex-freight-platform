@@ -1,4 +1,4 @@
-# Apex Freight & Shipping Canada — platform Dockerfile.
+# ShipRate — platform Dockerfile.
 # Build layout assumption: server.js lives at backend/server.js and
 # references ../.env (platform/.env) and ../frontend (platform/frontend)
 # via path.join(__dirname, '..', ...). COPY . keeps those relative paths.

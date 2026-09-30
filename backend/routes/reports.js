@@ -150,7 +150,7 @@ router.get('/shipments', async (req, res) => {
     });
     rows = rows.filter((row) => matchesQuery(row, req.query.q));
     const sum = (k) => round2(rows.reduce((t, r) => t + (Number(r[k]) || 0), 0));
-    return finalize(req, res, 'apex-shipments', rows, {
+    return finalize(req, res, 'shiprate-shipments', rows, {
       shipments: rows.length,
       total_charged_cad: sum('Charged (CAD)'),
       total_cost_cad: sum('Cost (CAD)'),
@@ -208,7 +208,7 @@ router.get('/quotes', async (req, res) => {
     });
     rows = rows.filter((row) => matchesQuery(row, req.query.q));
     const shipped = rows.filter((row) => row.Shipped === 'Yes').length;
-    return finalize(req, res, 'apex-quotes', rows, {
+    return finalize(req, res, 'shiprate-quotes', rows, {
       quotes: rows.length,
       shipped,
       conversion_rate: rows.length ? `${Math.round((shipped / rows.length) * 100)}%` : '—',
@@ -255,7 +255,7 @@ router.get('/revenue', async (req, res) => {
       .sort((a, b) => (a.Month < b.Month ? 1 : a.Month > b.Month ? -1 : 0));
     rows = rows.filter((row) => matchesQuery(row, req.query.q));
     const sum = (k) => round2(rows.reduce((t, r) => t + (Number(r[k]) || 0), 0));
-    return finalize(req, res, 'apex-revenue', rows, {
+    return finalize(req, res, 'shiprate-revenue', rows, {
       groups: rows.length,
       shipments: rows.reduce((t, r) => t + r.Shipments, 0),
       total_gross_cad: sum('Gross (CAD)'),

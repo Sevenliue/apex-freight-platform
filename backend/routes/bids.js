@@ -123,7 +123,7 @@ router.post('/accept', async (req, res) => {
         currency: 'cad',
         payment_method: payment_method_id,
         confirm: true,
-        description: `Apex Freight load ${bid.shipment_posting_id} — accepted bid ${bid.id}`,
+        description: `ShipRate load ${bid.shipment_posting_id} — accepted bid ${bid.id}`,
       });
       stripe_payment_intent_id = pi.id;
       payment_status = 'paid';

@@ -1,5 +1,5 @@
 // build-matrix.js — one-off seed-data generator for matrix-data.json.
-// Reads the carrier rate CSVs from ~/workspace/apex-freight/rate_tables/ (READ ONLY)
+// Reads the carrier rate CSVs from ~/workspace/shiprate-freight/rate_tables/ (READ ONLY)
 // and writes the normalized matrix-data.json consumed by matrix-engine.js.
 // Usage: node build-matrix.js
 // Zero dependencies, Node >= 18.
@@ -8,7 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const TABLES_DIR = path.join(process.env.HOME, 'workspace/apex-freight/rate_tables');
+const TABLES_DIR = path.join(process.env.HOME, 'workspace/shiprate-freight/rate_tables');
 const OUT_FILE = path.join(__dirname, 'matrix-data.json');
 
 const TOP_BREAK = 999999; // open-ended top break sentinel

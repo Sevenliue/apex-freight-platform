@@ -1,4 +1,4 @@
-# Apex Freight & Shipping Canada — Platform
+# ShipRate — Platform
 
 A freight brokerage marketplace for shipping across Canada: shippers get instant rate quotes computed from built-in carrier tariff matrices (with a configurable markup), post loads to a load board, and carriers place bids; payments are handled through Stripe and live parcel rates through EasyPost. One Node.js backend hosts both the API and the static frontend, so it runs on a single web service (Render) or locally on your own machine.
 
@@ -52,7 +52,7 @@ Open http://localhost:5000
 2. Set `EASYPOST_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, and
    `FRONTEND_ORIGIN` in the service's environment settings (they are `sync: false`
    placeholders in the blueprint on purpose).
-3. Apply the schema to the new `apex-freight-db` database **once**:
+3. Apply the schema to the new `shiprate-freight-db` database **once**:
    ```bash
    psql $DATABASE_URL -f db/schema.sql
    ```
@@ -63,7 +63,7 @@ Open http://localhost:5000
 
 `vercel.json` deploys just the static UI from `frontend/` (no API). If you use
 it, edit `frontend/api.js` so `API_BASE_URL` points at your Render backend URL
-(e.g. `https://apex-freight-platform.onrender.com`) instead of the same-origin default.
+(e.g. `https://shiprate-freight-platform.onrender.com`) instead of the same-origin default.
 
 ## Accounts & keys Seven must create himself
 
