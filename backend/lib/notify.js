@@ -127,7 +127,7 @@ async function notify(event, order, opts = {}) {
         const u = opts.user || {};
         await sendEmail({
           to: u.email || customer, event, subject: 'Your ShipRate account is approved',
-          text: `Good news — your ShipRate account has been approved.\nYou can now schedule and pay for shipments on the site. Thanks for shipping with us.`,
+          text: `Good news — your ShipRate account has been approved.`,
         });
         break;
       }
