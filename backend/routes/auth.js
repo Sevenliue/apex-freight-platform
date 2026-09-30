@@ -65,7 +65,7 @@ function validPassword(pw) {
 
 function publicSiteUrl() {
   const env = String(process.env.PUBLIC_URL || process.env.FRONTEND_ORIGIN || '').trim().replace(/\/+$/, '');
-  return env || 'https://shiprate-freight-platform.onrender.com';
+  return env || 'https://shiprate.ca';
 }
 
 // Token helpers -----------------------------------------------------------
