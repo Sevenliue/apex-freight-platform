@@ -87,6 +87,11 @@
     });
     document.body.appendChild(box);
     positionBox(input, box);
+    // Clicking the dropdown's scrollbar must not steal focus from the input
+    // (which would close the dropdown via the blur timer before you can scroll).
+    box.addEventListener('mousedown', function (e) {
+      e.preventDefault();
+    });
     openDd = { input: input, box: box, items: items, active: -1 };
   }
 
@@ -270,7 +275,16 @@
       if (openDd && !openDd.box.contains(e.target) && e.target !== openDd.input) closeDropdown();
     });
     window.addEventListener('resize', closeDropdown);
-    window.addEventListener('scroll', closeDropdown, true);
+    // Page scroll closes the dropdown, but scrolling INSIDE the dropdown
+    // (to see the rest of the suggestion list) must not close it.
+    window.addEventListener(
+      'scroll',
+      function (e) {
+        if (openDd && openDd.box && openDd.box.contains(e.target)) return;
+        closeDropdown();
+      },
+      true
+    );
   }
 
   if (typeof document !== 'undefined') {
