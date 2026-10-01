@@ -4970,7 +4970,8 @@
           return;
         }
         box.innerHTML =
-          '<h2>Fuel surcharges</h2><p class="lede">Update a carrier\'s fuel surcharge here when it changes — new quotes use the value immediately. TL applies at 10,000+ lb (Rosenau\'s full-load tier). Leave TL blank when a carrier has no TL tier. Clearing LTL restores the rate-sheet value. Rows flagged <span class="badge warn">stale</span> are past their update schedule.</p>' +
+          '<h2>Fuel surcharges</h2><p class="lede">Update a carrier\'s fuel surcharge here when it changes — new quotes use the value immediately. TL applies at 10,000+ lb (Rosenau\'s full-load tier). Leave TL blank when a carrier has no TL tier. Clearing LTL restores the rate-sheet value. Rows flagged <span class="badge warn">stale</span> are past their update schedule. Edit any rows, then <strong>Save all changes</strong> once.</p>' +
+          '<div style="margin:0 0 10px"><button type="button" class="btn primary" id="fsc-save-all">Save all changes</button> <span class="note" id="fsc-save-all-note"></span></div>' +
           '<div class="table-wrap"><table class="data"><thead><tr>' +
           '<th>Carrier</th><th>Schedule</th><th class="num">Rate sheet</th><th class="num">Current LTL</th><th class="num">Current TL</th>' +
           '<th>Last updated</th><th></th><th></th>' +
@@ -4993,6 +4994,51 @@
             </tr>`;
           }).join('') + '</tbody></table></div>';
         const reload = () => loadFscAdmin();
+        // Bulk save: track edited rows, save them all in one request.
+        const saveAllBtn = box.querySelector('#fsc-save-all');
+        const saveAllNote = box.querySelector('#fsc-save-all-note');
+        const fscRows = [...box.querySelectorAll('[data-fsc-row]')];
+        fscRows.forEach((row) => {
+          row._init = {
+            ltl: row.querySelector('[data-f="ltl"]').defaultValue.trim(),
+            tl: row.querySelector('[data-f="tl"]').defaultValue.trim(),
+          };
+          row.querySelectorAll('[data-f]').forEach((inp) =>
+            inp.addEventListener('input', () => {
+              const curLtl = row.querySelector('[data-f="ltl"]').value.trim();
+              const curTl = row.querySelector('[data-f="tl"]').value.trim();
+              row.classList.toggle('dirty', curLtl !== row._init.ltl || curTl !== row._init.tl);
+            })
+          );
+        });
+        if (saveAllBtn) saveAllBtn.addEventListener('click', async () => {
+          const updates = fscRows
+            .filter((row) => row.classList.contains('dirty'))
+            .map((row) => {
+              const id = row.getAttribute('data-fsc-row');
+              const ltlRaw = row.querySelector('[data-f="ltl"]').value.trim();
+              const tlRaw = row.querySelector('[data-f="tl"]').value.trim();
+              // Blank LTL: keep the current effective value when TL is being
+              // set, otherwise blank LTL resets to the rate-sheet value.
+              let ltl = ltlRaw;
+              if (ltl === '' && tlRaw !== '') ltl = row.getAttribute('data-cur-ltl') || '';
+              return {
+                carrier_id: id,
+                fsc_ltl_percent: ltl === '' ? '' : Number(ltl),
+                fsc_tl_percent: tlRaw === '' ? null : Number(tlRaw),
+              };
+            });
+          if (!updates.length) { saveAllNote.textContent = 'No changes.'; return; }
+          saveAllBtn.disabled = true;
+          saveAllNote.textContent = 'Saving…';
+          try {
+            const r = await api.setFscBulk(updates);
+            const n = (r.updated || []).length;
+            const e = (r.errors || []).length;
+            showAlert(e ? `Saved ${n}, ${e} failed.` : `Saved ${n} carrier${n === 1 ? '' : 's'} — new quotes use them immediately.`);
+            reload();
+          } catch (err) { showAlert('Could not save: ' + err.message); saveAllBtn.disabled = false; saveAllNote.textContent = ''; }
+        });
         box.querySelectorAll('[data-fsc-save]').forEach((btn) =>
           btn.addEventListener('click', async () => {
             const id = btn.getAttribute('data-fsc-save');

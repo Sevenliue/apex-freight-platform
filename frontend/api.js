@@ -457,6 +457,9 @@ export function setFsc(carrierId, fscLtlPercent, fscTlPercent) {
     fsc_tl_percent: fscTlPercent,
   });
 }
+export function setFscBulk(updates) {
+  return request('PUT', '/api/admin/fsc/bulk', { updates });
+}
 
 /* Address book */
 export function listAddresses() {

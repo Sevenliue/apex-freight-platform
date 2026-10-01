@@ -500,6 +500,60 @@ router.get('/fsc', async (req, res) => {
   }
 });
 
+// PUT /api/admin/fsc/bulk — set fuel-surcharge overrides for many carriers
+// in one request. Body {updates: [{carrier_id, fsc_ltl_percent, fsc_tl_percent}]}.
+// Same validation rules as the single-carrier endpoint; rows are applied
+// independently and each result is reported. (Registered before /:carrier_id.)
+router.put('/fsc/bulk', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  const updates = Array.isArray((req.body || {}).updates) ? req.body.updates : [];
+  if (!updates.length) return res.json({ updated: [], errors: [] });
+  if (updates.length > 500) return res.status(400).json({ error: 'Too many rows (max 500).' });
+  const known = new Set(matrix.listCarriers().map((c) => c.carrier_id));
+  const clean = (v) => {
+    if (v === '' || v == null) return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 && n <= 500 ? Math.round(n * 100) / 100 : undefined;
+  };
+  const email = (req.user && req.user.email) || null;
+  const updated = [];
+  const errors = [];
+  for (const u of updates) {
+    const carrierId = String((u && u.carrier_id) || '').trim();
+    if (!known.has(carrierId)) { errors.push({ carrier_id: carrierId, error: 'Unknown carrier.' }); continue; }
+    const ltl = clean(u.fsc_ltl_percent);
+    const tl = clean(u.fsc_tl_percent);
+    if (ltl === undefined || tl === undefined) {
+      errors.push({ carrier_id: carrierId, error: 'Fuel surcharge must be a number between 0 and 500 (percent).' });
+      continue;
+    }
+    try {
+      if (ltl == null) {
+        await db.query('DELETE FROM carrier_fsc WHERE carrier_id = $1', [carrierId]);
+        if (typeof matrix.clearFscOverride === 'function') matrix.clearFscOverride(carrierId);
+      } else {
+        await db.query(
+          `INSERT INTO carrier_fsc (carrier_id, fsc_ltl_percent, fsc_tl_percent, updated_at, updated_by)
+           VALUES ($1, $2, $3, now(), $4)
+           ON CONFLICT (carrier_id) DO UPDATE SET
+             fsc_ltl_percent = EXCLUDED.fsc_ltl_percent,
+             fsc_tl_percent = EXCLUDED.fsc_tl_percent,
+             updated_at = now(), updated_by = EXCLUDED.updated_by`,
+          [carrierId, ltl, tl, email]
+        );
+        if (typeof matrix.setFscOverride === 'function') {
+          matrix.setFscOverride(carrierId, { ltl, tl, updated_at: new Date().toISOString() });
+        }
+      }
+      updated.push({ carrier_id: carrierId, fsc_ltl_percent: ltl, fsc_tl_percent: tl, reset: ltl == null });
+    } catch (err) {
+      errors.push({ carrier_id: carrierId, error: String(err.message || err) });
+    }
+  }
+  return res.json({ updated, errors });
+});
+
 // PUT /api/admin/fsc/:carrier_id — set the fuel-surcharge override for a
 // carrier. Body {fsc_ltl_percent, fsc_tl_percent}: numbers 0–500; blank/null
 // fsc_tl_percent means no TL tier. Blank fsc_ltl_percent resets the carrier
