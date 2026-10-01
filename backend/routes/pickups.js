@@ -11,6 +11,7 @@
 const express = require('express');
 const db = require('../db');
 const notifyLib = require('../lib/notify');
+const holidays = require('../lib/holidays');
 const { requireAdmin } = require('./admin');
 
 const router = express.Router();
@@ -119,6 +120,23 @@ router.post('/', async (req, res) => {
       return res.status(404).json({ error: 'Shipment not found.' });
     }
     const order = own.rows[0];
+
+    // No carrier pickups on statutory holidays (province of origin).
+    try {
+      const oq = await db.query(
+        `SELECT q.origin_state FROM orders o LEFT JOIN quotes q ON q.id = o.quote_id WHERE o.id = $1`,
+        [orderId]
+      );
+      const oProv = oq.rows.length ? oq.rows[0].origin_state : null;
+      const holName = holidays.holidayOn(pickupDate, oProv);
+      if (holName) {
+        const provName = holidays.provinceName(oProv) || 'Canada';
+        return res.status(400).json({ error:
+          `${pickupDate} is ${holName} — a statutory holiday in ${provName}. Carriers don't run that day; please choose another pickup date.` });
+      }
+    } catch (err) {
+      console.error('[pickups] holiday check failed (continuing):', err.message);
+    }
 
     const r = await db.query(
       `INSERT INTO pickup_requests

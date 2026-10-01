@@ -1131,6 +1131,13 @@
     const titleCase = (s) =>
       String(s ?? '').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
+    const fmtEstDate = (iso) => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+      if (!m) return '';
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return `${months[+m[2] - 1]} ${+m[3]}`;
+    };
+
     const metroNote = (r) =>
       r.metro_matched && r.lane_origin_city && r.lane_dest_city
         ? `<br><span class="note">via ${esc(titleCase(r.lane_origin_city))}, ${esc(r.lane_origin_prov || '')} → ${esc(titleCase(r.lane_dest_city))}, ${esc(r.lane_dest_prov || '')}</span>`
@@ -2042,7 +2049,7 @@
           (r, i) => `<tr>
             <td class="chk"><input type="radio" name="rate-pick" value="${esc(r.rate_id)}"${i === 0 ? ' checked' : ''}></td>
             <td>${esc(r.carrier)}${r.service ? '<br><span class="note">' + esc(r.service) + '</span>' : ''}${metroNote(r)} ${sourceBadge(r.source)}</td>
-            <td>${r.delivery_days != null ? esc(String(r.delivery_days)) : '—'}</td>
+            <td>${r.delivery_days != null ? esc(String(r.delivery_days)) : '—'}${r.est_delivery_date ? `<br><span class="note">≈ ${esc(fmtEstDate(r.est_delivery_date))}</span>` : ''}</td>
             <td class="num"><strong>${cad(r.retail_cad)}</strong>${r.insurance_cad ? `<br><span class="note">incl. ${cad(r.insurance_cad)} insurance</span>` : ''}</td>
           </tr>`
         )

@@ -32,6 +32,7 @@ const { round2, applyMarkup } = require('../lib/money');
 const markupLib = require('../lib/markup');
 const acc = require('../lib/accessorials');
 const billingLib = require('../lib/billing');
+const holidays = require('../lib/holidays');
 
 const router = express.Router();
 
@@ -224,6 +225,27 @@ router.post('/', async (req, res) => {
   } else if (!origin.city || !origin.state || !destination.city || !destination.state) {
     return bad(res, 400, 'origin.city/state and destination.city/state are required');
   }
+
+  // No carrier pickups on statutory holidays (province of origin).
+  const pickupHoliday = holidays.holidayOn(pickup_date, origin.state);
+  if (pickupHoliday) {
+    const provName = holidays.provinceName(origin.state) || 'Canada';
+    return bad(res, 400,
+      `${pickup_date} is ${pickupHoliday} — a statutory holiday in ${provName}. Carriers don't run that day; please choose another pickup date.`);
+  }
+
+  // Estimated delivery date: transit-day upper bound counted in business
+  // days from the pickup date, skipping weekends and statutory holidays in
+  // either the origin or the destination province. An estimate, not a promise.
+  const transitDaysUpper = (s) => {
+    const m = String(s || '').match(/(\d+)\s*-\s*(\d+)/);
+    if (m) return Number(m[2]);
+    const n = String(s || '').match(/(\d+)/);
+    return n ? Number(n[1]) : null;
+  };
+  const estDeliveryDate = (days) => (
+    days ? holidays.addBusinessDays(pickup_date, days, [origin.state, destination.state]) : null
+  );
   const billTo = bill_to && typeof bill_to === 'object' ? {
     name: String(bill_to.name || '').slice(0, 120),
     street1: String(bill_to.street1 || bill_to.street || '').slice(0, 160),
@@ -333,6 +355,7 @@ router.post('/', async (req, res) => {
       fsc_percent: q.fsc_percent,
       delivery_days: transit,
       transit_estimate: true,
+      est_delivery_date: estDeliveryDate(transitDaysUpper(transit)),
       source: 'matrix',
       weight_lbs: totalWeightLbs,
       rate_cwt_used: q.rate_cwt_used,
@@ -415,7 +438,8 @@ router.post('/', async (req, res) => {
           currency: r.currency || 'CAD',
           delivery_days: r.delivery_days != null ? String(r.delivery_days) : transit,
           transit_estimate: r.delivery_days == null,
-          est_delivery_date: r.est_delivery_date || null,
+          est_delivery_date: r.est_delivery_date
+            || estDeliveryDate(transitDaysUpper(r.delivery_days != null ? String(r.delivery_days) : transit)),
           source: 'easypost',
           weight_lbs: totalWeightLbs,
         });
