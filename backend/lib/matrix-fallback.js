@@ -7,6 +7,19 @@
 const r2 = (n) => Math.round((Number(n) + Number.EPSILON) * 100) / 100;
 const norm = (v) => String(v == null ? '' : v).trim().toUpperCase();
 
+// Keep metro matching in sync with rates/matrix-engine.js (demo data only).
+const METRO = {
+  EDMONTON: ['ACHESON', 'NISKU', 'LEDUC', 'ST. ALBERT', 'ST ALBERT', 'SHERWOOD PARK',
+    'SPRUCE GROVE', 'STONY PLAIN', 'FORT SASKATCHEWAN', 'BEAUMONT', 'DEVON', 'MORINVILLE'],
+  CALGARY: ['AIRDRIE', 'OKOTOKS', 'COCHRANE', 'CHESTERMERE', 'BALZAC'],
+  TORONTO: ['MISSISSAUGA', 'BRAMPTON', 'MARKHAM', 'VAUGHAN', 'SCARBOROUGH', 'ETOBICOKE'],
+  VANCOUVER: ['BURNABY', 'SURREY', 'RICHMOND', 'LANGLEY', 'COQUITLAM', 'DELTA'],
+  MONTREAL: ['LAVAL', 'LONGUEUIL', 'BROSSARD', 'DORVAL'],
+};
+const _m = new Map();
+for (const [hub, cs] of Object.entries(METRO)) { _m.set(hub, hub); for (const c of cs) _m.set(c, hub); }
+const metroOf = (city) => _m.get(norm(city)) || norm(city);
+
 const state = {
   carriers: [
     { carrier_id: 'hifab', carrier_label: 'HiFab Transport', fsc_percent: 39 },
@@ -42,7 +55,7 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs }) 
   const byId = carriersById();
   const quotes = [];
   for (const lane of state.lanes) {
-    if (lane.origin_city !== oCity || lane.dest_city !== dCity) continue;
+    if (metroOf(lane.origin_city) !== metroOf(oCity) || metroOf(lane.dest_city) !== metroOf(dCity)) continue;
     if (oProv && lane.origin_prov && lane.origin_prov !== oProv) continue;
     if (dProv && lane.dest_prov && lane.dest_prov !== dProv) continue;
     const brk = lane.breaks.find((b) => w <= b.max_lb) || lane.breaks[lane.breaks.length - 1];

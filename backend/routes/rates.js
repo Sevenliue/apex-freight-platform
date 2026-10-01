@@ -341,6 +341,11 @@ router.post('/', async (req, res) => {
       accessorials_applied: applied,
       accessorial_total_cad: accTotal,
       min_charge_applied: !!q.min_charge_applied,
+      lane_origin_city: q.lane_origin_city || null,
+      lane_origin_prov: q.lane_origin_prov || null,
+      lane_dest_city: q.lane_dest_city || null,
+      lane_dest_prov: q.lane_dest_prov || null,
+      metro_matched: !!q.metro_matched,
     };
   });
 

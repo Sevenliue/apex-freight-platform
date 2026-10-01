@@ -22,6 +22,44 @@ const ROSENAU_TL_MIN_LB = 10000;
 
 const r2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 const norm = (v) => String(v == null ? '' : v).trim().toUpperCase();
+
+// Metro zones: nearby cities that rate as their hub city. Freight-wise
+// "Acheson" is Edmonton, "Nisku" is Edmonton, "Mississauga" is Toronto, etc.
+// Both lane cities and quoted cities are normalized through metroOf() before
+// matching, so a quote from any metro city matches the hub's lanes and vice
+// versa. Province still has to match (so Gatineau QC never matches an
+// Ottawa ON lane, etc.).
+const METRO = {
+  EDMONTON: ['ACHESON', 'NISKU', 'LEDUC', 'ST. ALBERT', 'ST ALBERT', 'SAINT ALBERT',
+    'SHERWOOD PARK', 'SPRUCE GROVE', 'STONY PLAIN', 'FORT SASKATCHEWAN',
+    'BEAUMONT', 'DEVON', 'MORINVILLE'],
+  CALGARY: ['AIRDRIE', 'OKOTOKS', 'COCHRANE', 'CHESTERMERE', 'BALZAC', 'LANGDON'],
+  TORONTO: ['MISSISSAUGA', 'BRAMPTON', 'MARKHAM', 'VAUGHAN', 'RICHMOND HILL',
+    'SCARBOROUGH', 'ETOBICOKE', 'NORTH YORK', 'EAST YORK', 'YORK', 'PICKERING',
+    'AJAX', 'WHITBY', 'OSHAWA', 'NEWMARKET', 'AURORA', 'OAKVILLE', 'MILTON'],
+  VANCOUVER: ['BURNABY', 'SURREY', 'RICHMOND', 'LANGLEY', 'COQUITLAM',
+    'PORT COQUITLAM', 'PORT MOODY', 'DELTA', 'NEW WESTMINSTER',
+    'NORTH VANCOUVER', 'WEST VANCOUVER', 'WHITE ROCK', 'MAPLE RIDGE', 'PITT MEADOWS'],
+  MONTREAL: ['LAVAL', 'LONGUEUIL', 'BROSSARD', 'DORVAL', 'POINTE-CLAIRE', 'KIRKLAND',
+    'DOLLARD-DES ORMEAUX', 'DOLLARD DES ORMEAUX', 'BLAINVILLE', 'TERREBONNE',
+    'REPENTIGNY', 'MIRABEL', 'SAINT-LAURENT', 'LASALLE'],
+  OTTAWA: ['KANATA', 'NEPEAN', 'ORLEANS', 'GLOUCESTER', 'BARRHAVEN', 'GATINEAU'],
+  'QUEBEC CITY': ['QUEBEC', 'LEVIS', 'LÉVIS', 'ANCIENNE-LORETTE'],
+  WINNIPEG: ['HEADINGLEY'],
+  SASKATOON: ['MARTENSVILLE', 'WARMAN'],
+  REGINA: ['WHITE CITY', 'PILOT BUTTE'],
+  KELOWNA: ['WEST KELOWNA', 'WESTBANK', 'PEACHLAND'],
+  HALIFAX: ['DARTMOUTH', 'BEDFORD', 'SACKVILLE'],
+};
+const _cityToMetro = new Map();
+for (const [hub, cities] of Object.entries(METRO)) {
+  _cityToMetro.set(hub, hub);
+  for (const c of cities) _cityToMetro.set(c, hub);
+}
+function metroOf(city) {
+  const c = norm(city);
+  return _cityToMetro.get(c) || c;
+}
 const laneKey = (carrierId, city, prov, dCity, dProv) =>
   [carrierId, city, prov, dCity, dProv].join('|');
 
@@ -90,7 +128,7 @@ function fscFor(carrier, weightLbs) {
 // City match: case-insensitive + trimmed, on (city, prov);
 // falls back to city-only match when prov is empty on either side.
 function placeMatches(laneCity, laneProv, qCity, qProv) {
-  if (laneCity !== qCity) return false;
+  if (metroOf(laneCity) !== metroOf(qCity)) return false;
   return laneProv === qProv || laneProv === '' || qProv === '';
 }
 
@@ -187,6 +225,14 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs }) 
       min_charge_applied: minApplied,
       currency: 'CAD',
       source: 'matrix',
+      // Actual lane cities that rated this quote; when the quoted city is a
+      // metro alias (e.g. Acheson -> Edmonton) these differ from the input.
+      lane_origin_city: lane.origin_city,
+      lane_origin_prov: lane.origin_prov,
+      lane_dest_city: lane.dest_city,
+      lane_dest_prov: lane.dest_prov,
+      metro_matched:
+        lane.origin_city !== oCity || lane.dest_city !== dCity,
     });
   }
   quotes.sort((a, b) => a.total_cad - b.total_cad || a.carrier_id.localeCompare(b.carrier_id));
