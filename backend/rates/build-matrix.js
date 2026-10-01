@@ -191,12 +191,12 @@ function buildAccessorials() {
 
 function main() {
   const carriers = [
-    { carrier_id: 'hifab', carrier_label: 'HiFab Transport', fsc_percent: 39, fsc_as_of: '2026-09', fsc_note: 'Update monthly.' },
-    { carrier_id: 'guilbault', carrier_label: 'Guilbault Transport', fsc_percent: 41, fsc_as_of: '2026-09-25', fsc_note: 'FCA LTL % per rate sheet 17172 (effective 2026-04-01 to 2027-03-31).' },
-    { carrier_id: 'rosenau', carrier_label: 'Rosenau Transport', fsc_percent: 65.74, fsc_as_of: '2026-09-25', fsc_note: 'Published LTL rate. TL override 105.44% applies at 10,000+ lb.' },
-    { carrier_id: 'jrhall', carrier_label: 'J&R Hall Transport', fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_note: 'FSC updated weekly on carrier site — set via Admin > Fuel surcharges. Tariff eff. 2026-11-01.' },
-    { carrier_id: 'jays', carrier_label: "Jay's Transportation Group", fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_note: 'FSC — set via Admin > Fuel surcharges. Rate sheets received 2026-10-01 (ship-from Saskatoon/Regina, intra-SK); VAS/off-route terms eff. 2025-11-15.' },
-    { carrier_id: 'willys', carrier_label: "Willy's Trucking Service", fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_note: 'FSC not on rate proposal — set via Admin > Fuel surcharges. Proposal eff. 2025-04-01 to 2027-09-30; Edmonton/Acheson origins; sheet publishes no 20,000+ lb break (10M rate carried forward).' },
+    { carrier_id: 'hifab', carrier_label: 'HiFab Transport', fsc_percent: 39, fsc_as_of: '2026-09', fsc_cadence: 'monthly', fsc_note: 'Update monthly.' },
+    { carrier_id: 'guilbault', carrier_label: 'Guilbault Transport', fsc_percent: 41, fsc_as_of: '2026-09-25', fsc_cadence: 'per_sheet', fsc_note: 'FCA LTL % per rate sheet 17172 (effective 2026-04-01 to 2027-03-31).' },
+    { carrier_id: 'rosenau', carrier_label: 'Rosenau Transport', fsc_percent: 65.74, fsc_as_of: '2026-09-25', fsc_cadence: 'per_sheet', fsc_note: 'Published LTL rate. TL override 105.44% applies at 10,000+ lb.' },
+    { carrier_id: 'jrhall', carrier_label: 'J&R Hall Transport', fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_cadence: 'weekly', fsc_note: 'FSC updated weekly on carrier site — set via Admin > Fuel surcharges. Tariff eff. 2026-11-01.' },
+    { carrier_id: 'jays', carrier_label: "Jay's Transportation Group", fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_cadence: 'monthly', fsc_note: 'FSC — set via Admin > Fuel surcharges. Rate sheets received 2026-10-01 (ship-from Saskatoon/Regina, intra-SK); VAS/off-route terms eff. 2025-11-15.' },
+    { carrier_id: 'willys', carrier_label: "Willy's Trucking Service", fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_cadence: 'monthly', fsc_note: 'FSC not on rate proposal — set via Admin > Fuel surcharges. Proposal eff. 2025-04-01 to 2027-09-30; Edmonton/Acheson origins; sheet publishes no 20,000+ lb break (10M rate carried forward).' },
   ];
 
   const lanes = [];

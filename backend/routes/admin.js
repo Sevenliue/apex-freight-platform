@@ -462,6 +462,21 @@ router.get('/analytics/quotes', async (req, res) => {
 
 // GET /api/admin/fsc — carriers with their effective fuel-surcharge percents
 // (admin override wins over the rate-sheet value).
+// Each row also carries fsc_cadence ('weekly'|'monthly'|'per_sheet'),
+// a human label, and fsc_stale (true when a weekly/monthly carrier's
+// as-of date is past due). Past quotes are unaffected — only new quotes
+// use the current value.
+function fscStale(asOf, cadence) {
+  if (cadence === 'per_sheet') return false;
+  const days = cadence === 'weekly' ? 7 : 31;
+  if (!asOf) return true; // weekly/monthly with unknown date needs attention
+  const m = String(asOf).trim().match(/^(\d{4})-(\d{2})(?:-(\d{2}))?/);
+  if (!m) return true;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +(m[3] || 1)));
+  if (Number.isNaN(d.getTime())) return true;
+  return Date.now() - d.getTime() > days * 864e5;
+}
+const FSC_CADENCE_LABELS = { weekly: 'Weekly', monthly: 'Monthly', per_sheet: 'Per sheet' };
 router.get('/fsc', async (req, res) => {
   if (needDb(res)) return;
   if (!(await requireAdmin(req, res))) return;
@@ -475,6 +490,9 @@ router.get('/fsc', async (req, res) => {
       fsc_tl_percent: c.fsc_tl_percent,
       fsc_overridden: !!c.fsc_overridden,
       fsc_as_of: c.fsc_as_of,
+      fsc_cadence: c.fsc_cadence || null,
+      fsc_cadence_label: FSC_CADENCE_LABELS[c.fsc_cadence] || '—',
+      fsc_stale: fscStale(c.fsc_as_of, c.fsc_cadence),
     }));
     return res.json({ carriers });
   } catch (err) {

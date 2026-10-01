@@ -259,6 +259,7 @@ function listCarriers() {
         : (c.carrier_id === 'rosenau' ? ROSENAU_TL_FSC : null),
       fsc_overridden: !!(ov && Number.isFinite(ov.ltl)),
       fsc_percent: c.fsc_percent, // rate-sheet value, for reference
+      fsc_cadence: c.fsc_cadence || null, // 'weekly' | 'monthly' | 'per_sheet'
       fsc_as_of: (ov && ov.updated_at) || c.fsc_as_of,
     });
     counts.delete(c.carrier_id);
