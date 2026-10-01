@@ -342,7 +342,7 @@
           </section>
         </div>
         <div class="qq-refrow">
-          <label>Requested pickup date * <input type="date" name="pickup_date" id="pickup-date" required></label>
+          <label>Requested pickup date * <input type="date" name="pickup_date" id="quote-pickup-date" required></label>
           <div class="units-row">
             <span class="note">Units:</span>
             <div class="segmented" role="radiogroup" aria-label="Weight and dimension units">
@@ -5407,9 +5407,18 @@
 
     initAccount();
     initBilling();
-    // Pickup date can't be in the past.
-    const pd = $('#pickup-date');
-    if (pd) pd.min = new Date().toISOString().slice(0, 10);
+    // Pickup dates default to today (local date) and can't be in the past.
+    // The quote form and the Schedule Pickup form each have their own input.
+    const todayStr = (() => {
+      const d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    })();
+    ['quote-pickup-date', 'pickup-date'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.min = todayStr;
+      if (!el.value) el.value = todayStr;
+    });
   </script>
 </body>
 </html>
