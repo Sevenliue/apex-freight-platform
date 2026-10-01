@@ -696,6 +696,10 @@
         <p>Yes — a free account. It takes less than a minute, and it lets us save your quotes, address book, and shipments under your name.</p>
         <h2>How do the instant quotes work?</h2>
         <p>We rate your shipment against carrier tariffs on file so you can compare available freight options instantly. Live carrier API rates appear automatically once our carrier integrations are connected.</p>
+        <h2>What is the fuel surcharge (FSC) on my quote?</h2>
+        <p>Every carrier adds a fuel surcharge on top of the base freight rate. Carriers set it from published fuel price indexes, so it moves with diesel prices — most LTL carriers review theirs weekly. Your quote always reflects each carrier's current published surcharge, and it's included in the total you see.</p>
+        <h2>Why is the price different from my last quote?</h2>
+        <p>Base freight rates are stable, but fuel surcharges move on each carrier's schedule (usually weekly). Run the quote again for the current rate — saved quotes keep the price they were calculated with.</p>
         <h2>Why can't I schedule a shipment yet?</h2>
         <p>New accounts start quote-only while we verify them — scheduling unlocks after we approve your account, and we'll notify you. If you need it urgently, contact us.</p>
         <h2>How many quotes do I get?</h2>
@@ -2069,6 +2073,7 @@
           <thead><tr><th></th><th>Carrier</th><th>Estimated Transit (Not Guaranteed) <span class="tip" title="Transit times are estimates based on the carrier's published schedule, not a guarantee.">ⓘ</span></th><th>Est. Total Cost (excl. tax) <span class="tip" title="Includes all freight charges / services / fuel surcharges. Excludes gov't taxes.">ⓘ</span></th></tr></thead>
           <tbody>${rows}</tbody>
         </table></div>
+        <p class="note" style="margin-top:8px">Totals include each carrier's current fuel surcharge — set from published fuel price indexes and reviewed weekly by most LTL carriers. <a href="/faq" data-page="faq">Why quotes change</a></p>
 `;
 
       syncQuoteActions();
