@@ -521,6 +521,12 @@ router.post('/', async (req, res) => {
     accessorials_applied: rates[0] ? rates[0].accessorials_applied || [] : [],
     has_dg: hasDG,
     pickup_date,
+    // Sep 30 delay warning for non-BC lanes (federally regulated carriers).
+    holiday_notice: holidays.truthReconciliationNotice(
+      pickup_date,
+      estDeliveryDate(transitDaysUpper(transit)),
+      [origin.state, destination.state]
+    ),
   };
   if (db_quote_id != null) body.db_quote_id = db_quote_id;
   if (warnings.length) body.warnings = warnings;

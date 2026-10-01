@@ -2057,6 +2057,9 @@
 
       syncRateEmptyHide();
       box.innerHTML = `
+        ${data.holiday_notice ? `<div class="card holiday-notice">
+          <p>⚠ ${esc(data.holiday_notice)}</p>
+        </div>` : ''}
         ${data.has_dg ? `<div class="card dg-notice">
           <h3>⚠ Dangerous goods — review required</h3>
           <p>This shipment contains dangerous goods. Under Canada's <em>Transportation of Dangerous Goods Regulations</em> the shipper must provide a proper shipping document with the correct shipping name, UN number, class, and packing group, and the goods must be properly packaged, marked, and placarded. Only trained personnel may handle them.</p>

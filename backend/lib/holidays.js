@@ -6,7 +6,8 @@
 //
 // Coverage: general statutory holidays for all 13 provinces/territories.
 // Rules encoded:
-//   - Good Friday: all provinces except QC (QC observes Easter Monday instead)
+//   - Good Friday: all provinces; Quebec also observes Easter Monday
+//     (QC employers choose one — freight blocks both to be safe)
 //   - Victoria Day (Mon on/before May 24): AB BC MB NT NU ON SK YT;
 //     QC observes National Patriots' Day the same date
 //   - 1st Mon Aug: AB Heritage Day, BC BC Day, SK Saskatchewan Day,
@@ -14,6 +15,9 @@
 //   - 3rd Mon Feb: AB/BC/SK/ON/NB Family Day, MB Louis Riel Day, PE Islander Day
 //   - Sep 30 Truth and Reconciliation: BC (statute); Thanksgiving: all except
 //     NB NS NL PE; Remembrance Day: all except ON QC; Boxing Day: ON
+//   - Federally regulated carriers (most transport companies) observe Sep 30
+//     nationwide — see truthReconciliationNotice() for the delay warning shown
+//     on non-BC lanes.
 //   - NL extras: St. Patrick's Day (Mar 17), Discovery Day (Jun 24)
 //   - NT/YT: National Indigenous Peoples Day (Jun 21)
 // Observed rule: a holiday falling on Sat/Sun is observed the following
@@ -78,7 +82,6 @@ function easterSunday(y) {
 function rawHolidays(year) {
   const H = [];
   const add = (n, name, provs) => H.push({ n, name, provs });
-  const notQC = ALL.filter((p) => p !== 'QC');
 
   add(dayNum(year, 1, 1), "New Year's Day", ALL);
 
@@ -90,7 +93,8 @@ function rawHolidays(year) {
   add(dayNum(year, 3, 17), "St. Patrick's Day", ['NL']);
 
   const easter = easterSunday(year);
-  add(easter - 2, 'Good Friday', notQC);
+  // Quebec employers choose Good Friday or Easter Monday; freight blocks both.
+  add(easter - 2, 'Good Friday', ALL);
   add(easter + 1, 'Easter Monday', ['QC']);
 
   const vic = mondayOnOrBefore(year, 5, 24);
@@ -210,6 +214,26 @@ function listHolidays(year, prov) {
   return out;
 }
 
+// truthReconciliationNotice(pickupISO, deliveryISO, provs):
+// Sep 30 is a statutory holiday only in BC, but federally regulated carriers
+// (most transport companies) observe it nationwide. Returns a delay-warning
+// string when Sep 30 falls on a weekday inside (pickup, delivery] and is not
+// already counted as a holiday for these provinces (BC lanes skip it in the
+// business-day math, so no warning is needed there).
+function truthReconciliationNotice(pickupISO, deliveryISO, provs) {
+  if (!pickupISO || !deliveryISO || deliveryISO <= pickupISO) return null;
+  const list = (Array.isArray(provs) ? provs : [provs]).map(normProv);
+  if (list.includes('BC')) return null;
+  const y = Number(String(deliveryISO).slice(0, 4));
+  if (!Number.isFinite(y)) return null;
+  const sep30 = `${y}-09-30`;
+  if (sep30 <= pickupISO || sep30 > deliveryISO) return null;
+  const wd = weekday(isoDayNum(sep30));
+  if (wd === 0 || wd === 6) return null;
+  return 'Sep 30 is the National Day for Truth and Reconciliation. ' +
+    'Federally regulated carriers may not operate that day, so delivery could slip by a day.';
+}
+
 module.exports = {
   PROVINCES,
   PROVINCE_NAMES,
@@ -219,4 +243,5 @@ module.exports = {
   addBusinessDays,
   nextBusinessDay,
   listHolidays,
+  truthReconciliationNotice,
 };

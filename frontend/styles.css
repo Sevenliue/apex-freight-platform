@@ -461,6 +461,9 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 .dg-notice { border-left: 4px solid #c2410c; background: #fff7ed; }
 .dg-notice h3 { color: #9a3412; margin: 0 0 8px; font-size: 16px; }
 .dg-notice p { margin: 6px 0; font-size: 14px; color: #431407; }
+/* holiday delay notice (e.g. Truth and Reconciliation on non-BC lanes) */
+.holiday-notice { border-left: 4px solid #b45309; background: #fffbeb; margin-bottom: 12px; }
+.holiday-notice p { margin: 6px 0; font-size: 14px; color: #451a03; }
 .badge.ok { background: var(--green-bg); color: var(--green); }
 .badge.warn { background: #fbf3dd; color: #8a6d1a; }
 .badge.staff { background: #eef3ff; color: #1d4ed8; }
