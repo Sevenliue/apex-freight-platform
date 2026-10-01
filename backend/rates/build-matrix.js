@@ -104,6 +104,15 @@ const BREAK_MAPS = {
     ['rate_10000_cwt', 19999],
     ['rate_20000_cwt', TOP_BREAK], // 20,000+ lb
   ],
+  willys: [
+    ['rate_ltl_cwt', 499],     // L5C <500 lb
+    ['rate_500_cwt', 999],     // 5C
+    ['rate_1000_cwt', 1999],   // 1M
+    ['rate_2000_cwt', 4999],   // 2M
+    ['rate_5000_cwt', 9999],   // 5M
+    ['rate_10000_cwt', 19999], // 10M
+    ['rate_20000_cwt', TOP_BREAK], // sheet publishes no 20M break — 10M rate carried forward
+  ],
 };
 
 const SOURCE_FILES = {
@@ -112,6 +121,7 @@ const SOURCE_FILES = {
   rosenau: 'rosenau_2026_ltl.csv',
   jrhall: 'jrhall_2026_ltl.csv',
   jays: 'jays_2026_ltl.csv',
+  willys: 'willys_2026_ltl.csv',
 };
 
 function buildLanes(carrierId) {
@@ -186,6 +196,7 @@ function main() {
     { carrier_id: 'rosenau', carrier_label: 'Rosenau Transport', fsc_percent: 65.74, fsc_as_of: '2026-09-25', fsc_note: 'Published LTL rate. TL override 105.44% applies at 10,000+ lb.' },
     { carrier_id: 'jrhall', carrier_label: 'J&R Hall Transport', fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_note: 'FSC updated weekly on carrier site — set via Admin > Fuel surcharges. Tariff eff. 2026-11-01.' },
     { carrier_id: 'jays', carrier_label: "Jay's Transportation Group", fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_note: 'FSC — set via Admin > Fuel surcharges. Rate sheets received 2026-10-01 (ship-from Saskatoon/Regina, intra-SK); VAS/off-route terms eff. 2025-11-15.' },
+    { carrier_id: 'willys', carrier_label: "Willy's Trucking Service", fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_note: 'FSC not on rate proposal — set via Admin > Fuel surcharges. Proposal eff. 2025-04-01 to 2027-09-30; Edmonton/Acheson origins; sheet publishes no 20,000+ lb break (10M rate carried forward).' },
   ];
 
   const lanes = [];
