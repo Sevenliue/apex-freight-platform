@@ -282,14 +282,14 @@
         <fieldset id="bill-to-block" hidden>
           <legend>Third-Party Billing</legend>
           <div class="form-grid">
-            <label>Company name <input name="b_name" type="text" placeholder="Billing company"></label>
-            <label>Street <input name="b_street" type="text" placeholder="789 Billing Ave"></label>
+            <label>Company name <input name="b_name" type="text"></label>
+            <label>Street <input name="b_street" type="text"></label>
           </div>
           <div class="form-grid">
-            <label>City <input name="b_city" type="text" placeholder="Toronto"></label>
+            <label>City <input name="b_city" type="text"></label>
             <div class="row-2">
-              <label>Province / State <input name="b_state" type="text" placeholder="ON" maxlength="10"></label>
-              <label>Postal code <input name="b_zip" type="text" placeholder="M5V 1J1"></label>
+              <label>Province / State <input name="b_state" type="text" maxlength="10"></label>
+              <label>Postal code <input name="b_zip" type="text"></label>
             </div>
           </div>
           <label class="inline">Country <input name="b_country" type="text" value="CA" maxlength="2" style="max-width:80px"></label>
@@ -298,20 +298,20 @@
           <section class="qq-panel">
             <h3 class="qq-head">Shipper / From</h3>
             <div class="qq-body">
-              <label>Company <input name="s_name" type="text" placeholder="Company name"></label>
+              <label>Company <input name="s_name" type="text"></label>
               <div class="qq-row">
-                <label class="grow">Street / Ave <input name="o_street" type="text" required placeholder="123 Industrial Ave"></label>
+                <label class="grow">Street / Ave <input name="o_street" type="text" required></label>
                 <label class="check mini"><input type="checkbox" name="depot_dropoff"> Do not dispatch<br>drop off at depot</label>
               </div>
               <div class="qq-row">
-                <label class="grow">City <input name="o_city" type="text" required placeholder="Edmonton"></label>
-                <label class="sm">Prov <input name="o_state" type="text" required placeholder="AB" maxlength="10"></label>
-                <label class="sm">Postal Code <input name="o_zip" type="text" required placeholder="T5S 1A1"></label>
+                <label class="grow">City <input name="o_city" type="text" required></label>
+                <label class="sm">Prov <input name="o_state" type="text" required maxlength="10"></label>
+                <label class="sm">Postal Code <input name="o_zip" type="text" required></label>
                 <label class="xs">Country <input name="o_country" type="text" value="CA" maxlength="2"></label>
               </div>
               <div class="qq-row">
-                <label class="grow">Telephone <input name="o_phone" type="tel" placeholder="780-555-0100"></label>
-                <label class="grow">Email <input name="o_email" type="email" placeholder="ship@example.com"></label>
+                <label class="grow">Telephone <input name="o_phone" type="tel"></label>
+                <label class="grow">Email <input name="o_email" type="email"></label>
               </div>
               <button type="button" class="btn small" data-save-addr="shipper">💾 Save shipper to address book</button>
             </div>
@@ -322,20 +322,20 @@
           <section class="qq-panel">
             <h3 class="qq-head">Consignee / To</h3>
             <div class="qq-body">
-              <label>Company <input name="c_name" type="text" placeholder="Company name"></label>
+              <label>Company <input name="c_name" type="text"></label>
               <div class="qq-row">
-                <label class="grow">Street / Ave <input name="d_street" type="text" required placeholder="456 Warehouse Rd"></label>
+                <label class="grow">Street / Ave <input name="d_street" type="text" required></label>
                 <label class="check mini"><input type="checkbox" name="depot_pickup"> Pick up at depot<br>no carrier delivery</label>
               </div>
               <div class="qq-row">
-                <label class="grow">City <input name="d_city" type="text" required placeholder="Calgary"></label>
-                <label class="sm">Prov <input name="d_state" type="text" required placeholder="AB" maxlength="10"></label>
-                <label class="sm">Postal Code <input name="d_zip" type="text" required placeholder="T2P 3G8"></label>
+                <label class="grow">City <input name="d_city" type="text" required></label>
+                <label class="sm">Prov <input name="d_state" type="text" required maxlength="10"></label>
+                <label class="sm">Postal Code <input name="d_zip" type="text" required></label>
                 <label class="xs">Country <input name="d_country" type="text" value="CA" maxlength="2"></label>
               </div>
               <div class="qq-row">
-                <label class="grow">Telephone <input name="d_phone" type="tel" placeholder="403-555-0100"></label>
-                <label class="grow">Email <input name="d_email" type="email" placeholder="receive@example.com"></label>
+                <label class="grow">Telephone <input name="d_phone" type="tel"></label>
+                <label class="grow">Email <input name="d_email" type="email"></label>
               </div>
               <button type="button" class="btn small" data-save-addr="consignee">💾 Save consignee to address book</button>
             </div>
@@ -799,14 +799,14 @@
               <input name="shipper_order_number" type="text" placeholder="PO-1001">
             </label>
             <div class="row-3">
-              <label>Origin city <input name="o_city" type="text" required placeholder="Edmonton"></label>
-              <label>Prov <input name="o_state" type="text" required placeholder="AB" maxlength="2"></label>
-              <label>Postal <input name="o_zip" type="text" required placeholder="T5S 1A1"></label>
+              <label>Origin city <input name="o_city" type="text" required></label>
+              <label>Prov <input name="o_state" type="text" required maxlength="2"></label>
+              <label>Postal <input name="o_zip" type="text" required></label>
             </div>
             <div class="row-3">
-              <label>Dest city <input name="d_city" type="text" required placeholder="Winnipeg"></label>
-              <label>Prov <input name="d_state" type="text" required placeholder="MB" maxlength="2"></label>
-              <label>Postal <input name="d_zip" type="text" required placeholder="R3C 1A1"></label>
+              <label>Dest city <input name="d_city" type="text" required></label>
+              <label>Prov <input name="d_state" type="text" required maxlength="2"></label>
+              <label>Postal <input name="d_zip" type="text" required></label>
             </div>
             <div class="row-2">
               <label>Pickup date <input name="pickup_date" type="date" required></label>
