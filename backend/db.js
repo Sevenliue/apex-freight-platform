@@ -18,6 +18,12 @@ if (config.databaseUrl) {
     connectionString: config.databaseUrl,
     // Hosted Postgres (Render/Supabase/...) usually needs TLS; local dev does not.
     ssl: isLocal ? false : { rejectUnauthorized: false },
+    // Fail fast instead of hanging the request forever: a stuck connection or
+    // a wedged query must surface as an error (the API answers 503), never as
+    // a 60s+ hang that the frontend reports as "Request timed out".
+    connectionTimeoutMillis: 10000,
+    statement_timeout: 30000,
+    idleTimeoutMillis: 30000,
   });
   pool.on('error', (err) => console.error('[db] pool error:', err.message));
 }
