@@ -66,6 +66,9 @@ app.use('/api', async (req, res, next) => {
   });
   trace.stage('middleware-entry');
   req._trace = trace;
+  // Mark the trace when the response actually goes out, so the debug page
+  // can distinguish "handler still working" from "response sent".
+  res.on('finish', () => { try { trace.stage('response-sent'); } catch {} });
   if (!req.user) {
     try {
       trace.stage('session-lookup-start');
