@@ -85,13 +85,27 @@ app.use('/api', async (req, res, next) => {
 // (leave off until the email provider is configured, or new accounts could
 // never receive their verification link).
 function requireVerified(req, res, next) {
-  if (String(process.env.REQUIRE_EMAIL_VERIFICATION || '').toLowerCase() !== 'true') {
+  try {
+    const crashlog = require('./lib/crashlog');
+    const t = crashlog.startTrace('requireVerified ' + req.method + ' ' + req.path, {});
+    t.stage('entered');
+    if (req._trace) req._trace.stage('reached-requireVerified');
+    if (String(process.env.REQUIRE_EMAIL_VERIFICATION || '').toLowerCase() !== 'true') {
+      t.stage('env-off-calling-next');
+      return next();
+    }
+    if (req.user && req.user.is_verified) {
+      t.stage('verified-calling-next');
+      return next();
+    }
+    t.stage('sending-403');
+    return res.status(403).json({
+      error: 'Please verify your email address first — check your inbox for the verification link.',
+    });
+  } catch (e) {
+    try { require('./lib/crashlog').capture(e); } catch {}
     return next();
   }
-  if (req.user && req.user.is_verified) return next();
-  return res.status(403).json({
-    error: 'Please verify your email address first — check your inbox for the verification link.',
-  });
 }
 
 app.get('/api/health', (req, res) => {
