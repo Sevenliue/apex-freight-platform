@@ -121,6 +121,8 @@ function expandParcels(pkgs) {
 }
 
 router.post('/', async (req, res) => {
+  try { require('../lib/crashlog').startTrace('rates-router-hit', {}).stage('hit'); } catch {}
+  if (req._trace) { try { req._trace.stage('reached-rates-router'); } catch {} }
   // Quoting requires a signed-in shipper account (no more guest quoting).
   if (!req.user) {
     return bad(res, 401, 'Sign in to get a quote — quoting needs an account.');
