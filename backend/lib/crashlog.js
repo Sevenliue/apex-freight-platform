@@ -36,4 +36,30 @@ function list() {
   return log.slice();
 }
 
-module.exports = { install, capture, list };
+// Request tracing: record stage markers for recent requests so a hang can be
+// pinpointed (which stage never completed). Ring buffer, last 20.
+const traces = [];
+function startTrace(label, meta) {
+  const t = {
+    at: new Date().toISOString(),
+    label,
+    meta: meta || {},
+    stages: [],
+    done: false,
+  };
+  try {
+    traces.push(t);
+    if (traces.length > 20) traces.shift();
+  } catch (_) {}
+  return {
+    stage(name) {
+      try { t.stages.push({ at: new Date().toISOString(), name }); } catch (_) {}
+    },
+    done() { t.done = true; },
+  };
+}
+function listTraces() {
+  return traces.slice();
+}
+
+module.exports = { install, capture, list, startTrace, listTraces };

@@ -482,7 +482,8 @@ const FSC_CADENCE_LABELS = { weekly: 'Weekly', monthly: 'Monthly', per_sheet: 'P
 router.get('/diag-errors', async (req, res) => {
   if (!(await requireAdmin(req, res))) return;
   try {
-    res.json({ errors: require('../lib/crashlog').list() });
+    const crashlog = require('../lib/crashlog');
+    res.json({ errors: crashlog.list(), traces: crashlog.listTraces() });
   } catch (err) {
     res.status(500).json({ error: 'diag failed: ' + err.message });
   }
