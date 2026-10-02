@@ -489,6 +489,7 @@ router.get('/diag-errors', async (req, res) => {
       const d = meta.destination || {};
       return {
         id: 'trace-' + (i + 1),
+        label: t.label,
         started: t.at,
         lane: [o.city, o.prov].filter(Boolean).join(', ') + ' → ' + [d.city, d.prov].filter(Boolean).join(', '),
         stages: (t.stages || []).map(st => ({

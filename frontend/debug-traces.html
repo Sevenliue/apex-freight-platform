@@ -57,7 +57,7 @@
         const lastStage = t.stages && t.stages.length ? t.stages[t.stages.length - 1].stage : '(none)';
         const stuck = lastStage !== 'response-sent';
         div.innerHTML =
-          `<div><span class="trace-id">${t.id}</span> <span class="meta">${t.started} (${age}s ago)</span></div>` +
+          `<div><span class="trace-id">${t.id}</span> <span class="meta">${t.label || ''} — ${t.started} (${age}s ago)</span></div>` +
           (t.lane ? `<div class="meta">${t.lane}</div>` : '') +
           stages +
           (stuck
