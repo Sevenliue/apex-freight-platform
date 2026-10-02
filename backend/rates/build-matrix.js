@@ -131,7 +131,7 @@ const BREAK_MAPS = {
     ['rate_10000_cwt', 19999], // "MIN 10000"
     ['rate_20000_cwt', TOP_BREAK], // "MIN 20000"
   ],
-  minimax: [
+  minimax_ottawa: [
     ['rate_ltl_cwt', 499],     // LTL <500 lb (Ottawa weight lanes)
     ['rate_500_cwt', 999],
     ['rate_1000_cwt', 1999],
@@ -153,7 +153,7 @@ const SOURCE_FILES = {
   willys: 'willys_2026_ltl.csv',
   morneau: 'morneau_2026_ltl.csv',
   armour: 'armour_2025_ltl.csv',
-  minimax: 'minimax_ottawa_2024_ltl.csv',
+  minimax_ottawa: 'minimax_ottawa_2024_ltl.csv',
 };
 
 // Skid-based carriers: csv columns -> flat per-shipment CAD price for that skid count.
@@ -284,8 +284,9 @@ function main() {
     { carrier_id: 'jays', carrier_label: "Jay's Transportation Group", fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_cadence: 'monthly', fsc_note: 'FSC — set via Admin > Fuel surcharges. Rate sheets received 2026-10-01 (ship-from Saskatoon/Regina, intra-SK); VAS/off-route terms eff. 2025-11-15.' },
     { carrier_id: 'willys', carrier_label: "Willy's Trucking Service", fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_cadence: 'monthly', fsc_note: 'FSC not on rate proposal — set via Admin > Fuel surcharges. Proposal eff. 2025-04-01 to 2027-09-30; Edmonton/Acheson origins; sheet publishes no 20,000+ lb break (10M rate carried forward).' },
     { carrier_id: 'morneau', carrier_label: 'Morneau GEO', fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_cadence: 'monthly', fsc_note: 'Rate proposal 78318 (Amaranth ON → QC), per 100 LB CAD. FSC published on groupemorneau.com — set via Admin > Fuel surcharges. Sheet expired 2026-09-30; loaded per Seven.' },
-    { carrier_id: 'minimax', carrier_label: 'Minimax GO Direct', fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_cadence: 'monthly', fsc_note: 'Skid-based flat rates Amaranth ON→QC (email 2026-10-01, eff. to 2026-12-31; only rates when skid count 5–8 entered) + Ottawa weight-based lanes (rate conf. 11378B, expired 2025-05-31; FSC was 80% on that sheet). FSC 0 per Seven — set via Admin > Fuel surcharges.' },
-    { carrier_id: 'armour', carrier_label: 'Armour Transportation Systems', fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_cadence: 'weekly', fsc_note: 'Rate sheet 56325 (Kal Tire account, Moncton NB origin), per 100 LB CAD, eff. 2025-08-28. FSC reviewed weekly on armour.ca — set via Admin > Fuel surcharges. Round-trip TL Moncton–St. John\'s $5,800/load (sheet 56326) not modeled.' },
+    { carrier_id: 'minimax', carrier_label: 'Minimax GO Direct', fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_cadence: 'monthly', fsc_note: 'Skid-based flat rates Amaranth ON→QC (email 2026-10-01, eff. to 2026-12-31). Only rates when skid count (5–8) is entered. FSC 0 per Seven.' },
+    { carrier_id: 'minimax_ottawa', carrier_label: 'Minimax GO Direct (Ottawa)', fsc_percent: 80, fsc_as_of: '2026-10-01', fsc_cadence: 'monthly', fsc_note: 'Rate confirmation 11378B Rev A (Ottawa origin), per 100 LB CAD, actual weight no cubing. FSC 80% as stated on sheet — update via Admin > Fuel surcharges. Sheet expired 2025-05-31; loaded per Seven. TL flat column not modeled.' },
+    { carrier_id: 'armour', carrier_label: 'Armour Transportation Systems', fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_cadence: 'weekly', fsc_note: 'Rate sheet 56325 (Kal Tire account, Moncton NB origin), per 100 LB CAD, eff. 2025-08-28. No expiry on sheet — kept to 2026-12-31 per Seven. FSC reviewed weekly on armour.ca — set via Admin > Fuel surcharges. Round-trip TL Moncton–St. John\'s $5,800/load (sheet 56326) not modeled.' },
   ];
 
   const lanes = [];
