@@ -60,13 +60,23 @@ app.use('/api', authStub);
 // req.user = {id, email, name, company, role}. Public routes stay public;
 // they simply see req.user when a session is present.
 app.use('/api', async (req, res, next) => {
+  const crashlog = require('./lib/crashlog');
+  const trace = crashlog.startTrace(req.method + ' ' + req.path, {
+    hasAuth: !!req.headers.authorization,
+  });
+  trace.stage('middleware-entry');
+  req._trace = trace;
   if (!req.user) {
     try {
+      trace.stage('session-lookup-start');
       req.user = await require('./lib/session').lookupSession(req.headers.authorization);
+      trace.stage('session-lookup-done');
     } catch {
       req.user = null;
+      trace.stage('session-lookup-error');
     }
   }
+  trace.stage('middleware-done');
   next();
 });
 
