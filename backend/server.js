@@ -5,6 +5,9 @@
 // credentials are absent.
 'use strict';
 
+// Crash capture FIRST: no single request may kill the whole server.
+try { require('./lib/crashlog').install(); } catch (e) { console.error('[crashlog] install failed:', e.message); }
+
 const express = require('express');
 const path = require('path');
 const fs = require('fs');

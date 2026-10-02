@@ -477,6 +477,16 @@ function fscStale(asOf, cadence) {
   return Date.now() - d.getTime() > days * 864e5;
 }
 const FSC_CADENCE_LABELS = { weekly: 'Weekly', monthly: 'Monthly', per_sheet: 'Per sheet' };
+// GET /api/admin/diag-errors — recent process-level errors captured by
+// lib/crashlog (in-memory ring buffer; clears on restart). Admin only.
+router.get('/diag-errors', async (req, res) => {
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    res.json({ errors: require('../lib/crashlog').list() });
+  } catch (err) {
+    res.status(500).json({ error: 'diag failed: ' + err.message });
+  }
+});
 router.get('/fsc', async (req, res) => {
   if (needDb(res)) return;
   if (!(await requireAdmin(req, res))) return;
