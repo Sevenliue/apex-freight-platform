@@ -231,7 +231,12 @@ async function getExcludedNames(userId) {
   if (!userId) return new Set();
   if (db.isEnabled()) {
     try {
-      const r = await db.query('SELECT carrier_name FROM carrier_exclusions WHERE user_id = $1', [userId]);
+      const r = await Promise.race([
+        db.query('SELECT carrier_name FROM carrier_exclusions WHERE user_id = $1', [userId]),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('exclusion lookup timeout')), 5000)
+        ),
+      ]);
       return new Set(r.rows.map((x) => String(x.carrier_name).toLowerCase()));
     } catch (err) {
       console.error('[carriers] exclusion lookup failed (continuing):', err.message);

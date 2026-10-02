@@ -12,13 +12,17 @@ const db = require('../db');
 
 // userMarkupPercent(userId): the account's markup override (a number) or
 // null when unset. Never throws — a lookup failure means "use the default".
+// Has a 5s timeout: if the DB hangs, fall back to the default rather than
+// hanging the quote request.
 async function userMarkupPercent(userId) {
   if (!userId || !db.isEnabled()) return null;
   try {
-    const r = await db.query(
-      'SELECT markup_percent FROM users WHERE id = $1 LIMIT 1',
-      [userId]
-    );
+    const r = await Promise.race([
+      db.query('SELECT markup_percent FROM users WHERE id = $1 LIMIT 1', [userId]),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('markup lookup timeout')), 5000)
+      ),
+    ]);
     if (!r.rows.length) return null;
     const m = r.rows[0].markup_percent;
     return m == null ? null : Number(m);
