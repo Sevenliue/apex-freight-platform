@@ -301,13 +301,13 @@
             <div class="qq-body">
               <label>Company <input name="s_name" type="text"></label>
               <div class="qq-row">
-                <label class="grow">Street / Ave <input name="o_street" type="text" required></label>
+                <label class="grow">Street / Ave <span class="opt">(optional)</span> <input name="o_street" type="text"></label>
                 <label class="check mini"><input type="checkbox" name="depot_dropoff"> Do not dispatch<br>drop off at depot</label>
               </div>
               <div class="qq-row">
                 <label class="grow">City <input name="o_city" type="text" required></label>
                 <label class="sm">Prov <input name="o_state" type="text" required maxlength="10"></label>
-                <label class="sm">Postal Code <input name="o_zip" type="text" required></label>
+                <label class="sm">Postal Code <span class="opt">(optional)</span> <input name="o_zip" type="text"></label>
                 <label class="xs">Country <input name="o_country" type="text" value="CA" maxlength="2"></label>
               </div>
               <div class="qq-row">
@@ -325,13 +325,13 @@
             <div class="qq-body">
               <label>Company <input name="c_name" type="text"></label>
               <div class="qq-row">
-                <label class="grow">Street / Ave <input name="d_street" type="text" required></label>
+                <label class="grow">Street / Ave <span class="opt">(optional)</span> <input name="d_street" type="text"></label>
                 <label class="check mini"><input type="checkbox" name="depot_pickup"> Pick up at depot<br>no carrier delivery</label>
               </div>
               <div class="qq-row">
                 <label class="grow">City <input name="d_city" type="text" required></label>
                 <label class="sm">Prov <input name="d_state" type="text" required maxlength="10"></label>
-                <label class="sm">Postal Code <input name="d_zip" type="text" required></label>
+                <label class="sm">Postal Code <span class="opt">(optional)</span> <input name="d_zip" type="text"></label>
                 <label class="xs">Country <input name="d_country" type="text" value="CA" maxlength="2"></label>
               </div>
               <div class="qq-row">
@@ -1726,11 +1726,13 @@
     function missingQuoteFields() {
       const f = new FormData($('#quote-form'));
       const txt = (k) => ((f.get(k) == null ? '' : f.get(k)).toString().trim());
+      // Rating runs on city + province only — street and postal code are
+      // optional for a quote (they're required later, at shipment creation).
       const need = [
-        ['o_street', 'Shipper street'], ['o_city', 'Shipper city'],
-        ['o_state', 'Shipper province'], ['o_zip', 'Shipper postal code'],
-        ['d_street', 'Consignee street'], ['d_city', 'Consignee city'],
-        ['d_state', 'Consignee province'], ['d_zip', 'Consignee postal code'],
+        ['o_city', 'Shipper city'],
+        ['o_state', 'Shipper province'],
+        ['d_city', 'Consignee city'],
+        ['d_state', 'Consignee province'],
         ['pickup_date', 'Requested pickup date'],
       ];
       const missing = need.filter(([k]) => !txt(k)).map(([, label]) => label);
@@ -2276,6 +2278,26 @@
         errBox.textContent = 'Please accept the Terms of Service to schedule this shipment.';
         errBox.classList.remove('hidden');
         return;
+      }
+      // Full street + postal are required to schedule (carrier dispatch and
+      // the BOL need them) — they were optional at quote time.
+      {
+        const qp = (typeof lastQuoteParams !== 'undefined' && lastQuoteParams) || {};
+        const addrOk = (p) => {
+          const a = p || {};
+          return String(a.street1 || a.street || '').trim()
+              && String(a.zip || a.postal || '').trim()
+              && String(a.city || '').trim();
+        };
+        const missingAddr = [];
+        if (!addrOk(qp.shipper)) missingAddr.push('Shipper street + postal code');
+        if (!addrOk(qp.consignee)) missingAddr.push('Consignee street + postal code');
+        if (missingAddr.length) {
+          errBox.textContent = 'Before creating this shipment, fill in the missing address details on the quote form: '
+            + missingAddr.join('; ') + '.';
+          errBox.classList.remove('hidden');
+          return;
+        }
       }
       $('#complete-modal').classList.add('hidden');
       const btn = $('#complete-shipment-btn');

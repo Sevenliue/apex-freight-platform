@@ -852,3 +852,6 @@ dl.kv dd { margin: 0; font-weight: 600; }
   .land-steps, .land-grid { grid-template-columns: 1fr; }
   .land-alt { padding: 36px 22px 44px; }
 }
+
+/* "(optional)" marker on quote-form address labels */
+.opt { font-weight: normal; font-size: 0.85em; opacity: 0.65; }

@@ -185,6 +185,19 @@ async function prepareOrder(body, effectiveUserId) {
     fail(400, "Shipper's order number and receiver's PO number are both required.");
   }
 
+  // Full street + postal are required to schedule (carrier dispatch and the
+  // BOL need them) — they were optional at quote time.
+  const needFullAddress = (party, label) => {
+    const street = String(party.street1 || party.street || '').trim();
+    const city = String(party.city || '').trim();
+    const zip = String(party.zip || party.postal || '').trim();
+    if (!street || !city || !zip) {
+      fail(400, `${label} needs a complete street address, city and postal code before the shipment can be created.`);
+    }
+  };
+  needFullAddress(shipper, 'Shipper');
+  needFullAddress(consignee, 'Consignee');
+
   const order = {
     id: null,
     quote_id: quote.db_quote_id || null,
