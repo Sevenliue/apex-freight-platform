@@ -1,0 +1,11 @@
+carrier,origin_city,origin_prov,dest_city,dest_prov,min_charge_cad,rate_ltl_cwt,rate_500_cwt,rate_1000_cwt,rate_2000_cwt,rate_5000_cwt,rate_10000_cwt,rate_20000_cwt,effective_date,expiry_date,fuel_surcharge_pct,notes
+Guilbault Transport,AMARANTH,ON,CHIBOUGAMAU,QC,180.25,50.0,45.31,35.17,30.67,24.34,17.38,13.38,2026-04-01,2027-03-31,41,"Rate sheet 17172, per 100 LB CAD. FSC = FCA LTL % (set current value)."
+Guilbault Transport,AMARANTH,ON,DRUMMONDVILLE,QC,133.9,35.43,31.58,26.16,22.07,17.58,13.06,9.13,2026-04-01,2027-03-31,41,"Rate sheet 17172, per 100 LB CAD. FSC = FCA LTL % (set current value)."
+Guilbault Transport,AMARANTH,ON,LATERIERE,QC,133.9,39.11,35.26,27.95,25.01,19.77,13.91,10.42,2026-04-01,2027-03-31,41,"Rate sheet 17172, per 100 LB CAD. FSC = FCA LTL % (set current value)."
+Guilbault Transport,AMARANTH,ON,MONTREAL,QC,128.75,32.71,28.85,22.54,18.82,15.22,10.7,7.49,2026-04-01,2027-03-31,41,"Rate sheet 17172, per 100 LB CAD. FSC = FCA LTL % (set current value)."
+Guilbault Transport,AMARANTH,ON,NORMANDIN,QC,149.35,41.57,37.72,30.75,26.67,20.8,14.52,11.46,2026-04-01,2027-03-31,41,"Rate sheet 17172, per 100 LB CAD. FSC = FCA LTL % (set current value)."
+Guilbault Transport,AMARANTH,ON,QUEBEC,QC,139.05,36.76,32.91,26.88,22.74,18.2,13.5,9.48,2026-04-01,2027-03-31,41,"Rate sheet 17172, per 100 LB CAD. FSC = FCA LTL % (set current value)."
+Guilbault Transport,AMARANTH,ON,RIVIERE DU LOUP,QC,133.9,39.11,35.26,27.95,25.01,19.77,13.91,10.42,2026-04-01,2027-03-31,41,"Rate sheet 17172, per 100 LB CAD. FSC = FCA LTL % (set current value)."
+Guilbault Transport,AMARANTH,ON,SHERBROOKE,QC,139.05,36.07,32.22,26.56,22.5,17.92,13.35,9.32,2026-04-01,2027-03-31,41,"Rate sheet 17172, per 100 LB CAD. FSC = FCA LTL % (set current value)."
+Guilbault Transport,AMARANTH,ON,ST-AUGUSTIN-DE-DESMAURES,QC,139.05,36.76,32.91,26.88,22.74,18.2,13.5,9.48,2026-04-01,2027-03-31,41,"Rate sheet 17172, per 100 LB CAD. FSC = FCA LTL % (set current value)."
+Guilbault Transport,AMARANTH,ON,ST-NICOLAS,QC,139.05,36.76,32.91,26.88,22.74,18.2,13.5,9.48,2026-04-01,2027-03-31,41,"Rate sheet 17172, per 100 LB CAD. FSC = FCA LTL % (set current value)."

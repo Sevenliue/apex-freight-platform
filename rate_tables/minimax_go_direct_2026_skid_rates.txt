@@ -1,0 +1,23 @@
+Minimax GO Direct — skid-based flat rates (from email, received 2026-10-01)
+Contact: Darryl Major <dmajor@minimaxgodirect.com>
+Office: 877-378-6868 | Direct: 613-801-0936 | Cell: 613-551-6701
+operations@minimaxgodirect.com
+
+Origin: Amaranth, ON pickups. Dock to dock, no special requirements, 53' accessible.
+Claims: industry standard $2/lb on lost/damaged freight; claim forms on their website.
+
+MONTREAL QC — next day delivery
+  5 skids $475 | 6 skids $530 | 7 skids $595 | 8 skids $656
+
+SHERBROOKE QC — 1-2 day transit
+  5 skids $605 | 6 skids $685 | 7 skids $765 | 8 skids $843
+
+ST AUGUSTIN QC — 1-2 day transit
+  5 skids $650 | 6 skids $740 | 7 skids $830 | 8 skids $912
+
+NORMANDIN QC — 3-4 day transit
+  5 skids $1615 | 6 skids $2270 | 7 skids $2360 | 8 skids $2510
+
+NOTES: flat per-shipment pricing by skid count (5-8 only; 1-4 skids not priced).
+No expiry date stated. No FSC stated (flat dock-to-dock rates — FSC treatment unknown).
+No weight component — does NOT fit the weight-based (CWT) matrix engine as-is.

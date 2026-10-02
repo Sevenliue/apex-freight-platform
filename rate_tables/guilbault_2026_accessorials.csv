@@ -1,0 +1,43 @@
+code,name,basis,amount_cad,min_cad,conditions
+waiting_time,Waiting time pickup/delivery,per hour,105.0,,"30 min free 1-10,000 lb; 1 hr free 10,001+ lb; excess billed"
+trailer_holding_dry,Trailer holding - dry,per day,100.0,,free 24h excl pickup/delivery days
+trailer_holding_heated,Trailer holding - heated,per day,132.0,,free 24h excl pickup/delivery days
+trailer_holding_reefer,Trailer holding - refrigerated/ambient,per day,198.0,,excl diesel; free 24h excl pickup/delivery days
+dangerous_goods_lt20k,"Dangerous goods 1-20,000 lb",per shipment,80.2,,
+dangerous_goods_gt20k,"Dangerous goods 20,001+ lb",per shipment,128.6,,
+tailgate,Tailgate (driver must use),per shipment,65.0,,rate agreement note for this customer: $40 fixed
+inside_pickup_delivery,Inside pickup/delivery,per shipment,65.0,,>20 ft from trailer or pallet breakdown by driver
+straight_truck,Straight truck,per shipment,94.5,,"limited space/height, no 28-ft pup"
+private_residence,Private residence,per shipment,94.5,,
+storey_building,Storey building,per shipment,94.5,,
+exhibition_site,Exhibition site,per shipment,94.5,,
+construction_site,Construction site,per shipment,94.5,,
+warehouse_customs,Warehouse customs/international,per shipment,94.5,,
+wind_farm,Wind farm,per shipment,196.8,,
+walmart_moncton_dc,Walmart DC Moncton NB surcharge,per shipment,372.01,,
+remote_area,Remote area far from main roads,per shipment,,,"rate per distance, to be confirmed"
+protective_heated,Protective service - heated (LTL & TL),% of freight,10.0,50.8,minimum $50.80
+protective_reefer,Protective service - refrigerated,% of freight,20.0,138.8,minimum $138.80
+protective_ambient,Protective service - ambient,% of freight,20.0,138.8,minimum $138.80
+second_delivery,Second delivery,per cwt,10.25,97.5,within 20-mile radius; min $97.50
+stopoff_canada,Stop off in transit - Canada,per stop,125.0,,plus $2.30/mile off-route return mileage
+stopoff_us_first,Stop off in transit - US 1st stop,per stop,125.0,,
+stopoff_us_next,Stop off in transit - US subsequent stops,per stop,150.0,,
+unloading_wholesaler_5k,"Unloading agency at wholesalers 1-5,000 lb",per shipment,46.0,,
+unloading_wholesaler_10k,"Unloading agency at wholesalers 5,001-10,000 lb",per shipment,93.0,,
+unloading_wholesaler_30k,"Unloading agency at wholesalers 10,001-30,000 lb",per shipment,130.0,,
+unloading_wholesaler_tl,"Unloading agency at wholesalers 30,001+ lb / TL",per shipment,172.0,,
+missed_pickup,Missed pickup,per shipment,97.5,97.5,within 20-mile radius; minimum $97.50
+appointment,Appointment - time specific delivery,per shipment,47.25,,<4hr window; $84 before 10 AM Montreal Island & Laval (postal H)
+call_before_delivery,Call before delivery,per shipment,47.25,,driver must call prior
+storage,Storage of goods,per cwt per day,4.6,33.1,max $72/day; excl pickup/delivery days & weekends; 48h free for appointment deliveries
+extra_manpower,Extra manpower only,per hour,69.35,,minimum 4 hours
+extra_manpower_truck,Extra manpower with truck,per hour,105.0,,subject to fuel surcharge
+declared_value,Declared value,% of excess,3.0,15.0,"3% of value exceeding $4.41/kg ($2.00/lb); min $15; goods max $10/lb; caps $20k to 9,999 lb / $200k 10,000+ lb; claims <$50 not processed"
+weekend_holiday,Weekend/holiday pickup or delivery,per shipment,288.0,,Sat/Sun/holidays; select metro areas only
+customs_docs_pickup,Pickup of customs documents,per shipment,93.75,,
+customs_admin,Customs administration charges,per shipment,16.5,,
+doc_copies,Copy of documents (paper),per shipment,9.2,37.7,"$9.20, minimum $37.70"
+admin_fee,Administration fees (change of payer etc.),per shipment,23.05,,
+blind_shipment,Blind shipment,per shipment,35.0,,
+after_hours,After hour pickup/delivery 6 PM-7 AM,per shipment,288.0,,
