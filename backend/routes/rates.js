@@ -281,6 +281,7 @@ router.post('/', async (req, res) => {
   // Freight markup for this quote: the signed-in customer's per-account
   // override when the admin set one, else the global MARKUP_PERCENT default.
   const markup = await markupLib.effectiveMarkup(req.user && req.user.id);
+  trace.stage('markup-ok');
 
   const worldwide = region === 'worldwide';
 
