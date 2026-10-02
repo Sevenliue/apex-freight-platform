@@ -172,6 +172,7 @@ router.post('/', async (req, res) => {
     delivery_note_2: rawNote2 = '',
     private_notes: rawPrivateNotes = '',
     pickup_date: rawPickupDate = '',
+    skids: rawSkids = null,
   } = req.body || {};
 
   // The logged-in account wins over the optional guest user_id label.
@@ -307,12 +308,15 @@ router.post('/', async (req, res) => {
   let matrixQuotes = [];
   if (!worldwide) {
     try {
+      const _sk = Number(rawSkids);
+      const skidCount = Number.isInteger(_sk) && _sk > 0 ? _sk : null;
       matrixQuotes = matrix.quoteMatrix({
         originCity: origin.city,
         originProv: origin.state,
         destCity: destination.city,
         destProv: destination.state,
         weightLbs: totalWeightLbs,
+        skidCount,
       });
     } catch (err) {
       return bad(res, 502, 'Rate matrix failed', err.message);
@@ -358,6 +362,8 @@ router.post('/', async (req, res) => {
       est_delivery_date: estDeliveryDate(transitDaysUpper(transit)),
       source: 'matrix',
       weight_lbs: totalWeightLbs,
+      skids: q.skids != null ? q.skids : skidCount,
+      rate_basis: q.rate_basis || 'weight',
       rate_cwt_used: q.rate_cwt_used,
       base_cad: round2(q.base_cad),
       fsc_cad: round2(q.fsc_cad),

@@ -187,9 +187,11 @@ function suggestCity(inputCity, inputProv) {
 }
 
 // Rate one shipment across every matching lane; cheapest first.
-// Rating math: first break with weightLbs <= max_lb; base = max(min_charge, weightLbs/100 * rate_cwt);
-// fsc = base * fsc%/100; total = base + fsc. Money rounded to 2 decimals.
-function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs }) {
+// Rating math (weight lanes): first break with weightLbs <= max_lb;
+// base = max(min_charge, weightLbs/100 * rate_cwt); fsc = base * fsc%/100; total = base + fsc.
+// Skid lanes (lane.skid_rates): flat per-shipment price for the exact skid count;
+// they only rate when a matching skidCount is supplied. Money rounded to 2 decimals.
+function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, skidCount }) {
   const st = ensureLoaded();
   const oCity = norm(originCity);
   const oProv = norm(originProv);
@@ -197,15 +199,48 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs }) 
   const dProv = norm(destProv);
   const w = Number(weightLbs);
   if (!oCity || !dCity || !Number.isFinite(w) || w <= 0) return [];
+  const _sk = Number(skidCount);
+  const skids = Number.isInteger(_sk) && _sk > 0 ? _sk : null;
 
   const quotes = [];
   for (const lane of st.data.lanes) {
     if (!placeMatches(lane.origin_city, lane.origin_prov, oCity, oProv)) continue;
     if (!placeMatches(lane.dest_city, lane.dest_prov, dCity, dProv)) continue;
+    const carrier = st.carriersById.get(lane.carrier_id);
+
+    // Skid-based lane: flat price for the exact skid count, no weight rating.
+    if (lane.skid_rates) {
+      const flat = skids != null ? lane.skid_rates[skids] : undefined;
+      if (!(flat > 0)) continue;
+      const fscPercent = fscFor(carrier, w);
+      const fsc = flat * fscPercent / 100;
+      quotes.push({
+        carrier_id: lane.carrier_id,
+        carrier_label: carrier ? carrier.carrier_label : lane.carrier_id,
+        service: `LTL \u00b7 ${skids} skids`,
+        weight_lbs: w,
+        skids,
+        rate_basis: 'skid',
+        rate_cwt_used: null,
+        base_cad: r2(flat),
+        fsc_percent: fscPercent,
+        fsc_cad: r2(fsc),
+        total_cad: r2(flat + fsc),
+        min_charge_applied: false,
+        currency: 'CAD',
+        source: 'matrix',
+        lane_origin_city: lane.origin_city,
+        lane_origin_prov: lane.origin_prov,
+        lane_dest_city: lane.dest_city,
+        lane_dest_prov: lane.dest_prov,
+        metro_matched:
+          lane.origin_city !== oCity || lane.dest_city !== dCity,
+      });
+      continue;
+    }
+
     const brk = (lane.breaks || []).find((b) => w <= b.max_lb);
     if (!brk || !(brk.rate_cwt > 0)) continue;
-
-    const carrier = st.carriersById.get(lane.carrier_id);
     const raw = (w / 100) * brk.rate_cwt;
     const minApplied = raw < lane.min_charge_cad;
     const base = minApplied ? lane.min_charge_cad : raw;
@@ -300,9 +335,15 @@ function upsertCarrierRows(carrierId, rows) {
           .filter((b) => Number.isFinite(b.max_lb) && b.max_lb > 0 && Number.isFinite(b.rate_cwt) && b.rate_cwt > 0)
           .sort((a, b) => a.max_lb - b.max_lb)
       : [];
-    if (!origin_city || !dest_city || !Number.isFinite(min_charge_cad) || min_charge_cad < 0 || breaks.length === 0) continue;
+    const skid_rates = r.skid_rates && typeof r.skid_rates === 'object'
+      ? Object.fromEntries(Object.entries(r.skid_rates)
+          .map(([k, v]) => [Number(k), Number(v)])
+          .filter(([k, v]) => Number.isInteger(k) && k > 0 && Number.isFinite(v) && v > 0))
+      : null;
+    if (!origin_city || !dest_city || !Number.isFinite(min_charge_cad) || min_charge_cad < 0 || (breaks.length === 0 && !skid_rates)) continue;
 
     const lane = { carrier_id: carrierId, origin_city, origin_prov, dest_city, dest_prov, min_charge_cad, breaks };
+    if (skid_rates) lane.skid_rates = skid_rates;
     if (Number.isFinite(Number(r.service_days))) lane.service_days = Number(r.service_days);
 
     const key = laneKey(carrierId, origin_city, origin_prov, dest_city, dest_prov);

@@ -175,7 +175,7 @@
           </div>
           <div class="land-stats">
             <div><strong>5,500+</strong><span>carrier lanes priced</span></div>
-            <div><strong>6</strong><span>Canadian carriers live</span></div>
+            <div><strong>9</strong><span>Canadian carriers live</span></div>
             <div><strong>CAD</strong><span>every quote in Canadian dollars</span></div>
           </div>
         </div>
@@ -343,6 +343,7 @@
         </div>
         <div class="qq-refrow">
           <label>Requested pickup date * <input type="date" name="pickup_date" id="quote-pickup-date" required></label>
+          <label class="inline">Skids (optional) <input name="skids" type="number" min="1" max="26" step="1" placeholder="e.g. 6" title="Enter the skid count to include skid-rated carriers like Minimax GO Direct"></label>
           <div class="units-row">
             <span class="note">Units:</span>
             <div class="segmented" role="radiogroup" aria-label="Weight and dimension units">
@@ -1949,6 +1950,7 @@
         },
         packages,
         accessorials: collectAccessorials(),
+        skids: (() => { const v = parseInt((f.get('skids') || '').toString(), 10); return Number.isInteger(v) && v > 0 ? v : undefined; })(),
         user_id: txt('user_id') || undefined,
       };
         $('#rate-loading').classList.remove('hidden');

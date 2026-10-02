@@ -113,6 +113,35 @@ const BREAK_MAPS = {
     ['rate_10000_cwt', 19999], // 10M
     ['rate_20000_cwt', TOP_BREAK], // sheet publishes no 20M break — 10M rate carried forward
   ],
+  morneau: [
+    ['rate_ltl_cwt', 499],     // LTL <500 lb
+    ['rate_500_cwt', 999],
+    ['rate_1000_cwt', 1999],
+    ['rate_2000_cwt', 4999],
+    ['rate_5000_cwt', 9999],
+    // Sheet's 10000 column is the TL rate: 6 pallets / 10,000 lb / 12' trailer and over.
+    ['rate_10000_cwt', TOP_BREAK],
+  ],
+  armour: [
+    ['rate_ltl_cwt', 499],     // LTL <500 lb
+    ['rate_500_cwt', 999],     // "MIN 500"
+    ['rate_1000_cwt', 1999],   // "MIN 1000"
+    ['rate_2000_cwt', 4999],   // "MIN 2000"
+    ['rate_5000_cwt', 9999],   // "MIN 5000"
+    ['rate_10000_cwt', 19999], // "MIN 10000"
+    ['rate_20000_cwt', TOP_BREAK], // "MIN 20000"
+  ],
+  minimax: [
+    ['rate_ltl_cwt', 499],     // LTL <500 lb (Ottawa weight lanes)
+    ['rate_500_cwt', 999],
+    ['rate_1000_cwt', 1999],
+    ['rate_2000_cwt', 4999],
+    ['rate_5000_cwt', 9999],
+    ['rate_10000_cwt', 19999],
+    ['rate_20000_cwt', 29999],
+    ['rate_30000_cwt', TOP_BREAK],
+    // Sheet's TL column is a flat per-load rate — not modeled in the CWT matrix.
+  ],
 };
 
 const SOURCE_FILES = {
@@ -122,6 +151,23 @@ const SOURCE_FILES = {
   jrhall: 'jrhall_2026_ltl.csv',
   jays: 'jays_2026_ltl.csv',
   willys: 'willys_2026_ltl.csv',
+  morneau: 'morneau_2026_ltl.csv',
+  armour: 'armour_2025_ltl.csv',
+  minimax: 'minimax_ottawa_2024_ltl.csv',
+};
+
+// Skid-based carriers: csv columns -> flat per-shipment CAD price for that skid count.
+const SKID_MAPS = {
+  minimax: [
+    ['skids_5_cad', 5],
+    ['skids_6_cad', 6],
+    ['skids_7_cad', 7],
+    ['skids_8_cad', 8],
+  ],
+};
+
+const SKID_SOURCE_FILES = {
+  minimax: 'minimax_2026_skid.csv',
 };
 
 function buildLanes(carrierId) {
@@ -165,8 +211,48 @@ function buildLanes(carrierId) {
   return { lanes, skipped, duplicates };
 }
 
-function buildAccessorials() {
-  const file = path.join(TABLES_DIR, 'guilbault_2026_accessorials.csv');
+// Skid-based lanes: flat per-shipment CAD price keyed by skid count.
+// Lane shape: { carrier_id, origin_city, origin_prov, dest_city, dest_prov,
+//               min_charge_cad: 0 (unused), skid_rates: {5: 475, ...} }.
+function buildSkidLanes(carrierId) {
+  const file = path.join(TABLES_DIR, SKID_SOURCE_FILES[carrierId]);
+  const rows = parseCSV(fs.readFileSync(file, 'utf8'));
+  const header = rows[0].map((h) => h.trim());
+  const map = SKID_MAPS[carrierId];
+  const lanes = [];
+  const skipped = [];
+  const seen = new Set();
+  let duplicates = 0;
+
+  for (const r of rows.slice(1)) {
+    const cell = (col) => r[header.indexOf(col)] ?? '';
+    const { city: origin_city, prov: origin_prov } = splitCityProv(cell('origin_city'), cell('origin_prov'));
+    const dest_city = String(cell('dest_city')).trim().toUpperCase();
+    const dest_prov = String(cell('dest_prov')).trim().toUpperCase();
+
+    const skid_rates = {};
+    let ok = origin_city && dest_city;
+    for (const [col, skids] of map) {
+      const price = num(cell(col));
+      if (price === null || price <= 0) { ok = false; break; }
+      skid_rates[skids] = price;
+    }
+    if (!ok) {
+      skipped.push(`${origin_city},${origin_prov} -> ${dest_city},${dest_prov}`);
+      continue;
+    }
+
+    const lane = { carrier_id: carrierId, origin_city, origin_prov, dest_city, dest_prov, min_charge_cad: 0, skid_rates };
+
+    const key = [carrierId, origin_city, origin_prov, dest_city, dest_prov].join('|');
+    if (seen.has(key)) { duplicates++; continue; } // keep first occurrence
+    seen.add(key);
+    lanes.push(lane);
+  }
+  return { lanes, skipped, duplicates };
+}
+
+function buildAccessorials() {  const file = path.join(TABLES_DIR, 'guilbault_2026_accessorials.csv');
   const rows = parseCSV(fs.readFileSync(file, 'utf8'));
   const header = rows[0].map((h) => h.trim());
   const out = [];
@@ -197,12 +283,25 @@ function main() {
     { carrier_id: 'jrhall', carrier_label: 'J&R Hall Transport', fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_cadence: 'weekly', fsc_note: 'FSC updated weekly on carrier site — set via Admin > Fuel surcharges. Tariff eff. 2026-11-01.' },
     { carrier_id: 'jays', carrier_label: "Jay's Transportation Group", fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_cadence: 'monthly', fsc_note: 'FSC — set via Admin > Fuel surcharges. Rate sheets received 2026-10-01 (ship-from Saskatoon/Regina, intra-SK); VAS/off-route terms eff. 2025-11-15.' },
     { carrier_id: 'willys', carrier_label: "Willy's Trucking Service", fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_cadence: 'monthly', fsc_note: 'FSC not on rate proposal — set via Admin > Fuel surcharges. Proposal eff. 2025-04-01 to 2027-09-30; Edmonton/Acheson origins; sheet publishes no 20,000+ lb break (10M rate carried forward).' },
+    { carrier_id: 'morneau', carrier_label: 'Morneau GEO', fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_cadence: 'monthly', fsc_note: 'Rate proposal 78318 (Amaranth ON → QC), per 100 LB CAD. FSC published on groupemorneau.com — set via Admin > Fuel surcharges. Sheet expired 2026-09-30; loaded per Seven.' },
+    { carrier_id: 'minimax', carrier_label: 'Minimax GO Direct', fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_cadence: 'monthly', fsc_note: 'Skid-based flat rates Amaranth ON→QC (email 2026-10-01, eff. to 2026-12-31; only rates when skid count 5–8 entered) + Ottawa weight-based lanes (rate conf. 11378B, expired 2025-05-31; FSC was 80% on that sheet). FSC 0 per Seven — set via Admin > Fuel surcharges.' },
+    { carrier_id: 'armour', carrier_label: 'Armour Transportation Systems', fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_cadence: 'weekly', fsc_note: 'Rate sheet 56325 (Kal Tire account, Moncton NB origin), per 100 LB CAD, eff. 2025-08-28. FSC reviewed weekly on armour.ca — set via Admin > Fuel surcharges. Round-trip TL Moncton–St. John\'s $5,800/load (sheet 56326) not modeled.' },
   ];
 
   const lanes = [];
   const stats = {};
+  const skidCarriers = new Set(Object.keys(SKID_SOURCE_FILES));
   for (const c of carriers) {
-    const { lanes: ls, skipped, duplicates } = buildLanes(c.carrier_id);
+    // A carrier can have weight-based lanes, skid-based lanes, or both.
+    let ls = [], skipped = [], duplicates = 0;
+    if (SOURCE_FILES[c.carrier_id]) {
+      const b = buildLanes(c.carrier_id);
+      ls.push(...b.lanes); skipped.push(...b.skipped); duplicates += b.duplicates;
+    }
+    if (skidCarriers.has(c.carrier_id)) {
+      const b = buildSkidLanes(c.carrier_id);
+      ls.push(...b.lanes); skipped.push(...b.skipped); duplicates += b.duplicates;
+    }
     lanes.push(...ls);
     stats[c.carrier_id] = { lanes: ls.length, skipped: skipped.length, duplicates };
     if (skipped.length) console.log(`[${c.carrier_id}] skipped:`, skipped.join(' | '));
