@@ -84,6 +84,7 @@ function needDb(res) {
 }
 
 async function requireAdmin(req, res) {
+  if (req.everestAdmin) return true;
   if (!req.user) {
     res.status(401).json({ error: 'Sign in required.' });
     return false;

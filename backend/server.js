@@ -56,6 +56,18 @@ app.use('/api/auth', require('./routes/auth'));
 // Auth stub (disabled unless AUTH_TOKEN is set).
 app.use('/api', authStub);
 
+// Everest service key: allows the assistant to perform admin API actions
+// without Seven's password. Set EVEREST_ADMIN_KEY in Render env to a long
+// random string. Seven can revoke it anytime by changing/deleting the var.
+app.use('/api', (req, res, next) => {
+  const svcKey = process.env.EVEREST_ADMIN_KEY;
+  const auth = req.headers.authorization || '';
+  if (svcKey && auth === `Bearer ${svcKey}`) {
+    req.everestAdmin = true;
+  }
+  next();
+});
+
 // Session enrichment (always on): a valid Bearer <redacted> attaches
 // req.user = {id, email, name, company, role}. Public routes stay public;
 // they simply see req.user when a session is present.
