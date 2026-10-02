@@ -316,10 +316,11 @@ router.post('/', async (req, res) => {
   }
 
   let matrixQuotes = [];
+  let skidCount = null;
   if (!worldwide) {
     try {
       const _sk = Number(rawSkids);
-      const skidCount = Number.isInteger(_sk) && _sk > 0 ? _sk : null;
+      skidCount = Number.isInteger(_sk) && _sk > 0 ? _sk : null;
       matrixQuotes = matrix.quoteMatrix({
         originCity: origin.city,
         originProv: origin.state,

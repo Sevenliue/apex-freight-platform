@@ -224,10 +224,9 @@ if (require.main === module) {
     // Fuel-surcharge overrides: load admin-set values into the rate-matrix
     // engine, and refresh them every 5 minutes in case they changed.
     try {
-      // TEMP-DIAG: FSC override loading disabled — suspected of hanging quoteMatrix.
-      // const { loadFscOverrides } = require('./lib/fsc');
-      // await loadFscOverrides();
-      // const t = setInterval(() => { loadFscOverrides(); }, 5 * 60 * 1000);
+      const { loadFscOverrides } = require('./lib/fsc');
+      await loadFscOverrides();
+      const t = setInterval(() => { loadFscOverrides(); }, 5 * 60 * 1000);
       if (t.unref) t.unref();
     } catch (err) {
       console.error('[fsc] init failed (continuing):', err.message);
