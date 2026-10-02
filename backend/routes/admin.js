@@ -483,7 +483,22 @@ router.get('/diag-errors', async (req, res) => {
   if (!(await requireAdmin(req, res))) return;
   try {
     const crashlog = require('../lib/crashlog');
-    res.json({ errors: crashlog.list(), traces: crashlog.listTraces() });
+    const traces = crashlog.listTraces().map((t, i) => {
+      const meta = t.meta || {};
+      const o = meta.origin || {};
+      const d = meta.destination || {};
+      return {
+        id: 'trace-' + (i + 1),
+        started: t.at,
+        lane: [o.city, o.prov].filter(Boolean).join(', ') + ' → ' + [d.city, d.prov].filter(Boolean).join(', '),
+        stages: (t.stages || []).map(st => ({
+          stage: st.name,
+          ms: st.at ? Math.round(new Date(st.at).getTime() - new Date(t.at).getTime()) : 0,
+        })),
+        done: !!t.done,
+      };
+    });
+    res.json({ errors: crashlog.list(), traces });
   } catch (err) {
     res.status(500).json({ error: 'diag failed: ' + err.message });
   }
