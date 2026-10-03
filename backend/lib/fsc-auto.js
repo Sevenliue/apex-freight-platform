@@ -70,15 +70,36 @@ async function fetchDoeDieselPrice() {
   }
 }
 
-// NRCan Canadian Diesel Price (weekly).
-// Source: Natural Resources Canada.
+// NRCan Canadian Diesel Price (weekly national average).
+// Source: Natural Resources Canada, weekly retail diesel prices.
+// URL pattern: productID=5 (diesel), locationID=66 (Canada), frequency=W (weekly).
 // Returns CAD per litre, or null on failure.
 async function fetchNrcanDieselPrice() {
   try {
-    // NRCan publishes a weekly average. Scraping is fragile; for now,
-    // return null until a stable source is configured.
-    console.log('[fsc-auto] NRCan fetch not yet implemented');
-    return null;
+    const year = new Date().getFullYear();
+    const url = `https://www2.nrcan.gc.ca/eneene/sources/pripri/prices_bycity_e.cfm?productID=5&locationID=66&frequency=W&priceYear=${year}`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'ShipRate/1.0 (fuel-surcharge-monitor)' },
+    });
+    if (!res.ok) {
+      console.error('[fsc-auto] NRCan HTTP', res.status);
+      return null;
+    }
+    const html = await res.text();
+    // Table rows: <td>2026-10-06</td><td ...>261.4</td> ...
+    // Grab all week-ending prices, take the last (most recent).
+    const re = /(\d{4}-\d{2}-\d{2})<\/td>\s*<td[^>]*>([\d.]+)</g;
+    let m, last = null;
+    while ((m = re.exec(html)) !== null) {
+      last = { week: m[1], cents: parseFloat(m[2]) };
+    }
+    if (!last || !Number.isFinite(last.cents)) {
+      console.error('[fsc-auto] NRCan parse failed: no price rows found');
+      return null;
+    }
+    const cadPerLitre = last.cents / 100;
+    console.log(`[fsc-auto] NRCan diesel ${last.week}: ${cadPerLitre.toFixed(3)} CAD/L`);
+    return cadPerLitre;
   } catch (err) {
     console.error('[fsc-auto] NRCan fetch failed:', err.message);
     return null;
