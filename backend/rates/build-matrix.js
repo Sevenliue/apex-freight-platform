@@ -142,6 +142,15 @@ const BREAK_MAPS = {
     ['rate_30000_cwt', TOP_BREAK],
     // Sheet's TL column is a flat per-load rate — not modeled in the CWT matrix.
   ],
+  bandstra: [
+    ['rate_l5c_cwt', 499],
+    ['rate_5c_cwt', 999],
+    ['rate_1m_cwt', 1999],
+    ['rate_2m_cwt', 4999],
+    ['rate_5m_cwt', 9999],
+    ['rate_10m_cwt', 19999],
+    ['rate_20m_cwt', TOP_BREAK],
+  ],
 };
 
 const SOURCE_FILES = {
@@ -154,6 +163,7 @@ const SOURCE_FILES = {
   morneau: 'morneau_2026_ltl.csv',
   armour: 'armour_2025_ltl.csv',
   minimax_ottawa: 'minimax_ottawa_2024_ltl.csv',
+  bandstra: 'bandstra-20415.csv',
 };
 
 // Skid-based carriers: csv columns -> flat per-shipment CAD price for that skid count.
@@ -287,6 +297,7 @@ function main() {
     { carrier_id: 'minimax', carrier_label: 'Minimax GO Direct', fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_cadence: 'monthly', fsc_note: 'Skid-based flat rates Amaranth ON→QC (email 2026-10-01, eff. to 2026-12-31). Only rates when skid count (5–8) is entered. FSC 0 per Seven.' },
     { carrier_id: 'minimax_ottawa', carrier_label: 'Minimax GO Direct (Ottawa)', fsc_percent: 80, fsc_as_of: '2026-10-01', fsc_cadence: 'monthly', fsc_note: 'Rate confirmation 11378B Rev A (Ottawa origin), per 100 LB CAD, actual weight no cubing. FSC 80% as stated on sheet — update via Admin > Fuel surcharges. Sheet expired 2025-05-31; loaded per Seven. TL flat column not modeled.' },
     { carrier_id: 'armour', carrier_label: 'Armour Transportation Systems', fsc_percent: 0, fsc_as_of: '2026-10-01', fsc_cadence: 'weekly', fsc_note: 'Rate sheet 56325 (Kal Tire account, Moncton NB origin), per 100 LB CAD, eff. 2025-08-28. No expiry on sheet — kept to 2026-12-31 per Seven. FSC reviewed weekly on armour.ca — set via Admin > Fuel surcharges. Round-trip TL Moncton–St. John\'s $5,800/load (sheet 56326) not modeled.' },
+    { carrier_id: 'bandstra', carrier_label: 'Bandstra Transportation Systems', fsc_percent: 0, fsc_as_of: '2026-10-02', fsc_cadence: 'per_sheet', fsc_note: 'Rate sheet 20415, Prince George BC outbound only (32 destinations), eff. 2025-10-08 to 2026-10-07. No FSC on sheet — set to 0 per Seven.' },
   ];
 
   const lanes = [];
