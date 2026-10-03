@@ -869,7 +869,7 @@ dl.kv dd { margin: 0; font-weight: 600; }
   padding-top: 4px;
 }
 .land-diesel strong { color: #fff; font-size: 18px; }
-.land-diesel-note { font-size: 14px; color: rgba(255,255,255,.75); align-self: flex-end; margin-top: -4px; }
+.land-diesel-note { font-size: 14px; color: rgba(255,255,255,.75); align-self: stretch; text-align: right; margin-top: -2px; }
 @media (max-width: 700px) {
   .land-stats-row { flex-direction: column; gap: 20px; }
 }
