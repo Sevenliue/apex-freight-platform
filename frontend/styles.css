@@ -811,7 +811,9 @@ dl.kv dd { margin: 0; font-weight: 600; }
 .land-hero h1 { font-size: 44px; line-height: 1.15; margin: 0 0 16px; letter-spacing: -0.01em; color: #fff; }
 .land-sub { font-size: 18px; max-width: 620px; margin: 0 0 28px; color: rgba(255,255,255,.88); }
 .land-ctas { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 40px; }
-.land-cta { font-size: 17px; padding: 14px 30px; }
+.land-cta { font-size: 17px; padding: 14px 30px; max-width: 320px; }
+.land-ctas .land-cta { flex: 0 1 320px; }
+.land-cta-band .land-cta { display: inline-block; width: 100%; max-width: 320px; }
 .land-ghost {
   background: transparent; color: #fff; border: 1.5px solid rgba(255,255,255,.55);
   font-size: 16px; padding: 13px 26px; border-radius: var(--radius); cursor: pointer;
@@ -855,3 +857,13 @@ dl.kv dd { margin: 0; font-weight: 600; }
 
 /* "(optional)" marker on quote-form address labels */
 .opt { font-weight: normal; font-size: 0.85em; opacity: 0.65; }
+
+/* Diesel price ticker on marketing homepage */
+.land-diesel {
+  display: flex; gap: 18px; flex-wrap: wrap; align-items: center;
+  margin-top: 22px; padding-top: 18px;
+  border-top: 1px solid rgba(255,255,255,.15);
+  font-size: 14px; color: rgba(255,255,255,.85);
+}
+.land-diesel strong { color: #fff; }
+.land-diesel-note { font-size: 12px; color: rgba(255,255,255,.55); }

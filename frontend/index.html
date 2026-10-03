@@ -174,9 +174,14 @@
             <button type="button" class="btn land-ghost" id="land-how-btn">See how it works</button>
           </div>
           <div class="land-stats">
-            <div><strong>5,500+</strong><span>carrier lanes priced</span></div>
-            <div><strong>10</strong><span>Canadian carriers live</span></div>
+            <div><strong>6,700+</strong><span>carrier lanes priced</span></div>
+            <div><strong>11</strong><span>Canadian carriers live</span></div>
             <div><strong>CAD</strong><span>every quote in Canadian dollars</span></div>
+          </div>
+          <div class="land-diesel" id="diesel-prices" style="display:none">
+            <span>⛽ US diesel: <strong id="doe-price">—</strong></span>
+            <span>⛽ Canada diesel: <strong id="nrcan-price">—</strong></span>
+            <span class="land-diesel-note" id="diesel-asof"></span>
           </div>
         </div>
 
@@ -5496,5 +5501,39 @@
       if (!el.value) el.value = todayStr;
     });
   </script>
+<script>
+(function() {
+  // Diesel price ticker for marketing homepage
+  async function loadDieselPrices() {
+    try {
+      const res = await fetch('/api/diesel-prices');
+      const data = await res.json();
+      const wrap = document.getElementById('diesel-prices');
+      if (!wrap) return;
+      let shown = false;
+      if (data.doe_usd_per_gal != null) {
+        document.getElementById('doe-price').textContent = '$' + Number(data.doe_usd_per_gal).toFixed(2) + '/gal';
+        shown = true;
+      }
+      if (data.nrcan_cad_per_litre != null) {
+        document.getElementById('nrcan-price').textContent = '$' + Number(data.nrcan_cad_per_litre).toFixed(2) + '/L';
+        shown = true;
+      }
+      if (shown) {
+        wrap.style.display = 'flex';
+        if (data.as_of) {
+          const d = new Date(data.as_of);
+          document.getElementById('diesel-asof').textContent = 'as of ' + d.toLocaleDateString();
+        }
+      }
+    } catch (e) { /* ticker stays hidden */ }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadDieselPrices);
+  } else {
+    loadDieselPrices();
+  }
+})();
+</script>
 </body>
 </html>

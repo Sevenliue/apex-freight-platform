@@ -133,6 +133,32 @@ app.get('/api/site-config', (req, res) => {
   res.json({ siteMode: config.siteMode });
 });
 
+// GET /api/diesel-prices — current diesel index prices for the homepage ticker.
+// Cached in memory for 1 hour. Returns nulls when fetchers aren't configured.
+let _dieselCache = null;
+let _dieselCacheAt = 0;
+app.get('/api/diesel-prices', async (req, res) => {
+  try {
+    const now = Date.now();
+    if (!_dieselCache || now - _dieselCacheAt > 3600000) {
+      const fscAuto = require('./lib/fsc-auto');
+      const [doe, nrcan] = await Promise.all([
+        fscAuto.fetchDoeDieselPrice().catch(() => null),
+        fscAuto.fetchNrcanDieselPrice().catch(() => null),
+      ]);
+      _dieselCache = {
+        doe_usd_per_gal: doe,
+        nrcan_cad_per_litre: nrcan,
+        as_of: new Date().toISOString(),
+      };
+      _dieselCacheAt = now;
+    }
+    res.json(_dieselCache);
+  } catch (err) {
+    res.json({ doe_usd_per_gal: null, nrcan_cad_per_litre: null, as_of: null });
+  }
+});
+
 app.use('/api/rates', requireVerified, require('./routes/rates'));
 app.use('/api/contact', require('./routes/contact'));
 app.use('/api/billing', require('./routes/billing'));
