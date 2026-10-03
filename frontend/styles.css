@@ -859,11 +859,17 @@ dl.kv dd { margin: 0; font-weight: 600; }
 .opt { font-weight: normal; font-size: 0.85em; opacity: 0.65; }
 
 /* Diesel price ticker on marketing homepage */
+.land-stats-row {
+  display: flex; gap: 40px; align-items: flex-start; justify-content: space-between;
+  flex-wrap: wrap; margin-top: 8px;
+}
 .land-diesel {
-  display: flex; gap: 22px; flex-wrap: wrap; align-items: center;
-  margin-top: 24px; padding-top: 20px;
-  border-top: 1px solid rgba(255,255,255,.15);
+  display: flex; flex-direction: column; gap: 10px;
   font-size: 16.5px; color: rgba(255,255,255,.85);
+  padding-top: 4px;
 }
 .land-diesel strong { color: #fff; font-size: 18px; }
 .land-diesel-note { font-size: 13.5px; color: rgba(255,255,255,.55); }
+@media (max-width: 700px) {
+  .land-stats-row { flex-direction: column; gap: 20px; }
+}
