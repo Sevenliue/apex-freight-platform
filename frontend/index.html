@@ -2075,7 +2075,7 @@
         const s = carrierScoreCache[el.getAttribute('data-carrier-id')];
         el.innerHTML = (s && s.published)
           ? `<span class="note" title="${s.rated_shipments} rated shipments">★ ${Number(s.avg_stars).toFixed(1)}</span>`
-          : '<span class="note">New carrier</span>';
+          : '<span class="note" title="Tariff verified by ShipRate">✓ Verified</span>';
       });
     }
 

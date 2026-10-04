@@ -320,6 +320,20 @@ CREATE TABLE IF NOT EXISTS carrier_scores (
 -- (orders.carrier stores the display label only).
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS carrier_id varchar(100);
 CREATE INDEX IF NOT EXISTS idx_orders_carrier_id ON orders(carrier_id);
+-- Backfill carrier_id on historical orders (added 2026-10-04): match the
+-- stored display label to the matrix slug so past paid shipments can be
+-- rated. Idempotent — only touches rows with no carrier_id yet.
+UPDATE orders SET carrier_id = 'hifab'         WHERE carrier_id IS NULL AND carrier = 'HiFab Transport';
+UPDATE orders SET carrier_id = 'guilbault'     WHERE carrier_id IS NULL AND carrier = 'Guilbault Transport';
+UPDATE orders SET carrier_id = 'rosenau'       WHERE carrier_id IS NULL AND carrier = 'Rosenau Transport';
+UPDATE orders SET carrier_id = 'jrhall'        WHERE carrier_id IS NULL AND carrier = 'J&R Hall Transport';
+UPDATE orders SET carrier_id = 'jays'          WHERE carrier_id IS NULL AND carrier = 'Jay''s Transportation Group';
+UPDATE orders SET carrier_id = 'willys'        WHERE carrier_id IS NULL AND carrier = 'Willy''s Trucking Service';
+UPDATE orders SET carrier_id = 'morneau'       WHERE carrier_id IS NULL AND carrier = 'Morneau GEO';
+UPDATE orders SET carrier_id = 'minimax'       WHERE carrier_id IS NULL AND carrier = 'Minimax GO Direct';
+UPDATE orders SET carrier_id = 'minimax_ottawa' WHERE carrier_id IS NULL AND carrier = 'Minimax GO Direct (Ottawa)';
+UPDATE orders SET carrier_id = 'armour'        WHERE carrier_id IS NULL AND carrier = 'Armour Transportation Systems';
+UPDATE orders SET carrier_id = 'bandstra'      WHERE carrier_id IS NULL AND carrier = 'Bandstra Transportation Systems';
 
 -- ---------------------------------------------------------------------------
 -- View: financial_reports_view
