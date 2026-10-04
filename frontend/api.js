@@ -474,6 +474,23 @@ export function setDensityFloorBulk(updates) {
   return request('PUT', '/api/admin/density-floors/bulk', { updates });
 }
 
+/* Carrier self-serve rate uploads. */
+export function submitCarrierUpload(payload) {
+  return request('POST', '/api/carrier-uploads', payload);
+}
+export function listCarrierUploads(status) {
+  return get(`/api/carrier-uploads/admin/list?status=${encodeURIComponent(status || 'pending')}`);
+}
+export function getCarrierUpload(id) {
+  return get(`/api/carrier-uploads/admin/${encodeURIComponent(id)}`);
+}
+export function approveCarrierUpload(id, reviewNote) {
+  return request('POST', `/api/carrier-uploads/admin/${encodeURIComponent(id)}/approve`, { review_note: reviewNote || '' });
+}
+export function rejectCarrierUpload(id, reviewNote) {
+  return request('POST', `/api/carrier-uploads/admin/${encodeURIComponent(id)}/reject`, { review_note: reviewNote || '' });
+}
+
 /* Address book */
 export function listAddresses() {
   return get('/api/address-book');

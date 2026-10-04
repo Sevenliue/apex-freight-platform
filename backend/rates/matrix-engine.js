@@ -12,6 +12,7 @@
 //   setDensityFloor(carrierId, floor) / clearDensityFloor(carrierId)   -> admin overrides
 //   listCarriers()                                                      -> [{carrier_id, carrier_label, lane_count, fsc_percent, fsc_as_of}]
 //   getAccessorials(carrierId)                                          -> [] when none
+//   upsertCarrier(carrier)                                                -> register/update carrier record
 //   upsertCarrierRows(carrierId, rows)                                  -> in-memory lane merge; returns count
 'use strict';
 
@@ -428,8 +429,31 @@ function getAccessorials(carrierId) {
 // Same origin/dest lane is replaced; new lanes are appended.
 // Returns the number of rows successfully upserted.
 // NOTE: in-memory only — the caller (e.g. the upload endpoint) must persist.
-function upsertCarrierRows(carrierId, rows) {
+// Register (or update) a carrier record in the in-memory matrix, e.g. for
+// carriers onboarded via self-serve uploads whose lanes live in the DB
+// rather than matrix-data.json. Returns the carrier_id.
+function upsertCarrier(carrier) {
   const st = ensureLoaded();
+  const carrier_id = String((carrier && carrier.carrier_id) || '').trim();
+  if (!carrier_id) return null;
+  const rec = {
+    carrier_id,
+    carrier_label: String(carrier.carrier_label || carrier_id).trim() || carrier_id,
+    fsc_percent: carrier.fsc_percent == null ? 0 : Number(carrier.fsc_percent) || 0,
+    fsc_as_of: carrier.fsc_as_of || null,
+    fsc_cadence: carrier.fsc_cadence || null,
+    fsc_note: carrier.fsc_note || null,
+  };
+  const i = st.data.carriers.findIndex((c) => c.carrier_id === carrier_id);
+  if (i >= 0) st.data.carriers[i] = { ...st.data.carriers[i], ...rec };
+  else {
+    st.data.carriers.push(rec);
+    st.carriersById.set(carrier_id, st.data.carriers[st.data.carriers.length - 1]);
+  }
+  return carrier_id;
+}
+
+function upsertCarrierRows(carrierId, rows) {  const st = ensureLoaded();
   if (!Array.isArray(rows)) return 0;
   let count = 0;
   for (const r of rows) {
@@ -468,4 +492,4 @@ function upsertCarrierRows(carrierId, rows) {
   return count;
 }
 
-module.exports = { loadMatrix, quoteMatrix, billableWeight, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, listCarriers, getAccessorials, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides };
+module.exports = { loadMatrix, quoteMatrix, billableWeight, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides };

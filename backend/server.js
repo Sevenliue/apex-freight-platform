@@ -174,6 +174,7 @@ app.use('/api/carrier-rates', require('./routes/carrier-rates'));
 app.use('/api/address-book', require('./routes/addressbook'));
 app.use('/api/custom-lists', require('./routes/custom-lists'));
 app.use('/api/carriers', require('./routes/carriers'));
+app.use('/api/carrier-uploads', require('./routes/carrier-uploads'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/pickups', require('./routes/pickups'));
@@ -278,6 +279,16 @@ if (require.main === module) {
       if (t.unref) t.unref();
     } catch (err) {
       console.error('[density] init failed (continuing):', err.message);
+    }
+    // Self-serve carrier lanes: merge approved upload lanes over the baked-in
+    // matrix, refresh every 5 minutes in case of approval.
+    try {
+      const { loadCarrierLanes } = require('./lib/carrier-lanes');
+      await loadCarrierLanes();
+      const t = setInterval(() => { loadCarrierLanes(); }, 5 * 60 * 1000);
+      if (t.unref) t.unref();
+    } catch (err) {
+      console.error('[carrier-lanes] init failed (continuing):', err.message);
     }
   })();
 }

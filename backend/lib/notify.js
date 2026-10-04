@@ -139,6 +139,14 @@ async function notify(event, order, opts = {}) {
         });
         break;
       }
+      case 'carrier_upload_received': {
+        const up = opts.upload || {};
+        await sendEmail({
+          to: admin, event, subject: `New carrier rate upload — ${up.carrier_name || '?'}`,
+          text: `A carrier uploaded a rate sheet for review.\nCarrier: ${up.carrier_name || '—'}\nContact: ${up.contact_email || '—'}\nLanes: ${up.lane_count || '—'}\nUpload ID: ${up.id || '—'}\n\nReview it in Admin → Carrier uploads. Nothing goes live until you approve it.`,
+        });
+        break;
+      }
       default:
         break;
     }

@@ -385,6 +385,27 @@ CREATE TABLE IF NOT EXISTS carrier_density_floor (
   updated_by        varchar(160)
 );
 
+-- Carrier self-serve rate-sheet uploads. Carriers submit their tariff in the
+-- ShipRate template format; rows stay pending until Seven approves them in
+-- Admin, at which point the lanes move to carrier_matrix_rates and go live.
+CREATE TABLE IF NOT EXISTS carrier_rate_uploads (
+  id              varchar(40)     PRIMARY KEY,
+  carrier_name    varchar(160)    NOT NULL,
+  contact_name    varchar(160),
+  contact_email   varchar(160),
+  contact_phone   varchar(40),
+  fsc_percent     numeric,
+  file_name       varchar(255),
+  raw_csv         text            NOT NULL,
+  lane_count      integer         NOT NULL DEFAULT 0,
+  warnings        jsonb           NOT NULL DEFAULT '[]',
+  status          varchar(20)     NOT NULL DEFAULT 'pending',
+  review_note     text,
+  created_at      timestamptz     NOT NULL DEFAULT now(),
+  reviewed_at     timestamptz,
+  reviewed_by     varchar(160)
+);
+
 -- Seed the carriers the rate matrix already quotes (names must match the
 -- carrier_label strings in backend/rates/build-matrix.js).
 INSERT INTO carriers (name) VALUES

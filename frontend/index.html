@@ -205,6 +205,7 @@
             <div class="land-card"><h3>📍 Shipment tracking</h3><p>Follow your freight from pickup to delivery.</p></div>
             <div class="land-card"><h3>🍁 Priced for Canada</h3><p>Canadian carriers, Canadian dollars, Canada-wide lanes.</p></div>
             <div class="land-card"><h3>⛽ Fuel surcharge included</h3><p>Every quote includes each carrier's current fuel surcharge. Carriers reset it weekly from the fuel price index, so quotes always use the current week's rate.</p></div>
+            <div class="land-card"><h3>🚛 For carriers</h3><p>Upload your rate sheet and get quoted on ShipRate — more lanes in front of more shippers. <a href="/carriers/join" data-page="carrier-join">Get listed →</a></p></div>
           </div>
         </div>
 
@@ -223,7 +224,8 @@
           <a href="/terms" data-page="terms">Terms</a> ·
           <a href="/privacy" data-page="privacy">Privacy</a> ·
           <a href="/contact" data-page="contact">Contact</a> ·
-          <a href="/faq" data-page="faq">FAQ</a>
+          <a href="/faq" data-page="faq">FAQ</a> ·
+          <a href="/carriers/join" data-page="carrier-join">For Carriers</a>
         </footer>
       </div>
     </section>
@@ -734,6 +736,50 @@
       </div>
     </section>
 
+    <!-- FOR CARRIERS -->
+    <section id="tab-carrier-join" class="panel" role="tabpanel">
+      <h1>For Carriers</h1>
+      <p class="lede">Put your tariff in front of shippers quoting on ShipRate. Upload your rate sheet — once approved, your lanes go live in the quote engine and you start winning loads.</p>
+      <div class="form-grid">
+        <fieldset>
+          <legend>How it works</legend>
+          <div class="land-steps">
+            <div class="land-step"><div class="land-num">1</div><h3>Download the template</h3><p>One CSV format: origin, destination, minimum charge, and CWT rates per weight break. Fill in one row per lane.</p></div>
+            <div class="land-step"><div class="land-num">2</div><h3>Upload your sheet</h3><p>Send the completed CSV with your contact details below. We validate it instantly.</p></div>
+            <div class="land-step"><div class="land-num">3</div><h3>We review &amp; go live</h3><p>Every sheet is reviewed before it goes live — usually within 2 business days. Then your rates appear in quotes.</p></div>
+          </div>
+          <div class="actions" style="margin-top:10px">
+            <a class="btn" href="/api/carrier-uploads/template" download>Download rate template (CSV)</a>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Upload your rate sheet</legend>
+          <div id="cu-ok" class="card" style="display:none"></div>
+          <div id="cu-err" class="card" style="display:none"></div>
+          <form id="cu-form">
+            <label>Carrier name *
+              <input name="carrier_name" type="text" required maxlength="160" placeholder="Example Transport Ltd.">
+            </label>
+            <div class="row-2">
+              <label>Contact name <input name="contact_name" type="text" maxlength="160" placeholder="Jane Dispatcher"></label>
+              <label>Contact email * <input name="contact_email" type="email" required maxlength="160" placeholder="rates@example.com"></label>
+            </div>
+            <div class="row-2">
+              <label>Contact phone <input name="contact_phone" type="tel" maxlength="40" placeholder="780-555-0100"></label>
+              <label>Current fuel surcharge % <input name="fsc_percent" type="number" min="0" max="500" step="0.01" placeholder="e.g. 32.5"></label>
+            </div>
+            <label>Rate sheet (CSV in the template format) *
+              <input name="csv_file" type="file" accept=".csv,text/csv" required>
+            </label>
+            <p class="note">One row per lane. Columns: origin_city, origin_prov, dest_city, dest_prov, min_charge_cad, then CWT rates for &lt;500, 500, 1000, 2000, 5000, 10000 and 20000+ lb breaks. Rates must be dollars per 100 lb, above 0.</p>
+            <div class="actions">
+              <button type="submit" class="btn primary" id="cu-submit">Upload rate sheet</button>
+            </div>
+          </form>
+        </fieldset>
+      </div>
+    </section>
+
     <!-- TRACKING -->
     <section id="tab-tracking" class="panel" role="tabpanel">
       <h1>Track a shipment</h1>
@@ -988,6 +1034,7 @@
       <div id="quote-analytics" style="margin-top:16px"></div>
       <div id="fsc-admin" style="margin-top:16px"></div>
       <div id="density-admin" style="margin-top:16px"></div>
+      <div id="carrier-uploads-admin" style="margin-top:16px"></div>
     </section>
       </main>
     </div><!-- /.content -->
@@ -2948,6 +2995,7 @@
       loadQuoteAnalytics();
       loadFscAdmin();
       loadDensityAdmin();
+      loadCarrierUploadsAdmin();
     }
 
     /* Pickup requests: customer-booked carrier pickups awaiting admin confirmation. */
@@ -5236,8 +5284,132 @@
       }
     }
 
-    const seeEd = $('#store-see-editions');
-    if (seeEd) seeEd.addEventListener('click', () => {
+    /* Carrier self-serve rate upload (public "For Carriers" page). The file
+       is read as text in the browser and posted as JSON — no multipart. */
+    (function initCarrierUploadForm() {
+      const form = $('#cu-form');
+      if (!form) return;
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const okBox = $('#cu-ok'), errBox = $('#cu-err');
+        okBox.style.display = 'none'; errBox.style.display = 'none';
+        const btn = $('#cu-submit');
+        const f = new FormData(form);
+        const file = f.get('csv_file');
+        if (!file || !file.size) {
+          errBox.innerHTML = '<strong>Choose a CSV file first.</strong>';
+          errBox.style.display = '';
+          return;
+        }
+        btn.disabled = true; btn.textContent = 'Uploading…';
+        try {
+          const csvText = await file.text();
+          const r = await api.submitCarrierUpload({
+            carrier_name: String(f.get('carrier_name') || '').trim(),
+            contact_name: String(f.get('contact_name') || '').trim(),
+            contact_email: String(f.get('contact_email') || '').trim(),
+            contact_phone: String(f.get('contact_phone') || '').trim(),
+            fsc_percent: String(f.get('fsc_percent') || '').trim() === '' ? null : Number(f.get('fsc_percent')),
+            file_name: file.name,
+            csv_text: csvText,
+          });
+          okBox.innerHTML = '<strong>Received.</strong> ' + esc(r.message || 'We will review your sheet.') +
+            (r.lane_count ? ' (' + r.lane_count + ' lanes)' : '') +
+            ((r.warnings || []).length ? '<br><span class="note">' + r.warnings.slice(0, 3).map(esc).join('<br>') + '</span>' : '');
+          okBox.style.display = '';
+          form.reset();
+        } catch (err) {
+          const list = err.data && Array.isArray(err.data.errors) ? '<br>' + err.data.errors.slice(0, 6).map(esc).join('<br>') : '';
+          errBox.innerHTML = '<strong>Upload failed.</strong> ' + esc(err.message || 'Please try again.') + list;
+          errBox.style.display = '';
+        } finally {
+          btn.disabled = false; btn.textContent = 'Upload rate sheet';
+        }
+      });
+    })();
+
+    /* Admin: carrier rate-sheet upload queue. Preview, approve (lanes go
+       live immediately), or reject with a note. */
+    async function loadCarrierUploadsAdmin() {
+      const box = $('#carrier-uploads-admin');
+      if (!box) return;
+      const render = async (status) => {
+        box.innerHTML = '<h2>Carrier rate uploads</h2><div class="card empty">Loading…</div>';
+        try {
+          const { uploads } = await api.listCarrierUploads(status);
+          const rows = (uploads || []).map((u) => {
+            const when = u.created_at ? new Date(u.created_at).toLocaleString('en-CA', { timeZone: 'America/Edmonton' }) : '—';
+            const badge = u.status === 'pending' ? ' <span class="badge warn">pending</span>'
+              : u.status === 'approved' ? ' <span class="badge">approved</span>' : ' <span class="badge">rejected</span>';
+            return `<tr>
+              <td><strong>${esc(u.carrier_name)}</strong>${badge}<br><span class="note">${esc(u.contact_email || '')} · ${esc(when)}</span></td>
+              <td class="num">${Number(u.lane_count || 0).toLocaleString('en-CA')}</td>
+              <td>${esc(u.file_name || '—')}</td>
+              <td><button type="button" class="btn small" data-cu-view="${esc(u.id)}">Preview</button>
+              ${u.status === 'pending' ? ` <button type="button" class="btn primary small" data-cu-approve="${esc(u.id)}">Approve</button>
+              <button type="button" class="btn small" data-cu-reject="${esc(u.id)}">Reject</button>` : ''}</td>
+            </tr>`;
+          }).join('');
+          box.innerHTML =
+            '<h2>Carrier rate uploads</h2><p class="lede">Carriers upload their tariff in the ShipRate template; nothing goes live until you approve it. Approving registers the carrier and merges its lanes into the quote engine immediately.</p>' +
+            '<div class="actions" style="margin-bottom:10px">' +
+            ['pending', 'approved', 'rejected', 'all'].map((s) =>
+              `<button type="button" class="btn small${s === status ? ' primary' : ''}" data-cu-filter="${s}">${s[0].toUpperCase() + s.slice(1)}</button>`).join(' ') +
+            '</div><div id="cu-preview"></div>' +
+            '<div class="table-wrap"><table class="data"><thead><tr><th>Carrier</th><th class="num">Lanes</th><th>File</th><th></th></tr></thead>' +
+            '<tbody>' + (rows || '<tr><td colspan="4" class="note">Nothing here.</td></tr>') + '</tbody></table></div>';
+          box.querySelectorAll('[data-cu-filter]').forEach((b) =>
+            b.addEventListener('click', () => render(b.getAttribute('data-cu-filter'))));
+          const preview = (html) => { const p = box.querySelector('#cu-preview'); if (p) p.innerHTML = html; };
+          box.querySelectorAll('[data-cu-view]').forEach((b) =>
+            b.addEventListener('click', async () => {
+              const id = b.getAttribute('data-cu-view');
+              preview('<div class="card empty">Loading preview…</div>');
+              try {
+                const d = await api.getCarrierUpload(id);
+                const u = d.upload || {};
+                const laneRows = (d.preview_lanes || []).map((l) =>
+                  `<tr><td>${esc(l.origin_city)}, ${esc(l.origin_prov)}</td><td>${esc(l.dest_city)}, ${esc(l.dest_prov)}</td>` +
+                  `<td class="num">${esc(String(l.min_charge_cad))}</td>` +
+                  `<td class="num">${(l.breaks || []).map((x) => esc(String(x.rate_cwt))).join(' / ')}</td></tr>`).join('');
+                const warns = (d.validation.warnings || []).slice(0, 8).map((w) => `<li>${esc(w)}</li>`).join('');
+                preview(`<div class="card"><h3>${esc(u.carrier_name)} — ${d.preview_total} lanes</h3>` +
+                  `<p class="note">Contact: ${esc(u.contact_name || '—')} · ${esc(u.contact_email || '—')} · ${esc(u.contact_phone || '—')} · FSC ${u.fsc_percent == null ? '—' : esc(String(u.fsc_percent)) + '%'}</p>` +
+                  (warns ? `<ul class="note">${warns}</ul>` : '') +
+                  `<div class="table-wrap"><table class="data"><thead><tr><th>Origin</th><th>Dest</th><th class="num">Min $</th><th class="num">CWT by break</th></tr></thead><tbody>${laneRows}</tbody></table></div>` +
+                  (d.preview_total > 25 ? `<p class="note">Showing 25 of ${d.preview_total}.</p>` : '') + '</div>');
+              } catch (err) { preview(`<div class="card empty">Could not load preview: ${esc(err.message)}</div>`); }
+            }));
+          box.querySelectorAll('[data-cu-approve]').forEach((b) =>
+            b.addEventListener('click', async () => {
+              const id = b.getAttribute('data-cu-approve');
+              if (!window.confirm('Approve this rate sheet? Its lanes go live in the quote engine immediately.')) return;
+              b.disabled = true;
+              try {
+                const r = await api.approveCarrierUpload(id, '');
+                showAlert(`Approved — ${r.carrier_name}: ${r.lanes} lanes live.`);
+                render(status);
+              } catch (err) { showAlert('Could not approve: ' + err.message); b.disabled = false; }
+            }));
+          box.querySelectorAll('[data-cu-reject]').forEach((b) =>
+            b.addEventListener('click', async () => {
+              const id = b.getAttribute('data-cu-reject');
+              const note = window.prompt('Reason for rejection (sent to no one — internal note):', '') || '';
+              b.disabled = true;
+              try {
+                await api.rejectCarrierUpload(id, note);
+                showAlert('Rejected.');
+                render(status);
+              } catch (err) { showAlert('Could not reject: ' + err.message); b.disabled = false; }
+            }));
+        } catch (err) {
+          box.innerHTML = '';
+        }
+      };
+      render('pending');
+    }
+
+    const seeEd = $('#store-see-editions');    if (seeEd) seeEd.addEventListener('click', () => {
       const t = $('#store-editions');
       if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -5385,7 +5557,7 @@
         })();
         return;
       }
-      const pages = { '/terms': 'terms', '/privacy': 'privacy', '/contact': 'contact', '/faq': 'faq', '/about': 'about' };
+      const pages = { '/terms': 'terms', '/privacy': 'privacy', '/contact': 'contact', '/faq': 'faq', '/about': 'about', '/carriers/join': 'carrier-join' };
       if (pages[path]) setTimeout(() => showPanel(pages[path]), 0);
     })();
 
