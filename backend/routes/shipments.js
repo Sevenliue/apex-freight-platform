@@ -205,6 +205,7 @@ async function prepareOrder(body, effectiveUserId) {
     rate_id,
     user_id: effectiveUserId,
     carrier: rate.carrier,
+    carrier_id: rate.carrier_id || null,
     service: rate.service,
     cost_cad: rate.cost_cad,
     charged_amount: round2(rate.retail_cad + (insurance_cad - rateIns)),
@@ -258,12 +259,12 @@ async function prepareOrder(body, effectiveUserId) {
     const userUuid = effectiveUserId ? await db.ensureUser(effectiveUserId, 'shipper') : null;
     const r = await db.query(
       `INSERT INTO orders (quote_id, user_id, easypost_shipment_id, easypost_rate_id,
-                           tracking_code, carrier, service_level, cost_amount,
+                           tracking_code, carrier, carrier_id, service_level, cost_amount,
                            charged_amount, currency, label_url, status, payment_status,
                            shipper_order_no, receiver_po_no, bol_json)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
       [order.quote_id, userUuid, order.easypost_shipment_id, rate.source === 'easypost' ? rate_id : null,
-       order.tracking_code, order.carrier, order.service, order.cost_cad,
+       order.tracking_code, order.carrier, order.carrier_id || null, order.service, order.cost_cad,
        order.charged_amount, order.currency, order.label_url, order.status, order.payment_status,
        order.shipper_order_no, order.receiver_po_no,
        JSON.stringify(bol)]

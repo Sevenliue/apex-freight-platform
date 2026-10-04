@@ -49,6 +49,22 @@ router.post(
     if (fsc != null && (!Number.isFinite(fsc) || fsc < 0 || fsc > 500)) {
       return res.status(400).json({ error: 'Fuel surcharge must be between 0 and 500%.' });
     }
+    // Cargo insurance details (optional at submit; Admin vets them before
+    // approval — an upload without them is flagged in the admin queue).
+    const insurerName = String(b.insurer_name || '').trim().slice(0, 160) || null;
+    const policyNumber = String(b.policy_number || '').trim().slice(0, 80) || null;
+    const cargoLimit = b.cargo_limit_cad === '' || b.cargo_limit_cad == null ? null : Number(b.cargo_limit_cad);
+    if (cargoLimit != null && (!Number.isFinite(cargoLimit) || cargoLimit < 0)) {
+      return res.status(400).json({ error: 'Cargo coverage limit must be 0 or more.' });
+    }
+    const policyExpiry = String(b.policy_expiry || '').trim() || null;
+    if (policyExpiry && !/^\d{4}-\d{2}-\d{2}$/.test(policyExpiry)) {
+      return res.status(400).json({ error: 'Policy expiry must be a date (YYYY-MM-DD).' });
+    }
+    const releasedPerLb = b.released_value_per_lb === '' || b.released_value_per_lb == null ? null : Number(b.released_value_per_lb);
+    if (releasedPerLb != null && (!Number.isFinite(releasedPerLb) || releasedPerLb < 0)) {
+      return res.status(400).json({ error: 'Released value per lb must be 0 or more.' });
+    }
     const v = validateUpload(String(b.csv_text || ''));
     if (!v.ok) return res.status(400).json({ error: 'Rate sheet failed validation.', errors: v.errors });
 
@@ -56,12 +72,14 @@ router.post(
     try {
       await db.query(
         `INSERT INTO carrier_rate_uploads
-           (id, carrier_name, contact_name, contact_email, contact_phone, fsc_percent, file_name, raw_csv, lane_count, warnings, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending')`,
+           (id, carrier_name, contact_name, contact_email, contact_phone, fsc_percent, file_name, raw_csv, lane_count, warnings, status,
+            insurer_name, policy_number, cargo_limit_cad, policy_expiry, released_value_per_lb)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'pending',$11,$12,$13,$14,$15)`,
         [id, carrierName, String(b.contact_name || '').trim().slice(0, 160) || null,
          contactEmail, String(b.contact_phone || '').trim().slice(0, 40) || null,
          fsc, String(b.file_name || '').trim().slice(0, 255) || null,
-         String(b.csv_text), v.lanes.length, JSON.stringify(v.warnings.slice(0, 50))]
+         String(b.csv_text), v.lanes.length, JSON.stringify(v.warnings.slice(0, 50)),
+         insurerName, policyNumber, cargoLimit, policyExpiry, releasedPerLb]
       );
     } catch (err) {
       return res.status(502).json({ error: 'Could not save the upload: ' + err.message });
@@ -70,7 +88,9 @@ router.post(
     // Tell Seven — non-fatal if it fails.
     try {
       await notify.notify('carrier_upload_received', null, {
-        upload: { id, carrier_name: carrierName, contact_email: contactEmail, lane_count: v.lanes.length },
+        upload: { id, carrier_name: carrierName, contact_email: contactEmail, lane_count: v.lanes.length,
+                  insurer_name: insurerName, policy_number: policyNumber,
+                  cargo_limit_cad: cargoLimit, policy_expiry: policyExpiry },
       });
     } catch { /* logged inside notify */ }
 
@@ -94,7 +114,8 @@ router.get('/admin/list', async (req, res) => {
   try {
     const r = await db.query(
       `SELECT id, carrier_name, contact_name, contact_email, contact_phone, fsc_percent,
-              file_name, lane_count, warnings, status, review_note, created_at, reviewed_at, reviewed_by
+              file_name, lane_count, warnings, status, review_note, created_at, reviewed_at, reviewed_by,
+              insurer_name, policy_number, cargo_limit_cad, policy_expiry, released_value_per_lb
        FROM carrier_rate_uploads
        WHERE ($1 = 'all' OR status = $1)
        ORDER BY created_at DESC LIMIT 100`,

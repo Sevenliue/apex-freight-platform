@@ -141,9 +141,12 @@ async function notify(event, order, opts = {}) {
       }
       case 'carrier_upload_received': {
         const up = opts.upload || {};
+        const ins = up.insurer_name
+          ? `\nInsurance: ${up.insurer_name}${up.policy_number ? ' · policy ' + up.policy_number : ''}${up.cargo_limit_cad != null ? ' · limit $' + up.cargo_limit_cad : ''}${up.policy_expiry ? ' · expires ' + up.policy_expiry : ''}`
+          : '\nInsurance: not provided';
         await sendEmail({
           to: admin, event, subject: `New carrier rate upload — ${up.carrier_name || '?'}`,
-          text: `A carrier uploaded a rate sheet for review.\nCarrier: ${up.carrier_name || '—'}\nContact: ${up.contact_email || '—'}\nLanes: ${up.lane_count || '—'}\nUpload ID: ${up.id || '—'}\n\nReview it in Admin → Carrier uploads. Nothing goes live until you approve it.`,
+          text: `A carrier uploaded a rate sheet for review.\nCarrier: ${up.carrier_name || '—'}\nContact: ${up.contact_email || '—'}\nLanes: ${up.lane_count || '—'}${ins}\nUpload ID: ${up.id || '—'}\n\nReview it in Admin → Carrier uploads. Nothing goes live until you approve it.`,
         });
         break;
       }

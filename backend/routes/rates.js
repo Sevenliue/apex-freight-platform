@@ -377,6 +377,7 @@ router.post('/', async (req, res) => {
     const cost = round2(freight + accTotal);
     return {
       rate_id: `matrix_${q.carrier_id}_${i}`,
+      carrier_id: q.carrier_id,
       carrier: q.carrier_label,
       service: q.service,
       cost_cad: cost,

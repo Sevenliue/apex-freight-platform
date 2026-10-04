@@ -283,6 +283,45 @@ CREATE INDEX IF NOT EXISTS idx_carrier_matrix_rates_origin ON carrier_matrix_rat
 CREATE INDEX IF NOT EXISTS idx_carrier_matrix_rates_dest ON carrier_matrix_rates(dest_city, dest_prov);
 
 -- ---------------------------------------------------------------------------
+-- Carrier ratings (added 2026-10-04): shippers rate matrix carriers after a
+-- booked shipment. One rating per order, only by the ordering shipper, only
+-- on paid orders. Scores are rolled up into carrier_scores and shown on the
+-- quote board; a carrier needs >= 5 visible ratings before a score displays.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS carrier_ratings (
+  id                  uuid          PRIMARY KEY DEFAULT gen_random_uuid(),
+  carrier_id          varchar(100)  NOT NULL,
+  carrier_label       varchar(160),
+  order_id            uuid          REFERENCES orders(id) ON DELETE SET NULL,
+  user_id             uuid          REFERENCES users(id) ON DELETE SET NULL,
+  stars_on_time       smallint      NOT NULL CHECK (stars_on_time BETWEEN 1 AND 5),
+  stars_condition     smallint      NOT NULL CHECK (stars_condition BETWEEN 1 AND 5),
+  stars_communication smallint      NOT NULL CHECK (stars_communication BETWEEN 1 AND 5),
+  comment             text,
+  hidden              boolean       NOT NULL DEFAULT false,
+  created_at          timestamptz   NOT NULL DEFAULT now(),
+  CONSTRAINT uq_carrier_ratings_order UNIQUE (order_id)
+);
+CREATE INDEX IF NOT EXISTS idx_carrier_ratings_carrier ON carrier_ratings(carrier_id);
+CREATE INDEX IF NOT EXISTS idx_carrier_ratings_order ON carrier_ratings(order_id);
+
+CREATE TABLE IF NOT EXISTS carrier_scores (
+  carrier_id          varchar(100)  PRIMARY KEY,
+  carrier_label       varchar(160),
+  rated_shipments     integer       NOT NULL DEFAULT 0,
+  avg_stars           numeric(4,2),
+  avg_on_time         numeric(4,2),
+  avg_condition       numeric(4,2),
+  avg_communication   numeric(4,2),
+  updated_at          timestamptz   NOT NULL DEFAULT now()
+);
+
+-- Link orders to the matrix carrier slug so ratings resolve reliably
+-- (orders.carrier stores the display label only).
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS carrier_id varchar(100);
+CREATE INDEX IF NOT EXISTS idx_orders_carrier_id ON orders(carrier_id);
+
+-- ---------------------------------------------------------------------------
 -- View: financial_reports_view
 -- One row per marketplace transaction with shipment, bid, and party context.
 -- ---------------------------------------------------------------------------
@@ -405,6 +444,14 @@ CREATE TABLE IF NOT EXISTS carrier_rate_uploads (
   reviewed_at     timestamptz,
   reviewed_by     varchar(160)
 );
+-- Cargo insurance details collected at upload (added 2026-10-04): proves the
+-- carrier carries cargo liability coverage and states their released-value
+-- limit, so Admin can vet real carriers before approval.
+ALTER TABLE carrier_rate_uploads ADD COLUMN IF NOT EXISTS insurer_name        varchar(160);
+ALTER TABLE carrier_rate_uploads ADD COLUMN IF NOT EXISTS policy_number       varchar(80);
+ALTER TABLE carrier_rate_uploads ADD COLUMN IF NOT EXISTS cargo_limit_cad     numeric;
+ALTER TABLE carrier_rate_uploads ADD COLUMN IF NOT EXISTS policy_expiry       date;
+ALTER TABLE carrier_rate_uploads ADD COLUMN IF NOT EXISTS released_value_per_lb numeric;
 
 -- Seed the carriers the rate matrix already quotes (names must match the
 -- carrier_label strings in backend/rates/build-matrix.js).

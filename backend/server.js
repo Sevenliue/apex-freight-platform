@@ -175,6 +175,7 @@ app.use('/api/address-book', require('./routes/addressbook'));
 app.use('/api/custom-lists', require('./routes/custom-lists'));
 app.use('/api/carriers', require('./routes/carriers'));
 app.use('/api/carrier-uploads', require('./routes/carrier-uploads'));
+app.use('/api/carrier-ratings', require('./routes/carrier-ratings'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/pickups', require('./routes/pickups'));

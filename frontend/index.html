@@ -753,7 +753,7 @@
           </div>
         </fieldset>
         <fieldset>
-          <legend>Upload your rate sheet</legend>
+          <legend>Your details</legend>
           <div id="cu-ok" class="card" style="display:none"></div>
           <div id="cu-err" class="card" style="display:none"></div>
           <form id="cu-form">
@@ -768,6 +768,23 @@
               <label>Contact phone <input name="contact_phone" type="tel" maxlength="40" placeholder="780-555-0100"></label>
               <label>Current fuel surcharge % <input name="fsc_percent" type="number" min="0" max="500" step="0.01" placeholder="e.g. 32.5"></label>
             </div>
+          </fieldset>
+          <fieldset>
+            <legend>Cargo insurance</legend>
+            <p class="note">We only list carriers that carry cargo liability insurance. Give us your policy details — we verify them before your rates go live.</p>
+            <div class="row-2">
+              <label>Insurance company <input name="insurer_name" type="text" maxlength="160" placeholder="e.g. Northbridge Insurance"></label>
+              <label>Policy number <input name="policy_number" type="text" maxlength="80" placeholder="e.g. TRK-88213"></label>
+            </div>
+            <div class="row-2">
+              <label>Cargo coverage limit (CAD) <input name="cargo_limit_cad" type="number" min="0" step="0.01" placeholder="e.g. 250000"></label>
+              <label>Policy expiry <input name="policy_expiry" type="date"></label>
+            </div>
+            <label>Released value — your liability limit per lb (CAD) <input name="released_value_per_lb" type="number" min="0" step="0.01" placeholder="e.g. 2.00"></label>
+            <p class="note">Released value is the maximum you pay per pound on a loss/damage claim when no higher value is declared. Most Canadian LTL tariffs use $2.00/lb.</p>
+          </fieldset>
+          <fieldset>
+            <legend>Upload your rate sheet</legend>
             <label>Rate sheet (CSV in the template format) *
               <input name="csv_file" type="file" accept=".csv,text/csv" required>
             </label>
@@ -838,6 +855,9 @@
         <div>
           <h2>Your pickup requests</h2>
           <div id="pickup-list"><div class="card empty">Loading…</div></div>
+          <h2 style="margin-top:18px">Rate your carriers</h2>
+          <p class="note">Delivered? Tell other shippers how the carrier did — your rating shows on the quote board.</p>
+          <div id="rate-list"><div class="card empty">Loading…</div></div>
         </div>
       </div>
     </section>
@@ -1035,6 +1055,7 @@
       <div id="fsc-admin" style="margin-top:16px"></div>
       <div id="density-admin" style="margin-top:16px"></div>
       <div id="carrier-uploads-admin" style="margin-top:16px"></div>
+      <div id="carrier-ratings-admin" style="margin-top:16px"></div>
     </section>
       </main>
     </div><!-- /.content -->
@@ -2037,6 +2058,27 @@
         : '<span class="badge instant">Instant</span>';
     }
 
+    /* Carrier ratings on the quote board: fetched once per render, painted
+       into the score placeholders. Carriers with fewer than the minimum
+       ratings show as "New carrier". */
+    let carrierScoreCache = null;
+    async function paintCarrierScores(box) {
+      const spots = box.querySelectorAll('.carrier-score');
+      if (!spots.length) return;
+      if (!carrierScoreCache) {
+        try {
+          const d = await api.getCarrierScores();
+          carrierScoreCache = (d && d.scores) || {};
+        } catch { carrierScoreCache = {}; }
+      }
+      spots.forEach((el) => {
+        const s = carrierScoreCache[el.getAttribute('data-carrier-id')];
+        el.innerHTML = (s && s.published)
+          ? `<span class="note" title="${s.rated_shipments} rated shipments">★ ${Number(s.avg_stars).toFixed(1)}</span>`
+          : '<span class="note">New carrier</span>';
+      });
+    }
+
     function renderBoard(data) {
       const box = $('#quote-results');
       if (data && data.full_load) {
@@ -2085,6 +2127,7 @@
         box.innerHTML = html;
         syncRateEmptyHide();
         syncQuoteActions();
+        paintCarrierScores(box);
         box.querySelectorAll('[data-sug]').forEach((btn) =>
           btn.addEventListener('click', () => {
             const s = sugs[Number(btn.dataset.sug)];
@@ -2111,7 +2154,7 @@
         .map(
           (r, i) => `<tr>
             <td class="chk"><input type="radio" name="rate-pick" value="${esc(r.rate_id)}"${i === 0 ? ' checked' : ''}></td>
-            <td>${esc(r.carrier)}${r.service ? '<br><span class="note">' + esc(r.service) + '</span>' : ''}${metroNote(r)} ${sourceBadge(r.source)}</td>
+            <td>${esc(r.carrier)}${r.carrier_id ? `<br><span class="carrier-score" data-carrier-id="${esc(r.carrier_id)}"></span>` : ''}${r.service ? '<br><span class="note">' + esc(r.service) + '</span>' : ''}${metroNote(r)} ${sourceBadge(r.source)}</td>
             <td>${r.delivery_days != null ? esc(String(r.delivery_days)) : '—'}${r.est_delivery_date ? `<br><span class="note">≈ ${esc(fmtEstDate(r.est_delivery_date))}</span>` : ''}</td>
             <td class="num"><strong>${cad(r.retail_cad)}</strong>${r.insurance_cad ? `<br><span class="note">incl. ${cad(r.insurance_cad)} insurance</span>` : ''}</td>
           </tr>`
@@ -2608,6 +2651,68 @@
           ? '<div class="card empty">Sign in to book and view pickup requests.</div>'
           : '<div class="card empty">Could not load pickup requests.</div>';
       }
+      loadRateable();
+    }
+
+    /* Carrier ratings: shippers rate paid matrix-carrier shipments. One
+       rating per shipment; scores appear on the quote board. */
+    async function loadRateable() {
+      const box = $('#rate-list');
+      if (!box) return;
+      const starOpts = [5, 4, 3, 2, 1].map((n) =>
+        `<option value="${n}">${n} ★${n === 5 ? ' — excellent' : n === 1 ? ' — poor' : ''}</option>`).join('');
+      try {
+        const { orders } = await api.listRateableOrders();
+        if (!orders.length) {
+          box.innerHTML = '<div class="card empty">Nothing to rate right now — rated shipments disappear from this list.</div>';
+          return;
+        }
+        box.innerHTML = orders.map((o) => `
+          <div class="card" style="margin-bottom:10px" data-rate-card="${esc(o.id)}">
+            <div><strong>${esc(o.ref)}</strong> <span class="note">· ${esc(o.carrier || 'carrier')}</span></div>
+            <div class="actions" style="margin-top:8px"><button type="button" class="btn small" data-rate-open="${esc(o.id)}">Rate this carrier</button></div>
+            <form data-rate-form="${esc(o.id)}" style="display:none;margin-top:10px">
+              <div class="row-2">
+                <label>On time <select name="stars_on_time" required>${starOpts}</select></label>
+                <label>Freight condition <select name="stars_condition" required>${starOpts}</select></label>
+              </div>
+              <label>Communication <select name="stars_communication" required>${starOpts}</select></label>
+              <label>Comment (optional) <textarea name="comment" rows="2" maxlength="1000" placeholder="What should other shippers know?"></textarea></label>
+              <div class="actions"><button type="submit" class="btn primary small">Submit rating</button></div>
+            </form>
+          </div>`).join('');
+        box.querySelectorAll('[data-rate-open]').forEach((b) =>
+          b.addEventListener('click', () => {
+            const f = box.querySelector(`[data-rate-form="${b.getAttribute('data-rate-open')}"]`);
+            if (f) { f.style.display = f.style.display === 'none' ? '' : 'none'; b.textContent = f.style.display === 'none' ? 'Rate this carrier' : 'Hide form'; }
+          }));
+        box.querySelectorAll('[data-rate-form]').forEach((f) =>
+          f.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const fd = new FormData(f);
+            const btn = f.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            try {
+              await api.submitCarrierRating({
+                order_id: f.getAttribute('data-rate-form'),
+                stars_on_time: Number(fd.get('stars_on_time')),
+                stars_condition: Number(fd.get('stars_condition')),
+                stars_communication: Number(fd.get('stars_communication')),
+                comment: String(fd.get('comment') || '').trim(),
+              });
+              showAlert('Thanks — your rating is live on the quote board.');
+              carrierScoreCache = null;
+              loadRateable();
+            } catch (err) {
+              showAlert('Could not submit rating: ' + (err.message || 'please try again.'));
+              btn.disabled = false;
+            }
+          }));
+      } catch (err) {
+        box.innerHTML = err && err.status === 401
+          ? '<div class="card empty">Sign in to rate your carriers.</div>'
+          : '<div class="card empty">Could not load shipments.</div>';
+      }
     }
 
     function renderPickups(box, pickups) {
@@ -2996,6 +3101,7 @@
       loadFscAdmin();
       loadDensityAdmin();
       loadCarrierUploadsAdmin();
+      loadCarrierRatingsAdmin();
     }
 
     /* Pickup requests: customer-booked carrier pickups awaiting admin confirmation. */
@@ -5310,6 +5416,11 @@
             contact_email: String(f.get('contact_email') || '').trim(),
             contact_phone: String(f.get('contact_phone') || '').trim(),
             fsc_percent: String(f.get('fsc_percent') || '').trim() === '' ? null : Number(f.get('fsc_percent')),
+            insurer_name: String(f.get('insurer_name') || '').trim(),
+            policy_number: String(f.get('policy_number') || '').trim(),
+            cargo_limit_cad: String(f.get('cargo_limit_cad') || '').trim() === '' ? null : Number(f.get('cargo_limit_cad')),
+            policy_expiry: String(f.get('policy_expiry') || '').trim() || null,
+            released_value_per_lb: String(f.get('released_value_per_lb') || '').trim() === '' ? null : Number(f.get('released_value_per_lb')),
             file_name: file.name,
             csv_text: csvText,
           });
@@ -5341,8 +5452,10 @@
             const when = u.created_at ? new Date(u.created_at).toLocaleString('en-CA', { timeZone: 'America/Edmonton' }) : '—';
             const badge = u.status === 'pending' ? ' <span class="badge warn">pending</span>'
               : u.status === 'approved' ? ' <span class="badge">approved</span>' : ' <span class="badge">rejected</span>';
+            const insBadge = u.insurer_name ? ' <span class="badge">🛡 insured</span>'
+              : ' <span class="badge warn">no insurance info</span>';
             return `<tr>
-              <td><strong>${esc(u.carrier_name)}</strong>${badge}<br><span class="note">${esc(u.contact_email || '')} · ${esc(when)}</span></td>
+              <td><strong>${esc(u.carrier_name)}</strong>${badge}${insBadge}<br><span class="note">${esc(u.contact_email || '')} · ${esc(when)}</span></td>
               <td class="num">${Number(u.lane_count || 0).toLocaleString('en-CA')}</td>
               <td>${esc(u.file_name || '—')}</td>
               <td><button type="button" class="btn small" data-cu-view="${esc(u.id)}">Preview</button>
@@ -5373,8 +5486,12 @@
                   `<td class="num">${esc(String(l.min_charge_cad))}</td>` +
                   `<td class="num">${(l.breaks || []).map((x) => esc(String(x.rate_cwt))).join(' / ')}</td></tr>`).join('');
                 const warns = (d.validation.warnings || []).slice(0, 8).map((w) => `<li>${esc(w)}</li>`).join('');
+                const insLine = u.insurer_name
+                  ? `Insurer: ${esc(u.insurer_name)}${u.policy_number ? ' · policy ' + esc(u.policy_number) : ''}${u.cargo_limit_cad != null ? ' · limit $' + esc(String(u.cargo_limit_cad)) : ''}${u.policy_expiry ? ' · expires ' + esc(String(u.policy_expiry).slice(0, 10)) : ''}${u.released_value_per_lb != null ? ' · released $' + esc(String(u.released_value_per_lb)) + '/lb' : ''}`
+                  : '<strong>No insurance details provided.</strong>';
                 preview(`<div class="card"><h3>${esc(u.carrier_name)} — ${d.preview_total} lanes</h3>` +
                   `<p class="note">Contact: ${esc(u.contact_name || '—')} · ${esc(u.contact_email || '—')} · ${esc(u.contact_phone || '—')} · FSC ${u.fsc_percent == null ? '—' : esc(String(u.fsc_percent)) + '%'}</p>` +
+                  `<p class="note">🛡 ${insLine}</p>` +
                   (warns ? `<ul class="note">${warns}</ul>` : '') +
                   `<div class="table-wrap"><table class="data"><thead><tr><th>Origin</th><th>Dest</th><th class="num">Min $</th><th class="num">CWT by break</th></tr></thead><tbody>${laneRows}</tbody></table></div>` +
                   (d.preview_total > 25 ? `<p class="note">Showing 25 of ${d.preview_total}.</p>` : '') + '</div>');
@@ -5407,6 +5524,61 @@
         }
       };
       render('pending');
+    }
+
+    /* Admin: carrier ratings — scoreboard plus review moderation
+       (hide/unhide abusive or mistaken reviews). */
+    async function loadCarrierRatingsAdmin() {
+      const box = $('#carrier-ratings-admin');
+      if (!box) return;
+      box.innerHTML = '<h2>Carrier ratings</h2><div class="card empty">Loading…</div>';
+      try {
+        const { ratings, scores, min_ratings } = await api.listCarrierRatings();
+        const scoreRows = (scores || []).map((s) => {
+          const pub = (s.rated_shipments || 0) >= (min_ratings || 5);
+          return `<tr><td><strong>${esc(s.carrier_label || s.carrier_id)}</strong></td>
+            <td class="num">${s.rated_shipments}</td>
+            <td class="num">${s.avg_stars == null ? '—' : Number(s.avg_stars).toFixed(2)}</td>
+            <td class="num">${s.avg_on_time == null ? '—' : Number(s.avg_on_time).toFixed(1)}</td>
+            <td class="num">${s.avg_condition == null ? '—' : Number(s.avg_condition).toFixed(1)}</td>
+            <td class="num">${s.avg_communication == null ? '—' : Number(s.avg_communication).toFixed(1)}</td>
+            <td>${pub ? '<span class="badge">published</span>' : '<span class="badge warn">new</span>'}</td></tr>`;
+        }).join('');
+        const ratingRows = (ratings || []).map((r) => {
+          const when = r.created_at ? new Date(r.created_at).toLocaleString('en-CA', { timeZone: 'America/Edmonton' }) : '—';
+          return `<tr>
+            <td><strong>${esc(r.carrier_label || r.carrier_id)}</strong><br><span class="note">${esc(r.rater_email || '')} · ${esc(when)}</span></td>
+            <td class="num">${r.stars_on_time} / ${r.stars_condition} / ${r.stars_communication}</td>
+            <td>${esc(r.comment || '—')}</td>
+            <td>${r.hidden
+              ? `<span class="badge warn">hidden</span> <button type="button" class="btn small" data-cr-unhide="${esc(r.id)}">Unhide</button>`
+              : `<button type="button" class="btn small" data-cr-hide="${esc(r.id)}">Hide</button>`}</td>
+          </tr>`;
+        }).join('');
+        box.innerHTML =
+          '<h2>Carrier ratings</h2><p class="lede">Scores publish on the quote board once a carrier has ' +
+          esc(String(min_ratings || 5)) + ' visible ratings. Hide abusive or mistaken reviews — scores recompute instantly.</p>' +
+          '<h3>Scores</h3><div class="table-wrap"><table class="data"><thead><tr><th>Carrier</th><th class="num">Ratings</th>' +
+          '<th class="num">Avg ★</th><th class="num">On time</th><th class="num">Condition</th><th class="num">Comms</th><th></th></tr></thead>' +
+          '<tbody>' + (scoreRows || '<tr><td colspan="7" class="note">No ratings yet.</td></tr>') + '</tbody></table></div>' +
+          '<h3 style="margin-top:14px">Reviews</h3><div class="table-wrap"><table class="data"><thead><tr><th>Carrier</th>' +
+          '<th class="num">On-time / Condition / Comms</th><th>Comment</th><th></th></tr></thead>' +
+          '<tbody>' + (ratingRows || '<tr><td colspan="4" class="note">No reviews yet.</td></tr>') + '</tbody></table></div>';
+        box.querySelectorAll('[data-cr-hide]').forEach((b) =>
+          b.addEventListener('click', async () => {
+            b.disabled = true;
+            try { await api.hideCarrierRating(b.getAttribute('data-cr-hide')); loadCarrierRatingsAdmin(); }
+            catch (err) { showAlert('Could not hide: ' + err.message); b.disabled = false; }
+          }));
+        box.querySelectorAll('[data-cr-unhide]').forEach((b) =>
+          b.addEventListener('click', async () => {
+            b.disabled = true;
+            try { await api.unhideCarrierRating(b.getAttribute('data-cr-unhide')); loadCarrierRatingsAdmin(); }
+            catch (err) { showAlert('Could not unhide: ' + err.message); b.disabled = false; }
+          }));
+      } catch (err) {
+        box.innerHTML = '';
+      }
     }
 
     const seeEd = $('#store-see-editions');    if (seeEd) seeEd.addEventListener('click', () => {

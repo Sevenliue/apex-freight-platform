@@ -491,6 +491,26 @@ export function rejectCarrierUpload(id, reviewNote) {
   return request('POST', `/api/carrier-uploads/admin/${encodeURIComponent(id)}/reject`, { review_note: reviewNote || '' });
 }
 
+/* Carrier ratings */
+export function getCarrierScores() {
+  return get('/api/carrier-ratings/scores');
+}
+export function getCarrierReviews(carrierId) {
+  return get(`/api/carrier-ratings/carrier/${encodeURIComponent(carrierId)}`);
+}
+export function submitCarrierRating(payload) {
+  return request('POST', '/api/carrier-ratings', payload);
+}
+export function listCarrierRatings() {
+  return get('/api/carrier-ratings/admin/list');
+}
+export function hideCarrierRating(id) {
+  return request('POST', `/api/carrier-ratings/admin/${encodeURIComponent(id)}/hide`, {});
+}
+export function unhideCarrierRating(id) {
+  return request('POST', `/api/carrier-ratings/admin/${encodeURIComponent(id)}/unhide`, {});
+}
+
 /* Address book */
 export function listAddresses() {
   return get('/api/address-book');
@@ -631,6 +651,9 @@ export function listPickups() {
 }
 export function listPickupOrders() {
   return get('/api/pickups/orders');
+}
+export function listRateableOrders() {
+  return get('/api/carrier-ratings/my-rateable');
 }
 export function bookPickup({ order_id, pickup_date, time_window, contact_name, contact_phone, notes }) {
   return post('/api/pickups', { order_id, pickup_date, time_window, contact_name, contact_phone, notes });
