@@ -987,6 +987,7 @@
       <div id="quote-log" style="margin-top:16px"></div>
       <div id="quote-analytics" style="margin-top:16px"></div>
       <div id="fsc-admin" style="margin-top:16px"></div>
+      <div id="density-admin" style="margin-top:16px"></div>
     </section>
       </main>
     </div><!-- /.content -->
@@ -2070,8 +2071,35 @@
         )
         .join('');
 
+      /* Dimensional-weight note: what the shipment was actually rated on. */
+      const dimCard = (() => {
+        const lb = (n) => Number(n || 0).toLocaleString('en-CA');
+        const aw = Number(data.total_weight_lbs || 0);
+        const bw = Number(data.billable_weight_lbs || aw);
+        const cube = Number(data.cube_ft || 0);
+        if (data.dimensional_applied) {
+          const ruleTxt = data.dimensional_rule === 'linear_foot'
+            ? `linear-foot rule (${lb(data.linear_ft)} ft × 1,000 lb/ft)`
+            : `cube rule (${lb(cube)} cu ft × 10 lb/cu ft)`;
+          return `<div class="card dim-notice"><p>⚖ <strong>Dimensional weight applied.</strong> ` +
+            `Actual weight ${lb(aw)} lb → rated at <strong>${lb(bw)} lb</strong> billable ` +
+            `(${ruleTxt}). Density ${esc(String(data.density_pcf))} lb/cu ft. ` +
+            `Carriers price bulky freight on the trailer space it takes, not just scale weight.</p></div>`;
+        }
+        if (cube > 0) {
+          return `<div class="card dim-notice"><p>⚖ <strong>Dimensional check.</strong> ` +
+            `Actual weight ${lb(aw)} lb at ${esc(String(data.density_pcf))} lb/cu ft — dense enough ` +
+            `to rate on actual weight (${lb(bw)} lb billable).</p></div>`;
+        }
+        return `<div class="card dim-notice"><p>⚠ <strong>No dimensions entered.</strong> ` +
+          `Rated on actual weight (${lb(aw)} lb) only. If the freight is bulky, add length × width × ` +
+          `height per piece — carriers re-rate light, bulky freight on dimensional weight and the ` +
+          `final charge can be higher.</p></div>`;
+      })();
+
       syncRateEmptyHide();
       box.innerHTML = `
+        ${dimCard}
         ${data.holiday_notice ? `<div class="card holiday-notice">
           <p>⚠ ${esc(data.holiday_notice)}</p>
         </div>` : ''}
@@ -2919,6 +2947,7 @@
       loadQuoteLog();
       loadQuoteAnalytics();
       loadFscAdmin();
+      loadDensityAdmin();
     }
 
     /* Pickup requests: customer-booked carrier pickups awaiting admin confirmation. */
@@ -5101,6 +5130,102 @@
             try {
               await api.setFsc(id, '', null);
               showAlert('Fuel surcharge reset to the rate-sheet value.');
+              reload();
+            } catch (err) { showAlert('Could not reset: ' + err.message); btn.disabled = false; }
+          })
+        );
+      } catch (err) {
+        // Not an admin (or DB off): hide the section silently.
+        box.innerHTML = '';
+      }
+    }
+
+    /* Density floors: per-carrier cube-rule floors (lb per cu ft). When a
+       carrier confirms a different floor (e.g. 15 on some lanes), set it
+       here — new quotes use it immediately. Clearing restores the global
+       default (10 lb/cu ft, Western Canadian practice). */
+    async function loadDensityAdmin() {
+      const box = $('#density-admin');
+      if (!box) return;
+      box.innerHTML = '<div class="card empty">Loading density floors…</div>';
+      try {
+        const { carriers, default_floor } = await api.getDensityFloors();
+        if (!carriers.length) {
+          box.innerHTML = '<h2>Density floors</h2><div class="card empty">No rate-matrix carriers found.</div>';
+          return;
+        }
+        const dflt = Number(default_floor) || 10;
+        box.innerHTML =
+          '<h2>Density floors</h2><p class="lede">Dimensional weight bills the greater of actual weight or ' +
+          'cubic feet × density floor. The global default is <strong>' + dflt + ' lb/cu ft</strong> (Western Canadian practice). ' +
+          'When a carrier confirms its own floor — e.g. 15 lb/cu ft on some lanes — set it per carrier here; ' +
+          'new quotes use it immediately. Clearing a carrier restores the default. Edit any rows, then <strong>Save all changes</strong> once.</p>' +
+          '<div style="margin:0 0 10px"><button type="button" class="btn primary" id="density-save-all">Save all changes</button> <span class="note" id="density-save-all-note"></span></div>' +
+          '<div class="table-wrap"><table class="data"><thead><tr>' +
+          '<th>Carrier</th><th class="num">Density floor (lb/cu ft)</th><th>Last updated</th><th></th><th></th>' +
+          '</tr></thead><tbody>' +
+          carriers
+            .slice()
+            .sort((a, b) => String(a.carrier_label).localeCompare(String(b.carrier_label)))
+            .map((c) => {
+            const asOf = c.floor_as_of ? new Date(c.floor_as_of).toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' }) : '—';
+            const cur = c.floor_overridden ? c.floor_lb_per_cuft : '';
+            return `<tr data-density-row="${esc(c.carrier_id)}">
+              <td><strong>${esc(c.carrier_label)}</strong>${c.floor_overridden ? ' <span class="badge">custom</span>' : ''}<br><span class="note">${esc(String(c.lane_count || 0))} lanes · default ${dflt}</span></td>
+              <td class="num"><input type="number" min="0" max="100" step="0.5" data-f="floor" value="${cur === '' ? '' : esc(String(cur))}" placeholder="${dflt}" style="width:90px"></td>
+              <td>${esc(asOf)}</td>
+              <td><button type="button" class="btn primary small" data-density-save="${esc(c.carrier_id)}">Save</button></td>
+              <td>${c.floor_overridden ? `<button type="button" class="btn small" data-density-reset="${esc(c.carrier_id)}">Reset</button>` : ''}</td>
+            </tr>`;
+          }).join('') + '</tbody></table></div>';
+        const reload = () => loadDensityAdmin();
+        const saveAllBtn = box.querySelector('#density-save-all');
+        const saveAllNote = box.querySelector('#density-save-all-note');
+        const rows = [...box.querySelectorAll('[data-density-row]')];
+        rows.forEach((row) => {
+          const inp = row.querySelector('[data-f="floor"]');
+          row._init = inp.defaultValue.trim();
+          inp.addEventListener('input', () => row.classList.toggle('dirty', inp.value.trim() !== row._init));
+        });
+        if (saveAllBtn) saveAllBtn.addEventListener('click', async () => {
+          const updates = rows
+            .filter((row) => row.classList.contains('dirty'))
+            .map((row) => ({
+              carrier_id: row.getAttribute('data-density-row'),
+              floor_lb_per_cuft: row.querySelector('[data-f="floor"]').value.trim() === ''
+                ? null : Number(row.querySelector('[data-f="floor"]').value.trim()),
+            }));
+          if (!updates.length) { saveAllNote.textContent = 'No changes.'; return; }
+          saveAllBtn.disabled = true;
+          saveAllNote.textContent = 'Saving…';
+          try {
+            const r = await api.setDensityFloorBulk(updates);
+            const n = (r.updated || []).length;
+            const e = (r.errors || []).length;
+            showAlert(e ? `Saved ${n}, ${e} failed.` : `Saved ${n} carrier${n === 1 ? '' : 's'} — new quotes use them immediately.`);
+            reload();
+          } catch (err) { showAlert('Could not save: ' + err.message); saveAllBtn.disabled = false; saveAllNote.textContent = ''; }
+        });
+        box.querySelectorAll('[data-density-save]').forEach((btn) =>
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-density-save');
+            const row = box.querySelector(`[data-density-row="${CSS.escape(id)}"]`);
+            const raw = row.querySelector('[data-f="floor"]').value.trim();
+            btn.disabled = true;
+            try {
+              await api.setDensityFloor(id, raw === '' ? null : Number(raw));
+              showAlert(raw === '' ? 'Density floor reset to the default.' : 'Density floor updated — new quotes use it immediately.');
+              reload();
+            } catch (err) { showAlert('Could not save: ' + err.message); btn.disabled = false; }
+          })
+        );
+        box.querySelectorAll('[data-density-reset]').forEach((btn) =>
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-density-reset');
+            btn.disabled = true;
+            try {
+              await api.setDensityFloor(id, null);
+              showAlert('Density floor reset to the default.');
               reload();
             } catch (err) { showAlert('Could not reset: ' + err.message); btn.disabled = false; }
           })

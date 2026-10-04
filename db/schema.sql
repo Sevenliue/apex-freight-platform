@@ -374,6 +374,17 @@ CREATE TABLE IF NOT EXISTS carrier_fsc (
   updated_by      varchar(160)
 );
 
+-- Admin-set per-carrier dimensional-weight density floors (lb per cubic
+-- foot). When a row exists, its floor wins over the global
+-- DENSITY_FLOOR_LB_PER_CUFT default (10) for that carrier's cube-rule
+-- calculation. Deleting the row restores the default.
+CREATE TABLE IF NOT EXISTS carrier_density_floor (
+  carrier_id        varchar(80)   PRIMARY KEY,
+  floor_lb_per_cuft numeric       NOT NULL,
+  updated_at        timestamptz   NOT NULL DEFAULT now(),
+  updated_by        varchar(160)
+);
+
 -- Seed the carriers the rate matrix already quotes (names must match the
 -- carrier_label strings in backend/rates/build-matrix.js).
 INSERT INTO carriers (name) VALUES

@@ -461,6 +461,19 @@ export function setFscBulk(updates) {
   return request('PUT', '/api/admin/fsc/bulk', { updates });
 }
 
+/* Admin — per-carrier dimensional-weight density floors (lb/cu ft). */
+export function getDensityFloors() {
+  return get('/api/admin/density-floors');
+}
+export function setDensityFloor(carrierId, floorLbPerCuFt) {
+  return request('PUT', `/api/admin/density-floors/${encodeURIComponent(carrierId)}`, {
+    floor_lb_per_cuft: floorLbPerCuFt,
+  });
+}
+export function setDensityFloorBulk(updates) {
+  return request('PUT', '/api/admin/density-floors/bulk', { updates });
+}
+
 /* Address book */
 export function listAddresses() {
   return get('/api/address-book');

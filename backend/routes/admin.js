@@ -627,3 +627,111 @@ router.put('/fsc/:carrier_id', async (req, res) => {
     return res.status(502).json({ error: 'Could not save fuel surcharge: ' + err.message });
   }
 });
+
+// GET /api/admin/density-floors — carriers with their effective dimensional-
+// weight density floor (lb per cu ft). Admin overrides win over the global
+// default; deleting an override restores the default.
+router.get('/density-floors', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const overrides = typeof matrix.getDensityFloors === 'function' ? matrix.getDensityFloors() : {};
+    const defaultFloor = typeof matrix.densityFloorFor === 'function' ? matrix.densityFloorFor(null) : 10;
+    const carriers = matrix.listCarriers().map((c) => {
+      const ov = overrides[c.carrier_id] || null;
+      return {
+        carrier_id: c.carrier_id,
+        carrier_label: c.carrier_label,
+        lane_count: c.lane_count,
+        default_floor: defaultFloor,
+        floor_lb_per_cuft: ov ? ov.floor : defaultFloor,
+        floor_overridden: !!ov,
+        floor_as_of: ov ? ov.updated_at : null,
+      };
+    });
+    return res.json({ carriers, default_floor: defaultFloor });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not load density floors: ' + err.message });
+  }
+});
+
+// PUT /api/admin/density-floors/bulk — set density-floor overrides for many
+// carriers in one request. Body {updates: [{carrier_id, floor_lb_per_cuft}]}.
+// Blank/null floor deletes the override (restores the global default).
+router.put('/density-floors/bulk', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  const updates = Array.isArray((req.body || {}).updates) ? req.body.updates : [];
+  const clean = (v) => {
+    if (v === '' || v == null) return null;
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 && n <= 100 ? Math.round(n * 100) / 100 : undefined;
+  };
+  const email = (req.user && req.user.email) || null;
+  const done = [], errors = [];
+  for (const u of updates) {
+    const carrierId = String((u || {}).carrier_id || '').trim();
+    const known = matrix.listCarriers().some((c) => c.carrier_id === carrierId);
+    if (!known) { errors.push({ carrier_id: carrierId, error: 'Unknown carrier.' }); continue; }
+    const floor = clean(u.floor_lb_per_cuft);
+    if (floor === undefined) { errors.push({ carrier_id: carrierId, error: 'Floor must be 0–100 lb/cu ft.' }); continue; }
+    try {
+      if (floor == null) {
+        await db.query('DELETE FROM carrier_density_floor WHERE carrier_id = $1', [carrierId]);
+        if (typeof matrix.clearDensityFloor === 'function') matrix.clearDensityFloor(carrierId);
+        done.push({ carrier_id: carrierId, reset: true });
+      } else {
+        await db.query(
+          `INSERT INTO carrier_density_floor (carrier_id, floor_lb_per_cuft, updated_at, updated_by)
+           VALUES ($1, $2, now(), $3)
+           ON CONFLICT (carrier_id) DO UPDATE SET
+             floor_lb_per_cuft = EXCLUDED.floor_lb_per_cuft,
+             updated_at = now(), updated_by = EXCLUDED.updated_by`,
+          [carrierId, floor, email]
+        );
+        if (typeof matrix.setDensityFloor === 'function') matrix.setDensityFloor(carrierId, floor);
+        done.push({ carrier_id: carrierId, floor_lb_per_cuft: floor });
+      }
+    } catch (err) {
+      errors.push({ carrier_id: carrierId, error: err.message });
+    }
+  }
+  return res.json({ updated: done, errors });
+});
+
+// PUT /api/admin/density-floors/:carrier_id — set one carrier's density
+// floor. Body {floor_lb_per_cuft}: number 0–100; blank/null deletes the
+// override and restores the global default.
+router.put('/density-floors/:carrier_id', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  const carrierId = String(req.params.carrier_id || '').trim();
+  const known = matrix.listCarriers().some((c) => c.carrier_id === carrierId);
+  if (!known) return res.status(404).json({ error: 'Unknown carrier.' });
+  const v = (req.body || {}).floor_lb_per_cuft;
+  const floor = (v === '' || v == null) ? null
+    : (Number.isFinite(Number(v)) && Number(v) > 0 && Number(v) <= 100 ? Math.round(Number(v) * 100) / 100 : undefined);
+  if (floor === undefined) {
+    return res.status(400).json({ error: 'Density floor must be a number between 0 and 100 (lb/cu ft).' });
+  }
+  try {
+    if (floor == null) {
+      await db.query('DELETE FROM carrier_density_floor WHERE carrier_id = $1', [carrierId]);
+      if (typeof matrix.clearDensityFloor === 'function') matrix.clearDensityFloor(carrierId);
+      return res.json({ carrier_id: carrierId, reset: true });
+    }
+    const email = (req.user && req.user.email) || null;
+    await db.query(
+      `INSERT INTO carrier_density_floor (carrier_id, floor_lb_per_cuft, updated_at, updated_by)
+       VALUES ($1, $2, now(), $3)
+       ON CONFLICT (carrier_id) DO UPDATE SET
+         floor_lb_per_cuft = EXCLUDED.floor_lb_per_cuft,
+         updated_at = now(), updated_by = EXCLUDED.updated_by`,
+      [carrierId, floor, email]
+    );
+    if (typeof matrix.setDensityFloor === 'function') matrix.setDensityFloor(carrierId, floor);
+    return res.json({ carrier_id: carrierId, floor_lb_per_cuft: floor });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not save density floor: ' + err.message });
+  }
+});

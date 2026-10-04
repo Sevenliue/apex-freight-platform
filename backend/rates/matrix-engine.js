@@ -5,7 +5,11 @@
 //
 // Exports:
 //   loadMatrix()                                                        -> cached matrix data
-//   quoteMatrix({originCity, originProv, destCity, destProv, weightLbs}) -> quotes, cheapest first
+//   quoteMatrix({originCity, originProv, destCity, destProv, weightLbs, skidCount?, packages?})
+//                                                                       -> quotes, cheapest first
+//   billableWeight(actualLbs, packages, floorLbPerCuFt?)               -> dimensional weight detail
+//   densityFloorFor(carrierId)                                        -> effective density floor (lb/cu ft)
+//   setDensityFloor(carrierId, floor) / clearDensityFloor(carrierId)   -> admin overrides
 //   listCarriers()                                                      -> [{carrier_id, carrier_label, lane_count, fsc_percent, fsc_as_of}]
 //   getAccessorials(carrierId)                                          -> [] when none
 //   upsertCarrierRows(carrierId, rows)                                  -> in-memory lane merge; returns count
@@ -19,6 +23,24 @@ const DATA_FILE = path.join(__dirname, 'matrix-data.json');
 // Rosenau TL fuel-surcharge override (per 2026 sheet; checked 2026-09-25).
 const ROSENAU_TL_FSC = 105.44;
 const ROSENAU_TL_MIN_LB = 10000;
+
+// Dimensional (cube) rule — standard Western Canadian LTL practice.
+// A shipment's billable weight is the greatest of:
+//   1. actual weight (lb)
+//   2. cube rule: total cubic feet x DENSITY_FLOOR_LB_PER_CUFT ("standard cube is
+//      10 lb per cubic foot" — Kindersley/Midland tariff language)
+//   3. linear-foot rule: when the shipment's trailer footprint exceeds
+//      LINEAR_FT_THRESHOLD ft, linear_ft x LINEAR_FT_RATE_LB (1,000 lb/ft)
+// Skid-flat lanes are already space-priced and never touch this.
+// All three are env-overridable; defaults match Western Canada practice.
+const numEnv = (name, dflt) => {
+  const n = Number(process.env[name]);
+  return Number.isFinite(n) && n > 0 ? n : dflt;
+};
+const DENSITY_FLOOR_LB_PER_CUFT = numEnv('DENSITY_FLOOR_LB_PER_CUFT', 10);
+const LINEAR_FT_THRESHOLD = numEnv('LINEAR_FT_THRESHOLD', 10);
+const LINEAR_FT_RATE_LB = numEnv('LINEAR_FT_RATE_LB', 1000);
+const TRAILER_WIDTH_FT = 8; // usable trailer width for the linear-foot calc
 
 const r2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 const norm = (v) => String(v == null ? '' : v).trim().toUpperCase();
@@ -90,6 +112,43 @@ function getFscOverrides() {
   const out = {};
   for (const [k, v] of _fscOverrides) out[k] = { ...v };
   return out;
+}
+
+// Admin-set per-carrier density floors (from the carrier_density_floor DB
+// table), applied on top of the global DENSITY_FLOOR_LB_PER_CUFT default.
+// Keyed by carrier_id: { floor: number, updated_at: string|null }. Loaded at
+// server startup and refreshed on every admin write, so the sync
+// quoteMatrix() path stays fast. Deleting a carrier's row restores the
+// global default.
+const _densityFloors = new Map();
+
+function setDensityFloor(carrierId, floor) {
+  if (!carrierId) return;
+  if (floor == null) { _densityFloors.delete(carrierId); return; }
+  const n = Number(floor);
+  if (!Number.isFinite(n) || n <= 0) { _densityFloors.delete(carrierId); return; }
+  _densityFloors.set(carrierId, {
+    floor: n,
+    updated_at: new Date().toISOString(),
+  });
+}
+
+function clearDensityFloor(carrierId) {
+  if (carrierId) _densityFloors.delete(carrierId);
+}
+
+function getDensityFloors() {
+  const out = {};
+  for (const [k, v] of _densityFloors) out[k] = { ...v };
+  return out;
+}
+
+// Effective density floor (lb per cu ft) for a carrier: admin override wins,
+// otherwise the global default.
+function densityFloorFor(carrierId) {
+  const ov = carrierId ? _densityFloors.get(carrierId) : null;
+  if (ov && Number.isFinite(ov.floor) && ov.floor > 0) return ov.floor;
+  return DENSITY_FLOOR_LB_PER_CUFT;
 }
 
 function ensureLoaded() {
@@ -186,12 +245,53 @@ function suggestCity(inputCity, inputProv) {
   return `${titleCase(best.city)}, ${best.prov}`;
 }
 
+// Dimensional weight for a shipment ("cube rule").
+// packages: [{qty, length, width, height (inches), stackable}] — lines without
+// all three dimensions are skipped, so a quote with no dims rates exactly as
+// before (billable = actual).
+// floorLbPerCuFt: density floor for the cube rule; defaults to the global
+// DENSITY_FLOOR_LB_PER_CUFT (per-carrier overrides via densityFloorFor()).
+// Stackable units are assumed double-stacked (half the floor footprint).
+function billableWeight(actualLbs, packages, floorLbPerCuFt) {
+  const w = Number(actualLbs);
+  const floor = Number(floorLbPerCuFt) > 0 ? Number(floorLbPerCuFt) : DENSITY_FLOOR_LB_PER_CUFT;
+  let cubeFt = 0, footprintSqFt = 0, dimLines = 0;
+  for (const p of packages || []) {
+    const q = Math.max(1, Math.floor(Number(p.qty) || 1));
+    const L = Number(p.length), W = Number(p.width), H = Number(p.height);
+    if (!(L > 0 && W > 0 && H > 0)) continue;
+    dimLines++;
+    cubeFt += (q * L * W * H) / 1728;
+    footprintSqFt += ((q * L * W) / 144) * (p.stackable ? 0.5 : 1);
+  }
+  const linearFt = footprintSqFt / TRAILER_WIDTH_FT;
+  const cubeBillable = cubeFt * floor;
+  // Carrier tariff wording is "10 or more linear feet": trigger at >= threshold.
+  const linearBillable = linearFt >= LINEAR_FT_THRESHOLD ? linearFt * LINEAR_FT_RATE_LB : 0;
+  const billable = Math.max(w, cubeBillable, linearBillable);
+  return {
+    billable_lbs: r2(billable),
+    actual_lbs: r2(w),
+    cube_ft: r2(cubeFt),
+    linear_ft: r2(linearFt),
+    density_pcf: cubeFt > 0 ? r2(w / cubeFt) : null,
+    floor_lb_per_cuft: floor,
+    dimensional_applied: billable > w,
+    dimensional_rule:
+      cubeBillable > w && cubeBillable >= linearBillable ? 'cube'
+      : linearBillable > w ? 'linear_foot' : 'actual',
+    dim_lines: dimLines,
+  };
+}
+
 // Rate one shipment across every matching lane; cheapest first.
-// Rating math (weight lanes): first break with weightLbs <= max_lb;
-// base = max(min_charge, weightLbs/100 * rate_cwt); fsc = base * fsc%/100; total = base + fsc.
+// Rating math (weight lanes): first break with billableLbs <= max_lb;
+// base = max(min_charge, billableLbs/100 * rate_cwt); fsc = base * fsc%/100; total = base + fsc.
+// billableLbs = max(actual lb, cube_ft x density floor, linear_ft x 1000 when over
+// the linear threshold) — see billableWeight(). With no dimensions it == actual.
 // Skid lanes (lane.skid_rates): flat per-shipment price for the exact skid count;
 // they only rate when a matching skidCount is supplied. Money rounded to 2 decimals.
-function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, skidCount }) {
+function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, skidCount, packages }) {
   const st = ensureLoaded();
   const oCity = norm(originCity);
   const oProv = norm(originProv);
@@ -239,12 +339,16 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
       continue;
     }
 
-    const brk = (lane.breaks || []).find((b) => w <= b.max_lb);
+    // Dimensional weight with this carrier's density floor (admin override
+    // or the global default). Rating weight: dimensional when bulky.
+    const dim = billableWeight(w, packages, densityFloorFor(lane.carrier_id));
+    const bw = dim.billable_lbs;
+    const brk = (lane.breaks || []).find((b) => bw <= b.max_lb);
     if (!brk || !(brk.rate_cwt > 0)) continue;
-    const raw = (w / 100) * brk.rate_cwt;
+    const raw = (bw / 100) * brk.rate_cwt;
     const minApplied = raw < lane.min_charge_cad;
     const base = minApplied ? lane.min_charge_cad : raw;
-    const fscPercent = fscFor(carrier, w);
+    const fscPercent = fscFor(carrier, bw);
     const fsc = base * fscPercent / 100;
 
     quotes.push({
@@ -252,6 +356,12 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
       carrier_label: carrier ? carrier.carrier_label : lane.carrier_id,
       service: 'LTL',
       weight_lbs: w,
+      billable_weight_lbs: bw,
+      density_pcf: dim.density_pcf,
+      cube_ft: dim.cube_ft,
+      floor_lb_per_cuft: dim.floor_lb_per_cuft,
+      dimensional_applied: dim.dimensional_applied,
+      dimensional_rule: dim.dimensional_rule,
       rate_cwt_used: brk.rate_cwt,
       base_cad: r2(base),
       fsc_percent: fscPercent,
@@ -358,4 +468,4 @@ function upsertCarrierRows(carrierId, rows) {
   return count;
 }
 
-module.exports = { loadMatrix, quoteMatrix, listCarriers, getAccessorials, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides };
+module.exports = { loadMatrix, quoteMatrix, billableWeight, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, listCarriers, getAccessorials, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides };

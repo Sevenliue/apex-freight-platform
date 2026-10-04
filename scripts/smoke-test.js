@@ -238,6 +238,86 @@ function testSkidCountRegression() {
   }
 }
 
+function testDimensionalWeight() {
+  log('Testing dimensional (cube / linear-foot) weight rules...');
+  const engine = require('../backend/rates/matrix-engine.js');
+  const eq = (a, b) => Math.abs(a - b) < 0.01;
+
+  // Case 1 — Seven's dense example: 4 pcs 22.5x22.5x16 in, 500 lb total.
+  // 18.75 cu ft @ 26.67 pcf -> rates on actual weight.
+  let d = engine.billableWeight(500, [{ qty: 4, length: 22.5, width: 22.5, height: 16 }]);
+  if (!eq(d.billable_lbs, 500) || d.dimensional_rule !== 'actual' || d.dimensional_applied)
+    fail(`dense tires: expected 500 lb / actual, got ${d.billable_lbs} lb / ${d.dimensional_rule}`);
+  else pass(`dense tires: 500 lb billable, ${d.cube_ft} cu ft, ${d.density_pcf} pcf`);
+
+  // Case 2 — Seven's bulky example: 76x76x28 in, 500 lb.
+  // 93.59 cu ft @ 5.34 pcf -> cube rule: 935.93 lb billable.
+  d = engine.billableWeight(500, [{ qty: 1, length: 76, width: 76, height: 28 }]);
+  if (!eq(d.billable_lbs, 935.93) || d.dimensional_rule !== 'cube' || !d.dimensional_applied)
+    fail(`bulky freight: expected 935.93 lb / cube, got ${d.billable_lbs} lb / ${d.dimensional_rule}`);
+  else pass(`bulky freight: 935.93 lb billable via cube rule`);
+
+  // Case 3 — no dimensions: pricing unchanged (billable = actual).
+  d = engine.billableWeight(500, []);
+  if (!eq(d.billable_lbs, 500) || d.dimensional_applied)
+    fail(`no dims: expected 500 lb unchanged, got ${d.billable_lbs} lb`);
+  else pass('no dimensions: rates on actual weight, unchanged');
+
+  // Case 4 — linear-foot rule: 14 non-stackable 48x40 skids exceed 10 ft.
+  d = engine.billableWeight(2000, [{ qty: 14, length: 48, width: 40, height: 48, stackable: false }]);
+  if (d.dimensional_rule !== 'linear_foot' || !d.dimensional_applied)
+    fail(`linear-foot: expected linear_foot rule, got ${d.dimensional_rule} (${d.billable_lbs} lb)`);
+  else pass(`linear-foot rule: ${d.linear_ft} ft -> ${d.billable_lbs} lb billable`);
+
+  // Case 5 — end-to-end: bulky shipment actually prices on billable weight.
+  const q = engine.quoteMatrix({
+    originCity: 'Prince George', originProv: 'BC',
+    destCity: 'Vancouver', destProv: 'BC', weightLbs: 500,
+    packages: [{ qty: 1, length: 76, width: 76, height: 28, weight_lb: 500 }],
+  });
+  const b = q.find((r) => r.carrier_id === 'bandstra');
+  if (!b) fail('e2e: no bandstra quote for bulky shipment');
+  else if (!eq(b.billable_weight_lbs, 935.93) || b.dimensional_rule !== 'cube')
+    fail(`e2e: expected 935.93 lb / cube, got ${b.billable_weight_lbs} lb / ${b.dimensional_rule}`);
+  else pass(`e2e: bandstra prices bulky shipment at 935.93 lb billable (base $${b.base_cad})`);
+
+  // Case 6 — minimax skid flats stay skid-priced (no dimensional interference).
+  const s = engine.quoteMatrix({
+    originCity: 'Amaranth', originProv: 'ON',
+    destCity: 'Montreal', destProv: 'QC', weightLbs: 2000, skidCount: 6,
+    packages: [{ qty: 6, length: 48, width: 40, height: 48, weight_lb: 333 }],
+  });
+  const m = s.find((r) => r.carrier_id === 'minimax' && r.rate_basis === 'skid');
+  if (!m) fail('e2e: minimax skid quote missing with packages present');
+  else pass(`minimax skid flat unaffected by dimensions (base $${m.base_cad})`);
+
+  // Case 7 — per-carrier density floor override (admin-tunable).
+  engine.setDensityFloor('bandstra', 15);
+  if (engine.densityFloorFor('bandstra') !== 15) fail('floor: bandstra override not applied');
+  else if (engine.densityFloorFor('rosenau') !== 10) fail('floor: default changed for other carriers');
+  else {
+    const q15 = engine.quoteMatrix({
+      originCity: 'Prince George', originProv: 'BC',
+      destCity: 'Vancouver', destProv: 'BC', weightLbs: 500,
+      packages: [{ qty: 1, length: 76, width: 76, height: 28, weight_lb: 500 }],
+    });
+    const b15 = q15.find((r) => r.carrier_id === 'bandstra');
+    // 93.59 cu ft x 15 = 1403.89 lb billable (vs 935.93 at the default 10)
+    if (!b15 || !eq(b15.billable_weight_lbs, 1403.89) || b15.floor_lb_per_cuft !== 15)
+      fail(`floor: expected bandstra 1403.89 lb @ 15, got ${b15 ? b15.billable_weight_lbs : 'none'}`);
+    else pass('per-carrier floor: bandstra @15 -> 1403.89 lb billable');
+  }
+  engine.clearDensityFloor('bandstra');
+  if (engine.densityFloorFor('bandstra') !== 10) fail('floor: clear did not restore default 10');
+  else pass('floor: clearing override restores default 10');
+
+  // Case 8 — linear-foot trigger at exactly 10 ft ("10 or more", carrier wording).
+  d = engine.billableWeight(2000, [{ qty: 10, length: 48, width: 24, height: 48, stackable: false }]);
+  if (d.dimensional_rule !== 'linear_foot' || !eq(d.linear_ft, 10) || !eq(d.billable_lbs, 10000))
+    fail(`linear boundary: expected linear_foot @ exactly 10 ft -> 10000 lb, got ${d.dimensional_rule} / ${d.linear_ft} ft / ${d.billable_lbs} lb`);
+  else pass('linear-foot rule triggers at exactly 10 ft -> 10000 lb billable');
+}
+
 // ---------------------------------------------------------------------------
 // Main.
 // ---------------------------------------------------------------------------
@@ -254,6 +334,7 @@ function testSkidCountRegression() {
 
     testEngine();
     testSkidCountRegression();
+    testDimensionalWeight();
   } catch (err) {
     fail(`setup: ${err.message}`);
   } finally {

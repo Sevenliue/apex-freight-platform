@@ -269,6 +269,16 @@ if (require.main === module) {
     } catch (err) {
       console.error('[fsc] init failed (continuing):', err.message);
     }
+    // Density-floor overrides: same pattern — load admin-set per-carrier
+    // cube-rule floors into the engine, refresh every 5 minutes.
+    try {
+      const { loadDensityFloors } = require('./lib/density');
+      await loadDensityFloors();
+      const t = setInterval(() => { loadDensityFloors(); }, 5 * 60 * 1000);
+      if (t.unref) t.unref();
+    } catch (err) {
+      console.error('[density] init failed (continuing):', err.message);
+    }
   })();
 }
 

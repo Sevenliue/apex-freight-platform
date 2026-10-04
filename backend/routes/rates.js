@@ -271,6 +271,20 @@ router.post('/', async (req, res) => {
     return bad(res, 400, err.message);
   }
   const totalWeightLbs = round2(packages.reduce((s, p) => s + p.qty * p.weight_lb, 0));
+  // Dimensional weight ("cube rule"): billable = max(actual lb, cube_ft x density
+  // floor, linear_ft x 1000 when over the linear threshold). Falls back to actual
+  // weight when the engine has no billableWeight (fallback matrix) or no dims.
+  let dimInfo = null;
+  try {
+    dimInfo = typeof matrix.billableWeight === 'function'
+      ? matrix.billableWeight(totalWeightLbs, packages)
+      : null;
+  } catch { dimInfo = null; }
+  if (!dimInfo) {
+    dimInfo = { billable_lbs: totalWeightLbs, actual_lbs: totalWeightLbs, cube_ft: 0,
+      linear_ft: 0, density_pcf: null, dimensional_applied: false,
+      dimensional_rule: 'actual', dim_lines: 0 };
+  }
   trace.stage('packages-ok');
   const accessorialCodes = (Array.isArray(rawAccessorials) ? rawAccessorials : [])
     .filter((c) => acc.isKnown(c));
@@ -328,6 +342,7 @@ router.post('/', async (req, res) => {
         destProv: destination.state,
         weightLbs: totalWeightLbs,
         skidCount,
+        packages,
       });
     } catch (err) {
       return bad(res, 502, 'Rate matrix failed', err.message);
@@ -373,6 +388,12 @@ router.post('/', async (req, res) => {
       est_delivery_date: estDeliveryDate(transitDaysUpper(transit)),
       source: 'matrix',
       weight_lbs: totalWeightLbs,
+      billable_weight_lbs: q.billable_weight_lbs != null ? q.billable_weight_lbs : totalWeightLbs,
+      density_pcf: q.density_pcf != null ? q.density_pcf : null,
+      cube_ft: q.cube_ft != null ? q.cube_ft : null,
+      floor_lb_per_cuft: q.floor_lb_per_cuft != null ? q.floor_lb_per_cuft : null,
+      dimensional_applied: !!q.dimensional_applied,
+      dimensional_rule: q.dimensional_rule || 'actual',
       skids: q.skids != null ? q.skids : skidCount,
       rate_basis: q.rate_basis || 'weight',
       rate_cwt_used: q.rate_cwt_used,
@@ -412,6 +433,11 @@ router.post('/', async (req, res) => {
     insurance_cad,
     parcel: { weight: totalWeightLbs },
     total_weight_lbs: totalWeightLbs,
+    billable_weight_lbs: dimInfo.billable_lbs,
+    density_pcf: dimInfo.density_pcf,
+    cube_ft: dimInfo.cube_ft,
+    dimensional_applied: dimInfo.dimensional_applied,
+    dimensional_rule: dimInfo.dimensional_rule,
     user_id: effectiveUserId,
     rates,
     easypost_shipment_id: null,
@@ -529,6 +555,12 @@ router.post('/', async (req, res) => {
     shipment_id,
     rates,
     total_weight_lbs: totalWeightLbs,
+    billable_weight_lbs: dimInfo.billable_lbs,
+    density_pcf: dimInfo.density_pcf,
+    cube_ft: dimInfo.cube_ft,
+    linear_ft: dimInfo.linear_ft,
+    dimensional_applied: dimInfo.dimensional_applied,
+    dimensional_rule: dimInfo.dimensional_rule,
     packages,
     region,
     direction,

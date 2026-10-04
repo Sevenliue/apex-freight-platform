@@ -1,7 +1,8 @@
 // lib/matrix.js — resolves the sibling rate-matrix engine and validates its
 // contract shape: quoteMatrix({originCity, originProv, destCity, destProv,
-// weightLbs}), listCarriers(), getAccessorials(carrierId),
-// upsertCarrierRows(carrierId, rows).
+// weightLbs, skidCount?, packages?}), billableWeight(actualLbs, packages, floor?),
+// densityFloorFor(carrierId), setDensityFloor(carrierId, floor),
+// listCarriers(), getAccessorials(carrierId), upsertCarrierRows(carrierId, rows).
 //
 // Lookup order:
 //   1. ./rates/matrix-engine.js   (sibling's actual location)
