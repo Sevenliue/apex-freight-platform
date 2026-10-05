@@ -192,7 +192,7 @@ input.wide { min-width: 260px; }
 .seg.active { background: var(--brand); color: #fff; }
 
 /* ---------- tables ---------- */
-.table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.table-wrap { overflow-x: auto; max-width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
 table.data { width: 100%; border-collapse: collapse; font-size: 14.5px; }
 table.data th, table.data td { padding: 11px 12px; text-align: left; border-bottom: 1px solid var(--line); }
 table.data thead th {
@@ -363,19 +363,28 @@ p.hint { font-size: 12.5px; color: var(--muted); margin: -4px 0 10px; }
 .pkg-table th, .pkg-table td { padding: 5px 6px; overflow: hidden; }
 .pkg-table thead th { white-space: normal; font-size: 11px; line-height: 1.3; vertical-align: bottom; }
 .pkg-table td input, .pkg-table td select { margin-top: 0; width: 100%; min-width: 0; font-size: 14px; padding: 7px 8px; }
-/* Qty | Type | Product (flex) | Wt | L | W | H | Stack | DG | UN# | Class | PkgGrp | × */
-.pkg-table th:nth-child(1), .pkg-table td:nth-child(1) { width: 56px; }
-.pkg-table th:nth-child(2), .pkg-table td:nth-child(2) { width: 108px; }
-.pkg-table th:nth-child(4), .pkg-table td:nth-child(4) { width: 96px; }
-.pkg-table th:nth-child(5), .pkg-table td:nth-child(5) { width: 96px; }
-.pkg-table th:nth-child(6), .pkg-table td:nth-child(6) { width: 88px; }
-.pkg-table th:nth-child(7), .pkg-table td:nth-child(7) { width: 96px; }
-.pkg-table th:nth-child(8), .pkg-table td:nth-child(8) { width: 80px; }
-.pkg-table th:nth-child(9), .pkg-table td:nth-child(9) { width: 44px; }
-.pkg-table th:nth-child(10), .pkg-table td:nth-child(10) { width: 72px; }
-.pkg-table th:nth-child(11), .pkg-table td:nth-child(11) { width: 64px; }
-.pkg-table th:nth-child(12), .pkg-table td:nth-child(12) { width: 72px; }
-.pkg-table th:last-child, .pkg-table td:last-child { width: 40px; }
+/* Qty | Type | Product (flex) | Wt | L | W | H | Stack | DG | UN# | Class | PkgGrp | Del | Add
+   Compact fixed widths so the 14-column grid fits ~950px content areas
+   (laptop screens with the sidebar open). Below that, .table-wrap scrolls
+   horizontally inside the panel instead of breaking the page layout. */
+.pkg-table th:nth-child(1), .pkg-table td:nth-child(1) { width: 44px; }
+.pkg-table th:nth-child(2), .pkg-table td:nth-child(2) { width: 90px; }
+.pkg-table th:nth-child(3), .pkg-table td:nth-child(3) { min-width: 80px; }
+.pkg-table th:nth-child(4), .pkg-table td:nth-child(4) { width: 76px; }
+.pkg-table th:nth-child(5), .pkg-table td:nth-child(5) { width: 68px; }
+.pkg-table th:nth-child(6), .pkg-table td:nth-child(6) { width: 68px; }
+.pkg-table th:nth-child(7), .pkg-table td:nth-child(7) { width: 68px; }
+.pkg-table th:nth-child(8), .pkg-table td:nth-child(8) { width: 60px; }
+.pkg-table th:nth-child(9), .pkg-table td:nth-child(9) { width: 38px; }
+.pkg-table th:nth-child(10), .pkg-table td:nth-child(10) { width: 60px; }
+.pkg-table th:nth-child(11), .pkg-table td:nth-child(11) { width: 54px; }
+.pkg-table th:nth-child(12), .pkg-table td:nth-child(12) { width: 58px; }
+.pkg-table th:nth-child(13), .pkg-table td:nth-child(13) { width: 34px; }
+.pkg-table th:last-child, .pkg-table td:last-child { width: 34px; }
+@media (max-width: 900px) {
+  .pkg-table thead th { font-size: 10px; }
+  .pkg-table td input, .pkg-table td select { font-size: 12.5px; padding: 4px 5px; }
+}
 .pkg-table td.chk { text-align: center; }
 .pkg-table td.chk input { display: inline-block; width: auto; margin: 0; vertical-align: middle; }
 .pkg-table .pkg-del { padding: 2px 8px; }
@@ -698,7 +707,7 @@ dl.kv dd { margin: 0; font-weight: 600; }
 .qq-services { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
 .qq-split { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 10px; align-items: start; }
-#quote-form.qq .pkg-table th, #quote-form.qq .pkg-table td { padding: 6px 8px; }
+#quote-form.qq .pkg-table th, #quote-form.qq .pkg-table td { padding: 5px 6px; }
 #quote-form.qq .pkg-table input, #quote-form.qq .pkg-table select { padding: 5px 6px; font-size: 13px; margin-top: 0; }
 #quote-form.qq .pkg-table td.narrow input { max-width: 76px; }
 
