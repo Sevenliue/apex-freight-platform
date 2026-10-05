@@ -377,12 +377,13 @@
               <span class="qe-dunit">in</span>
             </label>
             <button type="button" class="btn small" id="qe-apply">Fill packages</button>
+            <button type="button" class="btn small" id="qe-cols" title="Show the product-name and dangerous-goods columns">More columns</button>
           </div>
           <div class="table-wrap"><table class="data pkg-table" id="pkg-table">
             <thead><tr>
-              <th>Qty</th><th>Package Type</th><th>Product Name</th><th>Weight (lb)</th>
+              <th>Qty</th><th>Package Type</th><th class="col-rare">Product Name</th><th>Weight (lb)</th>
               <th>Length (in)</th><th>Width (in)</th><th>Height (in)</th>
-              <th>Stackable</th><th>DG?</th><th>UN #</th><th>Class</th><th>Pkg. Grp.</th><th>Delete</th><th>Add</th>
+              <th>Stackable</th><th class="col-rare">DG?</th><th class="col-rare">UN #</th><th class="col-rare">Class</th><th class="col-rare">Pkg. Grp.</th><th>Delete</th>
             </tr></thead>
             <tbody id="pkg-rows"></tbody>
           </table></div>
@@ -1439,10 +1440,30 @@
         width: qe.W ? round2(qe.W * fD) : '',
         height: qe.H ? round2(qe.H * fD) : '',
       });
+      syncRareCols();
       return true;
     }
 
     $('#qe-apply').addEventListener('click', () => { applyQuickEntry(false); });
+
+    /* Rare columns (product name + DG set) collapse on narrow screens; the
+       toggle brings them back, and they auto-reveal when any row uses them. */
+    let rareColsPinned = false;
+    function syncRareCols() {
+      const has = [...$('#pkg-rows').rows].some((tr) => {
+        const v = (n) => { const e = tr.querySelector(`[name="${n}"]`); return e ? e.value : ''; };
+        const c = (n) => { const e = tr.querySelector(`[name="${n}"]`); return !!(e && e.checked); };
+        return c('dg') || v('un_number').trim() !== '' || v('freight_class').trim() !== '' ||
+               v('pkg_group').trim() !== '' || v('product_name') !== '';
+      });
+      const show = has || rareColsPinned;
+      document.body.classList.toggle('show-rare-cols', show);
+      const btn = $('#qe-cols');
+      if (btn) btn.textContent = show ? 'Fewer columns' : 'More columns';
+    }
+    $('#qe-cols').addEventListener('click', () => { rareColsPinned = !rareColsPinned; syncRareCols(); });
+    $('#pkg-rows').addEventListener('change', syncRareCols);
+    $('#pkg-rows').addEventListener('input', syncRareCols);
 
     document.querySelectorAll('input[name="units"]').forEach((r) => {
       r.addEventListener('change', () => {
@@ -1558,17 +1579,17 @@
       tr.innerHTML = `
         <td><input type="number" name="qty" min="1" step="1" value="${esc(data.qty ?? 1)}" required></td>
         <td><select name="package_type">${pkgTypeOptions(data.package_type)}</select></td>
-        <td><select name="product_name">${productNameOptions(data.product_name)}</select></td>
+        <td class="col-rare"><select name="product_name">${productNameOptions(data.product_name)}</select></td>
         <td><input type="number" name="weight_lb" min="0.1" step="0.1" value="${esc(dw(data.weight_lb))}" required placeholder="0.0"></td>
         <td><input type="number" name="length" min="0" step="0.1" value="${esc(dd(data.length))}" placeholder="${m ? '122' : '48'}"></td>
         <td><input type="number" name="width" min="0" step="0.1" value="${esc(dd(data.width))}" placeholder="${m ? '102' : '40'}"></td>
         <td><input type="number" name="height" min="0" step="0.1" value="${esc(dd(data.height))}" placeholder="${m ? '91' : '36'}"></td>
         <td class="chk"><input type="checkbox" name="stackable"${data.stackable ? ' checked' : ''}></td>
-        <td class="chk"><input type="checkbox" name="dg"${data.dg ? ' checked' : ''}></td>
-        <td class="narrow"><input type="text" name="un_number" value="${esc(data.un_number || '')}" placeholder="UN number"></td>
-        <td class="narrow"><input type="text" name="freight_class" value="${esc(data.freight_class || '')}" placeholder="Class"></td>
-        <td class="narrow"><input type="text" name="pkg_group" value="${esc(data.pkg_group || '')}" placeholder="PG"></td>
-        <td><button type="button" class="btn small danger pkg-del" title="Delete row">×</button></td>`;
+        <td class="chk col-rare"><input type="checkbox" name="dg"${data.dg ? ' checked' : ''}></td>
+        <td class="narrow col-rare"><input type="text" name="un_number" value="${esc(data.un_number || '')}" placeholder="UN number"></td>
+        <td class="narrow col-rare"><input type="text" name="freight_class" value="${esc(data.freight_class || '')}" placeholder="Class"></td>
+        <td class="narrow col-rare"><input type="text" name="pkg_group" value="${esc(data.pkg_group || '')}" placeholder="PG"></td>
+        <td class="col-del"><button type="button" class="btn small danger pkg-del" title="Delete row">×</button></td>`;
       tr.querySelector('.pkg-del').addEventListener('click', () => {
         if ($('#pkg-rows').rows.length > 1) { tr.remove(); syncTotalWeightLine(); }
         else showAlert('At least one package line is required.');
@@ -1781,6 +1802,7 @@
     });
     addPkgRow();
     syncQuickEntryUnits();
+    syncRareCols();
 
     /* ----- shipment type tabs + freight charges ----- */
     function currentRegion() {

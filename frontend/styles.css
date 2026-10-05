@@ -399,6 +399,14 @@ p.hint { font-size: 12.5px; color: var(--muted); margin: -4px 0 10px; }
 .quick-entry #qe-pieces { width: 52px; }
 .quick-entry .btn { margin: 0; }
 
+/* Rare columns (product name + DG set) collapse on narrow screens so the core
+   columns stay readable; the "More columns" toggle or any DG data reveals them. */
+.pkg-table td.col-del { min-width: 38px; text-align: center; }
+@media (max-width: 900px) {
+  .pkg-table .col-rare { display: none; }
+  body.show-rare-cols .pkg-table .col-rare { display: table-cell; }
+}
+
 /* Pick-up / delivery service grids.
    Root cause of the messy look: the global input{display:block;width:100%} rule
    stretched each checkbox to full width inside its flex label, pushing the label
