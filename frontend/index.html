@@ -366,6 +366,18 @@
         </div>
         <section class="qq-panel">
           <h3 class="qq-head">Packages</h3>
+          <div class="qq-body quick-entry">
+            <span class="qe-title">Quick entry <span class="note">— identical pieces</span></span>
+            <label class="qe"><input type="number" id="qe-pieces" min="1" step="1" value="1"> <span>pieces</span></label>
+            <label class="qe"><input type="number" id="qe-weight" min="0" step="0.1" placeholder="0.0"> <span><span class="qe-wunit">lb</span> total</span></label>
+            <label class="qe"><span>one piece</span>
+              <input type="number" id="qe-len" min="0" step="0.1" placeholder="L" aria-label="Length of one piece"> <span>×</span>
+              <input type="number" id="qe-wid" min="0" step="0.1" placeholder="W" aria-label="Width of one piece"> <span>×</span>
+              <input type="number" id="qe-hgt" min="0" step="0.1" placeholder="H" aria-label="Height of one piece">
+              <span class="qe-dunit">in</span>
+            </label>
+            <button type="button" class="btn small" id="qe-apply">Fill packages</button>
+          </div>
           <div class="table-wrap"><table class="data pkg-table" id="pkg-table">
             <thead><tr>
               <th>Qty</th><th>Package Type</th><th>Product Name</th><th>Weight (lb)</th>
@@ -1379,6 +1391,44 @@
       if (ths[6]) ths[6].textContent = m ? 'Height (cm)' : 'Height (in)';
     }
 
+    /* Rosenau-style quick entry: N identical pieces, total weight, dims for one
+       piece. Fills the grid as a single line (qty = pieces, per-piece weight =
+       total / pieces); the rating engine's dimensional math is unchanged. */
+    function syncQuickEntryUnits() {
+      const m = pkgUnits === 'metric';
+      document.querySelectorAll('.qe-wunit').forEach((s) => { s.textContent = m ? 'kg' : 'lb'; });
+      document.querySelectorAll('.qe-dunit').forEach((s) => { s.textContent = m ? 'cm' : 'in'; });
+    }
+
+    function pkgRowsHaveData() {
+      return [...$('#pkg-rows').rows].some((tr) => {
+        const v = (n) => { const e = tr.querySelector(`[name="${n}"]`); return e ? e.value : ''; };
+        return (parseFloat(v('weight_lb')) || 0) > 0 || v('length') !== '' || v('width') !== '' || v('height') !== '';
+      });
+    }
+
+    $('#qe-apply').addEventListener('click', () => {
+      const m = pkgUnits === 'metric';
+      const pieces = Math.max(1, parseInt($('#qe-pieces').value, 10) || 0);
+      const totalW = parseFloat($('#qe-weight').value) || 0; // display units
+      const L = parseFloat($('#qe-len').value) || 0;
+      const W = parseFloat($('#qe-wid').value) || 0;
+      const H = parseFloat($('#qe-hgt').value) || 0;
+      if (!(pieces >= 1)) { showAlert('Enter the number of pieces (1 or more).'); return; }
+      if (!(totalW > 0)) { showAlert('Enter the total weight.'); return; }
+      if (pkgRowsHaveData() && !window.confirm('Replace the package lines below with the quick-entry values?')) return;
+      // addPkgRow takes lb/in; convert metric display values back.
+      const fW = m ? 1 / LB_TO_KG : 1, fD = m ? 1 / IN_TO_CM : 1;
+      $('#pkg-rows').innerHTML = '';
+      addPkgRow({
+        qty: pieces,
+        weight_lb: round2((totalW / pieces) * fW),
+        length: L ? round2(L * fD) : '',
+        width: W ? round2(W * fD) : '',
+        height: H ? round2(H * fD) : '',
+      });
+    });
+
     document.querySelectorAll('input[name="units"]').forEach((r) => {
       r.addEventListener('change', () => {
         const toMetric = document.querySelector('input[name="units"]:checked').value === 'metric';
@@ -1386,6 +1436,7 @@
         document.querySelectorAll('#pkg-rows tr').forEach((tr) => convertPkgRowUnits(tr, toMetric));
         pkgUnits = toMetric ? 'metric' : 'imperial';
         renderUnitHeaders();
+        syncQuickEntryUnits();
         syncSegs();
         syncTotalWeightLine();
       });
@@ -1714,6 +1765,7 @@
       });
     });
     addPkgRow();
+    syncQuickEntryUnits();
 
     /* ----- shipment type tabs + freight charges ----- */
     function currentRegion() {

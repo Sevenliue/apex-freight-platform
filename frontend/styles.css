@@ -389,6 +389,16 @@ p.hint { font-size: 12.5px; color: var(--muted); margin: -4px 0 10px; }
 .pkg-table td.chk input { display: inline-block; width: auto; margin: 0; vertical-align: middle; }
 .pkg-table .pkg-del { padding: 2px 8px; }
 
+/* Quick entry (Rosenau-style): piece count + total weight + dims for one piece.
+   Fills the packages grid as a single line (qty = pieces, per-piece weight). */
+.quick-entry { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; border-bottom: 1px solid var(--line); }
+.quick-entry .qe-title { font-weight: 700; font-size: 12.5px; color: var(--brand); }
+.quick-entry .note { font-weight: 400; }
+.quick-entry label.qe { display: inline-flex; align-items: center; gap: 5px; margin: 0; font-size: 12.5px; }
+.quick-entry input[type="number"] { display: inline-block; width: 64px; margin-top: 0; padding: 6px 8px; font-size: 13px; }
+.quick-entry #qe-pieces { width: 52px; }
+.quick-entry .btn { margin: 0; }
+
 /* Pick-up / delivery service grids.
    Root cause of the messy look: the global input{display:block;width:100%} rule
    stretched each checkbox to full width inside its flex label, pushing the label
