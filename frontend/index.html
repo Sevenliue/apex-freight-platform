@@ -406,6 +406,7 @@
               <div class="qq-split-left">
                 <p class="lede" id="total-weight-line">Total weight: <strong>0 lb</strong></p>
                 <button type="submit" class="btn fetch-btn fetch-btn-left" id="fetch-rates-btn">Get Carrier Rates</button>
+                <button type="button" class="btn" id="new-quote-btn" title="Clear the form to start a new quote">New Quote</button>
                 <p class="note rate-disclaimer" id="rate-disclaimer">Rates are estimates only &mdash; final pricing is confirmed at booking and may change with fuel surcharges and carrier rate updates.</p>
                 <div class="rate-empty" id="rate-empty">
                   <p class="note">Fill in the shipment details, then fetch carrier results.</p>
@@ -1446,6 +1447,31 @@
 
     $('#qe-apply').addEventListener('click', () => { applyQuickEntry(false); });
 
+    /* Quick entry and the package grid are mutually exclusive: typing in one
+       clears the other so the two can never be calculated together. */
+    const QE_FIELD_IDS = ['qe-pieces', 'qe-weight', 'qe-len', 'qe-wid', 'qe-hgt'];
+    const qeField = (id) => document.getElementById(id);
+    const quickEntryHasInput = () =>
+      QE_FIELD_IDS.some((id) => { const el = qeField(id); return el && id !== 'qe-pieces' && (el.value || '').trim() !== ''; }) ||
+      (qeField('qe-pieces') && qeField('qe-pieces').value !== '1' && qeField('qe-pieces').value.trim() !== '');
+    QE_FIELD_IDS.forEach((id) => {
+      const el = qeField(id);
+      if (el) el.addEventListener('input', () => {
+        if (quickEntryHasInput() && pkgRowsHaveData()) {
+          $('#pkg-rows').innerHTML = '';
+          addPkgRow();
+          syncRareCols();
+          syncTotalWeightLine();
+        }
+      });
+    });
+    // Manual grid edits invalidate the quick-entry values.
+    $('#pkg-rows').addEventListener('input', () => {
+      if (quickEntryHasInput()) {
+        QE_FIELD_IDS.forEach((id) => { const el = qeField(id); if (el) el.value = id === 'qe-pieces' ? '1' : ''; });
+      }
+    });
+
     /* Rare columns (product name + DG set) collapse on narrow screens; the
        toggle brings them back, and they auto-reveal when any row uses them. */
     let rareColsPinned = false;
@@ -1998,6 +2024,42 @@
     // Persistent quote action buttons (right panel): enabled once rates are back.
     $('#save-quote-btn').addEventListener('click', saveCurrentQuote);
     $('#complete-shipment-btn').addEventListener('click', openCompleteModal);
+    $('#new-quote-btn').addEventListener('click', resetQuoteForm);
+
+    /* "New Quote": clear every quote field back to a fresh-form state so a new
+       quote never inherits the previous entries. Mode selectors (region,
+       direction, units) are kept as the user set them. */
+    function resetQuoteForm() {
+      const form = $('#quote-form');
+      form.querySelectorAll('input, textarea, select').forEach((el) => {
+        const t = (el.type || '').toLowerCase();
+        if (t === 'radio') return; // keep region / direction / units
+        if (t === 'checkbox') { el.checked = false; return; }
+        if (el.tagName === 'SELECT') {
+          const opts = [...el.options];
+          const def = opts.findIndex((o) => o.defaultSelected);
+          el.selectedIndex = def >= 0 ? def : 0;
+          return;
+        }
+        el.value = el.id === 'qe-pieces' ? '1' : '';
+        delete el.dataset.prime;
+      });
+      // Packages back to a single empty row.
+      $('#pkg-rows').innerHTML = '';
+      addPkgRow();
+      syncRareCols();
+      syncTotalWeightLine();
+      // Drop the rated results and the saved-quote state.
+      currentQuote = null;
+      $('#quote-results').innerHTML = '';
+      syncRateEmpty();
+      syncQuoteActions();
+      syncBillToBlock();
+      syncSegs();
+      // Fresh form behaves like page load: re-apply prime-location defaults.
+      applyPrimeLocation();
+      form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
     $('#cm-confirm').addEventListener('click', confirmCompleteShipment);
     $('#cm-close').addEventListener('click', () => $('#complete-modal').classList.add('hidden'));
     $('#cm-terms-link').addEventListener('click', (e) => { e.preventDefault(); showTerms(); });
