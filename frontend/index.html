@@ -1829,6 +1829,7 @@
     addPkgRow();
     syncQuickEntryUnits();
     syncRareCols();
+    defaultPickupDateToToday();
 
     /* ----- shipment type tabs + freight charges ----- */
     function currentRegion() {
@@ -2029,6 +2030,14 @@
     /* "New Quote": clear every quote field back to a fresh-form state so a new
        quote never inherits the previous entries. Mode selectors (region,
        direction, units) are kept as the user set them. */
+    function defaultPickupDateToToday() {
+      const el = document.querySelector('#quote-form [name="pickup_date"]');
+      if (!el || el.value) return;
+      const d = new Date();
+      const p = (n) => String(n).padStart(2, '0');
+      el.value = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    }
+
     function resetQuoteForm() {
       const form = $('#quote-form');
       form.querySelectorAll('input, textarea, select').forEach((el) => {
@@ -2056,8 +2065,10 @@
       syncQuoteActions();
       syncBillToBlock();
       syncSegs();
-      // Fresh form behaves like page load: re-apply prime-location defaults.
+      // Fresh form behaves like page load: re-apply prime-location defaults
+      // and default the pickup date to today.
       applyPrimeLocation();
+      defaultPickupDateToToday();
       form.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
     $('#cm-confirm').addEventListener('click', confirmCompleteShipment);
