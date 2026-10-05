@@ -2254,15 +2254,22 @@
         )
         .join('');
 
-      /* Full-load scale: no LTL tariff applies — explain instead of pricing. */
+      /* Full-load scale: rated per truck at the 20,000 lb minimum with the
+         carrier's FTL fuel surcharge — or, when no lane has FTL pricing,
+         explain instead of showing LTL fantasy rates. */
       const ftlCard = data.full_load ? (() => {
         const lb = (n) => Number(n || 0).toLocaleString('en-CA');
+        if (rates.length) {
+          return `<div class="card dim-notice"><p>🚛 <strong>Full-load shipment.</strong> ` +
+            `About <strong>${lb(data.linear_ft)} linear feet</strong> — rated as a full load: ` +
+            `<strong>${lb(data.billable_weight_lbs)} lb</strong> billable (20,000 lb minimum) at each ` +
+            `carrier's 20,000-lb rate, with FTL fuel surcharge.</p></div>`;
+        }
         const trailers = Math.max(1, Math.ceil(Number(data.linear_ft || 0) / 53));
         return `<div class="card dim-notice"><p>🚛 <strong>Full-load shipment.</strong> ` +
           `This needs about <strong>${lb(data.linear_ft)} linear feet</strong> of trailer ` +
           `(roughly ${trailers} full 53' trailer${trailers === 1 ? '' : 's'}) — no LTL tariff covers that, ` +
-          `so no instant rate applies. Carriers price full loads per truck, typically rated at a ` +
-          `20,000 lb minimum. Save this quote and we'll price it as a full load.</p></div>`;
+          `and none of the matching lanes has full-load pricing on file. Save this quote and we'll price it manually.</p></div>`;
       })() : '';
 
       /* Dimensional-weight note: what the shipment was actually rated on. */
@@ -2302,7 +2309,7 @@
           <p>This shipment contains dangerous goods. Under Canada's <em>Transportation of Dangerous Goods Regulations</em> the shipper must provide a proper shipping document with the correct shipping name, UN number, class, and packing group, and the goods must be properly packaged, marked, and placarded. Only trained personnel may handle them.</p>
           <p>Rates above include the dangerous-goods surcharge, but <strong>the carrier can still refuse the load</strong>. Your shipment will be held for our review after you complete it — no payment is collected until we confirm acceptance.</p>
         </div>` : ''}
-        ${data.full_load ? '' : `<div class="table-wrap"><table class="data">
+        ${data.full_load && !rates.length ? '' : `<div class="table-wrap"><table class="data">
           <thead><tr><th></th><th>Carrier</th><th>Estimated Transit (Not Guaranteed) <span class="tip" title="Transit times are estimates based on the carrier's published schedule, not a guarantee.">ⓘ</span></th><th>Est. Total Cost (excl. tax) <span class="tip" title="Includes all freight charges / services / fuel surcharges. Excludes gov't taxes.">ⓘ</span></th></tr></thead>
           <tbody>${rows}</tbody>
         </table></div>

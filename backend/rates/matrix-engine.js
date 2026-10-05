@@ -403,6 +403,68 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
   return quotes;
 }
 
+// Full-load (FTL) rating for full-load-scale shipments (see fullLoadCheck).
+// Carriers price FTL per truck: billable = max(actual, FTL_MIN_LB), rated at the
+// lane's 20,000-lb break ("20,000 lb pricing"), FSC at the carrier's TL percent
+// (Admin TL override wins via fscFor). Lanes without a genuine 20,000+ break
+// are skipped — no FTL rate on file, no quote.
+const FTL_MIN_LB = numEnv('FTL_MIN_LB', 20000);
+function quoteFtl({ originCity, originProv, destCity, destProv, weightLbs, packages }) {
+  const st = ensureLoaded();
+  const oCity = norm(originCity);
+  const oProv = norm(originProv);
+  const dCity = norm(destCity);
+  const dProv = norm(destProv);
+  const w = Number(weightLbs);
+  if (!oCity || !dCity || !Number.isFinite(w) || w <= 0) return [];
+  const bw = Math.max(w, FTL_MIN_LB);
+
+  const quotes = [];
+  for (const lane of st.data.lanes) {
+    if (!placeMatches(lane.origin_city, lane.origin_prov, oCity, oProv)) continue;
+    if (!placeMatches(lane.dest_city, lane.dest_prov, dCity, dProv)) continue;
+    if (lane.skid_rates) continue; // FTL is weight-rated, not skid-rated
+    const carrier = st.carriersById.get(lane.carrier_id);
+    const breaks = lane.breaks || [];
+    const last = breaks[breaks.length - 1];
+    if (!last || !(last.max_lb >= 20000) || !(last.rate_cwt > 0)) continue;
+    const dim = billableWeight(w, packages, densityFloorFor(lane.carrier_id));
+    const base = (bw / 100) * last.rate_cwt;
+    const fscPercent = fscFor(carrier, bw);
+    const fsc = base * fscPercent / 100;
+    quotes.push({
+      carrier_id: lane.carrier_id,
+      carrier_label: carrier ? carrier.carrier_label : lane.carrier_id,
+      service: 'FTL',
+      weight_lbs: w,
+      billable_weight_lbs: bw,
+      density_pcf: dim.density_pcf,
+      cube_ft: dim.cube_ft,
+      linear_ft: dim.linear_ft,
+      floor_lb_per_cuft: dim.floor_lb_per_cuft,
+      dimensional_applied: false,
+      dimensional_rule: 'ftl',
+      rate_basis: 'ftl',
+      rate_cwt_used: last.rate_cwt,
+      base_cad: r2(base),
+      fsc_percent: fscPercent,
+      fsc_cad: r2(fsc),
+      total_cad: r2(base + fsc),
+      min_charge_applied: false,
+      currency: 'CAD',
+      source: 'matrix',
+      lane_origin_city: lane.origin_city,
+      lane_origin_prov: lane.origin_prov,
+      lane_dest_city: lane.dest_city,
+      lane_dest_prov: lane.dest_prov,
+      metro_matched:
+        lane.origin_city !== oCity || lane.dest_city !== dCity,
+    });
+  }
+  quotes.sort((a, b) => a.total_cad - b.total_cad || a.carrier_id.localeCompare(b.carrier_id));
+  return quotes;
+}
+
 // Carrier directory with live lane counts.
 function listCarriers() {
   const st = ensureLoaded();
@@ -510,4 +572,4 @@ function upsertCarrierRows(carrierId, rows) {  const st = ensureLoaded();
   return count;
 }
 
-module.exports = { loadMatrix, quoteMatrix, billableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides };
+module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides };
