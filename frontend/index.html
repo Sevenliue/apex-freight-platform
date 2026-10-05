@@ -1407,27 +1407,42 @@
       });
     }
 
-    $('#qe-apply').addEventListener('click', () => {
-      const m = pkgUnits === 'metric';
+    /* Reads the quick-entry fields; null when pieces/total weight are missing. */
+    function quickEntryValues() {
       const pieces = Math.max(1, parseInt($('#qe-pieces').value, 10) || 0);
       const totalW = parseFloat($('#qe-weight').value) || 0; // display units
-      const L = parseFloat($('#qe-len').value) || 0;
-      const W = parseFloat($('#qe-wid').value) || 0;
-      const H = parseFloat($('#qe-hgt').value) || 0;
-      if (!(pieces >= 1)) { showAlert('Enter the number of pieces (1 or more).'); return; }
-      if (!(totalW > 0)) { showAlert('Enter the total weight.'); return; }
-      if (pkgRowsHaveData() && !window.confirm('Replace the package lines below with the quick-entry values?')) return;
+      if (!(pieces >= 1) || !(totalW > 0)) return null;
+      return {
+        pieces,
+        totalW,
+        L: parseFloat($('#qe-len').value) || 0,
+        W: parseFloat($('#qe-wid').value) || 0,
+        H: parseFloat($('#qe-hgt').value) || 0,
+      };
+    }
+
+    /* Fills the grid as a single line (qty = pieces, per-piece weight =
+       total / pieces). Returns false when the fields are incomplete. */
+    function applyQuickEntry(skipConfirm) {
+      const m = pkgUnits === 'metric';
+      const qe = quickEntryValues();
+      if (!qe) { if (!skipConfirm) showAlert('Enter the number of pieces and the total weight.'); return false; }
+      if (!skipConfirm && pkgRowsHaveData() &&
+          !window.confirm('Replace the package lines below with the quick-entry values?')) return false;
       // addPkgRow takes lb/in; convert metric display values back.
       const fW = m ? 1 / LB_TO_KG : 1, fD = m ? 1 / IN_TO_CM : 1;
       $('#pkg-rows').innerHTML = '';
       addPkgRow({
-        qty: pieces,
-        weight_lb: round2((totalW / pieces) * fW),
-        length: L ? round2(L * fD) : '',
-        width: W ? round2(W * fD) : '',
-        height: H ? round2(H * fD) : '',
+        qty: qe.pieces,
+        weight_lb: round2((qe.totalW / qe.pieces) * fW),
+        length: qe.L ? round2(qe.L * fD) : '',
+        width: qe.W ? round2(qe.W * fD) : '',
+        height: qe.H ? round2(qe.H * fD) : '',
       });
-    });
+      return true;
+    }
+
+    $('#qe-apply').addEventListener('click', () => { applyQuickEntry(false); });
 
     document.querySelectorAll('input[name="units"]').forEach((r) => {
       r.addEventListener('change', () => {
@@ -1968,6 +1983,10 @@
 
     $('#quote-form').addEventListener('submit', async (e) => {
       e.preventDefault();
+      // Quick-entry shortcut: if the user filled pieces/total weight above but
+      // never pressed "Fill packages", apply it now instead of failing on the
+      // empty grid row.
+      if (!pkgRowsHaveData() && quickEntryValues()) applyQuickEntry(true);
       const missing = missingQuoteFields();
       if (missing.length) {
         popupAlert('Please fill in the required fields', missing);
