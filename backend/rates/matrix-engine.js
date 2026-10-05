@@ -42,6 +42,10 @@ const DENSITY_FLOOR_LB_PER_CUFT = numEnv('DENSITY_FLOOR_LB_PER_CUFT', 10);
 const LINEAR_FT_THRESHOLD = numEnv('LINEAR_FT_THRESHOLD', 10);
 const LINEAR_FT_RATE_LB = numEnv('LINEAR_FT_RATE_LB', 1000);
 const TRAILER_WIDTH_FT = 8; // usable trailer width for the linear-foot calc
+// At or above this many linear feet the shipment no longer fits one 53' trailer:
+// it is full-load scale and no LTL tariff applies (carriers price FTL per truck,
+// typically rated at a 20,000 lb minimum — never on LTL hundredweight math).
+const FTL_LINEAR_FT = numEnv('FTL_LINEAR_FT', 53);
 
 const r2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 const norm = (v) => String(v == null ? '' : v).trim().toUpperCase();
@@ -244,6 +248,20 @@ function suggestCity(inputCity, inputProv) {
   }
   if (exactFound || !best) return null;
   return `${titleCase(best.city)}, ${best.prov}`;
+}
+
+// Full-load scale check: linear feet from the same footprint math as the
+// linear-foot rule. At/above FTL_LINEAR_FT the shipment cannot move as LTL.
+function fullLoadCheck(packages) {
+  let footprintSqFt = 0;
+  for (const p of packages || []) {
+    const q = Math.max(1, Math.floor(Number(p.qty) || 1));
+    const L = Number(p.length), W = Number(p.width), H = Number(p.height);
+    if (!(L > 0 && W > 0 && H > 0)) continue;
+    footprintSqFt += ((q * L * W) / 144) * (p.stackable ? 0.5 : 1);
+  }
+  const linearFt = footprintSqFt / TRAILER_WIDTH_FT;
+  return { linear_ft: r2(linearFt), full_load: linearFt >= FTL_LINEAR_FT };
 }
 
 // Dimensional weight for a shipment ("cube rule").
@@ -492,4 +510,4 @@ function upsertCarrierRows(carrierId, rows) {  const st = ensureLoaded();
   return count;
 }
 
-module.exports = { loadMatrix, quoteMatrix, billableWeight, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides };
+module.exports = { loadMatrix, quoteMatrix, billableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides };

@@ -2254,6 +2254,17 @@
         )
         .join('');
 
+      /* Full-load scale: no LTL tariff applies — explain instead of pricing. */
+      const ftlCard = data.full_load ? (() => {
+        const lb = (n) => Number(n || 0).toLocaleString('en-CA');
+        const trailers = Math.max(1, Math.ceil(Number(data.linear_ft || 0) / 53));
+        return `<div class="card dim-notice"><p>🚛 <strong>Full-load shipment.</strong> ` +
+          `This needs about <strong>${lb(data.linear_ft)} linear feet</strong> of trailer ` +
+          `(roughly ${trailers} full 53' trailer${trailers === 1 ? '' : 's'}) — no LTL tariff covers that, ` +
+          `so no instant rate applies. Carriers price full loads per truck, typically rated at a ` +
+          `20,000 lb minimum. Save this quote and we'll price it as a full load.</p></div>`;
+      })() : '';
+
       /* Dimensional-weight note: what the shipment was actually rated on. */
       const dimCard = (() => {
         const lb = (n) => Number(n || 0).toLocaleString('en-CA');
@@ -2282,7 +2293,7 @@
 
       syncRateEmptyHide();
       box.innerHTML = `
-        ${dimCard}
+        ${data.full_load ? ftlCard : dimCard}
         ${data.holiday_notice ? `<div class="card holiday-notice">
           <p>⚠ ${esc(data.holiday_notice)}</p>
         </div>` : ''}
@@ -2291,11 +2302,11 @@
           <p>This shipment contains dangerous goods. Under Canada's <em>Transportation of Dangerous Goods Regulations</em> the shipper must provide a proper shipping document with the correct shipping name, UN number, class, and packing group, and the goods must be properly packaged, marked, and placarded. Only trained personnel may handle them.</p>
           <p>Rates above include the dangerous-goods surcharge, but <strong>the carrier can still refuse the load</strong>. Your shipment will be held for our review after you complete it — no payment is collected until we confirm acceptance.</p>
         </div>` : ''}
-        <div class="table-wrap"><table class="data">
+        ${data.full_load ? '' : `<div class="table-wrap"><table class="data">
           <thead><tr><th></th><th>Carrier</th><th>Estimated Transit (Not Guaranteed) <span class="tip" title="Transit times are estimates based on the carrier's published schedule, not a guarantee.">ⓘ</span></th><th>Est. Total Cost (excl. tax) <span class="tip" title="Includes all freight charges / services / fuel surcharges. Excludes gov't taxes.">ⓘ</span></th></tr></thead>
           <tbody>${rows}</tbody>
         </table></div>
-        <p class="note" style="margin-top:8px">Fuel surcharge included. Carriers reset it weekly from the fuel price index, so quotes always use the current week's rate. <a href="/faq" data-page="faq">Why quotes change</a></p>
+        <p class="note" style="margin-top:8px">Fuel surcharge included. Carriers reset it weekly from the fuel price index, so quotes always use the current week's rate. <a href="/faq" data-page="faq">Why quotes change</a></p>`}
 `;
 
       syncQuoteActions();

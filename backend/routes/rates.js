@@ -286,6 +286,14 @@ router.post('/', async (req, res) => {
       dimensional_rule: 'actual', dim_lines: 0 };
   }
   trace.stage('packages-ok');
+  // Full-load scale: at/above one trailer of linear feet no LTL tariff applies.
+  // Skip matrix rating (LTL hundredweight math on a 175,000 lb "billable" weight
+  // is fantasy) and tell the board to explain instead of pricing.
+  let scaleInfo = { linear_ft: (dimInfo && dimInfo.linear_ft) || 0, full_load: false };
+  try {
+    scaleInfo = typeof matrix.fullLoadCheck === 'function' ? matrix.fullLoadCheck(packages) : scaleInfo;
+  } catch { /* keep default */ }
+  const isFullLoad = !!scaleInfo.full_load;
   const accessorialCodes = (Array.isArray(rawAccessorials) ? rawAccessorials : [])
     .filter((c) => acc.isKnown(c));
   const hasDG = packages.some((p) => p.dg);
@@ -331,7 +339,7 @@ router.post('/', async (req, res) => {
 
   let matrixQuotes = [];
   let skidCount = null;
-  if (!worldwide) {
+  if (!worldwide && !isFullLoad) {
     try {
       const _sk = Number(rawSkids);
       skidCount = Number.isInteger(_sk) && _sk > 0 ? _sk : null;
@@ -437,6 +445,8 @@ router.post('/', async (req, res) => {
     billable_weight_lbs: dimInfo.billable_lbs,
     density_pcf: dimInfo.density_pcf,
     cube_ft: dimInfo.cube_ft,
+    linear_ft: scaleInfo.linear_ft,
+    full_load: isFullLoad,
     dimensional_applied: dimInfo.dimensional_applied,
     dimensional_rule: dimInfo.dimensional_rule,
     user_id: effectiveUserId,
@@ -449,7 +459,8 @@ router.post('/', async (req, res) => {
   const warnings = [];
 
   // EasyPost parcel rates (optional). Rating is free; nothing is charged.
-  if (easypost.isEnabled()) {
+  // Skipped for full-load-scale shipments: parcel pricing can't cover them.
+  if (easypost.isEnabled() && !isFullLoad) {
     try {
       const shipment = await easypost.createShipment({
         to: {
@@ -559,7 +570,8 @@ router.post('/', async (req, res) => {
     billable_weight_lbs: dimInfo.billable_lbs,
     density_pcf: dimInfo.density_pcf,
     cube_ft: dimInfo.cube_ft,
-    linear_ft: dimInfo.linear_ft,
+    linear_ft: scaleInfo.linear_ft,
+    full_load: isFullLoad,
     dimensional_applied: dimInfo.dimensional_applied,
     dimensional_rule: dimInfo.dimensional_rule,
     packages,
