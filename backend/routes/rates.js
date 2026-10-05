@@ -339,14 +339,11 @@ router.post('/', async (req, res) => {
 
   let matrixQuotes = [];
   let skidCount = null;
-  if (!worldwide) {
+  if (!worldwide && !isFullLoad) {
     try {
       const _sk = Number(rawSkids);
       skidCount = Number.isInteger(_sk) && _sk > 0 ? _sk : null;
-      // Full-load scale: FTL rating (20,000 lb minimum, TL fuel surcharge)
-      // instead of LTL hundredweight math.
-      const qfn = isFullLoad && typeof matrix.quoteFtl === 'function' ? matrix.quoteFtl : matrix.quoteMatrix;
-      matrixQuotes = qfn({
+      matrixQuotes = matrix.quoteMatrix({
         originCity: origin.city,
         originProv: origin.state,
         destCity: destination.city,

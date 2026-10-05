@@ -73,7 +73,25 @@ router.post('/full-load-request', async (req, res) => {
   }
   try {
     const notifyLib = require('../lib/notify');
-    notifyLib.notify('full_load_request', null, { request: rec });
+    // Suggested FTL pricing basis for the admin: 20,000 lb minimum at the
+    // lane's 20,000-lb break with the carrier's FTL fuel surcharge.
+    let ftlHint = '';
+    try {
+      const matrix = require('../lib/matrix');
+      if (typeof matrix.quoteFtl === 'function') {
+        const qs = matrix.quoteFtl({
+          originCity: origin_city, originProv: rec.origin_province,
+          destCity: dest_city, destProv: rec.dest_province,
+          weightLbs: rec.weight_lb, packages: [],
+        });
+        if (qs.length) {
+          const b = qs[0];
+          const cad = (n) => '$' + Number(n || 0).toLocaleString('en-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          ftlHint = `Suggested FTL basis: ${b.carrier_label} — 20,000 lb × $${b.rate_cwt_used}/CWT = ${cad(b.base_cad)} base + ${b.fsc_percent}% FTL fuel surcharge (${cad(b.fsc_cad)}) ≈ ${cad(b.total_cad)} total.`;
+        }
+      }
+    } catch (err) { console.error('[quotes] FTL hint failed (non-fatal):', err.message); }
+    notifyLib.notify('full_load_request', null, { request: rec, ftl_hint: ftlHint });
   } catch (err) { console.error('[notify] hook failed (non-fatal):', err.message); }
   res.json({ ok: true });
 });
