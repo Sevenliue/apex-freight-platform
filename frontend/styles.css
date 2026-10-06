@@ -371,7 +371,7 @@ p.hint { font-size: 12.5px; color: var(--muted); margin: -4px 0 10px; }
    horizontally inside the panel instead of breaking the page layout. */
 .pkg-table th:nth-child(1), .pkg-table td:nth-child(1) { width: 44px; }
 .pkg-table th:nth-child(2), .pkg-table td:nth-child(2) { width: 90px; }
-.pkg-table th:nth-child(3), .pkg-table td:nth-child(3) { min-width: 80px; }
+.pkg-table th:nth-child(3), .pkg-table td:nth-child(3) { width: 140px; }
 .pkg-table th:nth-child(4), .pkg-table td:nth-child(4) { width: 76px; }
 .pkg-table th:nth-child(5), .pkg-table td:nth-child(5) { width: 68px; }
 .pkg-table th:nth-child(6), .pkg-table td:nth-child(6) { width: 68px; }
