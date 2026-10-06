@@ -366,29 +366,15 @@
         </div>
         <section class="qq-panel">
           <h3 class="qq-head">Packages</h3>
-          <div class="qq-body quick-entry">
-            <span class="qe-title">Quick entry <span class="note">— identical pieces</span></span>
-            <label class="qe"><input type="number" id="qe-pieces" min="1" step="1" value="1"> <span>pieces</span></label>
-            <label class="qe"><input type="number" id="qe-weight" min="0" step="0.1" placeholder="0.0"> <span><span class="qe-wunit">lb</span> total</span></label>
-            <label class="qe"><span>one piece</span>
-              <input type="number" id="qe-len" min="0" step="0.1" placeholder="L" aria-label="Length of one piece"> <span>×</span>
-              <input type="number" id="qe-wid" min="0" step="0.1" placeholder="W" aria-label="Width of one piece"> <span>×</span>
-              <input type="number" id="qe-hgt" min="0" step="0.1" placeholder="H" aria-label="Height of one piece">
-              <span class="qe-dunit">in</span>
-            </label>
-            <label class="qe"><input type="checkbox" id="qe-stackable"> <span>stackable</span></label>
-            <button type="button" class="btn small" id="qe-apply">Fill packages</button>
-            <button type="button" class="btn small" id="qe-cols" title="Show the product-name and dangerous-goods columns">More columns</button>
-          </div>
           <div class="table-wrap"><table class="data pkg-table" id="pkg-table">
             <thead><tr>
-              <th>Qty</th><th>Package Type</th><th class="col-rare">Product Name</th><th>Weight (lb)</th>
+              <th>Qty</th><th>Package Type</th><th class="col-rare">Product Name</th><th>Total weight (lb)</th>
               <th>Length (in)</th><th>Width (in)</th><th>Height (in)</th>
               <th>Stackable</th><th class="col-rare">DG?</th><th class="col-rare">UN #</th><th class="col-rare">Class</th><th class="col-rare">Pkg. Grp.</th><th>Delete</th>
             </tr></thead>
             <tbody id="pkg-rows"></tbody>
           </table></div>
-          <div class="qq-body actions"><button type="button" class="btn small" id="add-pkg">+ Add package</button> <button type="button" class="btn small" id="manage-lists">Custom types…</button></div>
+          <div class="qq-body actions"><button type="button" class="btn small" id="add-pkg">+ Add package</button> <button type="button" class="btn small" id="manage-lists">Custom types…</button> <button type="button" class="btn small" id="pkg-cols" title="Show the product-name and dangerous-goods columns">More columns</button></div>
         </section>
         <div class="qq-services">
           <section class="qq-panel">
@@ -1388,103 +1374,15 @@
     function renderUnitHeaders() {
       const ths = document.querySelectorAll('#pkg-table thead th');
       const m = pkgUnits === 'metric';
-      if (ths[3]) ths[3].textContent = m ? 'Weight (kg)' : 'Weight (lb)';
+      if (ths[3]) ths[3].textContent = m ? 'Total weight (kg)' : 'Total weight (lb)';
       if (ths[4]) ths[4].textContent = m ? 'Length (cm)' : 'Length (in)';
       if (ths[5]) ths[5].textContent = m ? 'Width (cm)' : 'Width (in)';
       if (ths[6]) ths[6].textContent = m ? 'Height (cm)' : 'Height (in)';
     }
 
-    /* Rosenau-style quick entry: N identical pieces, total weight, dims for one
-       piece. Fills the grid as a single line (qty = pieces, per-piece weight =
-       total / pieces); the rating engine's dimensional math is unchanged. */
-    function syncQuickEntryUnits() {
-      const m = pkgUnits === 'metric';
-      document.querySelectorAll('.qe-wunit').forEach((s) => { s.textContent = m ? 'kg' : 'lb'; });
-      document.querySelectorAll('.qe-dunit').forEach((s) => { s.textContent = m ? 'cm' : 'in'; });
-    }
-
-    function pkgRowsHaveData() {
-      return [...$('#pkg-rows').rows].some((tr) => {
-        const v = (n) => { const e = tr.querySelector(`[name="${n}"]`); return e ? e.value : ''; };
-        return (parseFloat(v('weight_lb')) || 0) > 0 || v('length') !== '' || v('width') !== '' || v('height') !== '';
-      });
-    }
-
-    /* Reads the quick-entry fields; null when pieces/total weight are missing. */
-    function quickEntryValues() {
-      const pieces = Math.max(1, parseInt($('#qe-pieces').value, 10) || 0);
-      const totalW = parseFloat($('#qe-weight').value) || 0; // display units
-      if (!(pieces >= 1) || !(totalW > 0)) return null;
-      return {
-        pieces,
-        totalW,
-        L: parseFloat($('#qe-len').value) || 0,
-        W: parseFloat($('#qe-wid').value) || 0,
-        H: parseFloat($('#qe-hgt').value) || 0,
-        stackable: !!($('#qe-stackable') && $('#qe-stackable').checked),
-      };
-    }
-
-    /* Fills the grid as a single line (qty = pieces, per-piece weight =
-       total / pieces). Returns false when the fields are incomplete. */
-    function applyQuickEntry(skipConfirm) {
-      const m = pkgUnits === 'metric';
-      const qe = quickEntryValues();
-      if (!qe) { if (!skipConfirm) showAlert('Enter the number of pieces and the total weight.'); return false; }
-      if (!skipConfirm && pkgRowsHaveData() &&
-          !window.confirm('Replace the package lines below with the quick-entry values?')) return false;
-      // addPkgRow takes lb/in; convert metric display values back.
-      const fW = m ? 1 / LB_TO_KG : 1, fD = m ? 1 / IN_TO_CM : 1;
-      $('#pkg-rows').innerHTML = '';
-      addPkgRow({
-        qty: qe.pieces,
-        weight_lb: round2((qe.totalW / qe.pieces) * fW),
-        length: qe.L ? round2(qe.L * fD) : '',
-        width: qe.W ? round2(qe.W * fD) : '',
-        height: qe.H ? round2(qe.H * fD) : '',
-        stackable: qe.stackable,
-      });
-      syncRareCols();
-      return true;
-    }
-
-    $('#qe-apply').addEventListener('click', () => { applyQuickEntry(false); });
-
-    /* Quick entry and the package grid are mutually exclusive: typing in one
-       clears the other so the two can never be calculated together. */
-    const QE_FIELD_IDS = ['qe-pieces', 'qe-weight', 'qe-len', 'qe-wid', 'qe-hgt', 'qe-stackable'];
-    const qeField = (id) => document.getElementById(id);
-    const qeFieldHasInput = (id) => {
-      const el = qeField(id);
-      if (!el) return false;
-      if (el.type === 'checkbox') return el.checked;
-      if (id === 'qe-pieces') return el.value !== '1' && el.value.trim() !== '';
-      return (el.value || '').trim() !== '';
-    };
-    const quickEntryHasInput = () => QE_FIELD_IDS.some(qeFieldHasInput);
-    QE_FIELD_IDS.forEach((id) => {
-      const el = qeField(id);
-      if (el) el.addEventListener('input', () => {
-        if (quickEntryHasInput() && pkgRowsHaveData()) {
-          $('#pkg-rows').innerHTML = '';
-          addPkgRow();
-          syncRareCols();
-          syncTotalWeightLine();
-        }
-      });
-    });
-    // Manual grid edits invalidate the quick-entry values.
-    $('#pkg-rows').addEventListener('input', () => {
-      if (quickEntryHasInput()) {
-        QE_FIELD_IDS.forEach((id) => {
-          const el = qeField(id);
-          if (!el) return;
-          if (el.type === 'checkbox') el.checked = false;
-          else el.value = id === 'qe-pieces' ? '1' : '';
-        });
-      }
-    });
-
+    /* Package grid: each line takes the TOTAL line weight plus the dimensions
+       of one piece. The rating engine multiplies dims by qty and sums the line
+       weights for the actual weight. */
     /* Rare columns (product name + DG set) collapse on narrow screens; the
        toggle brings them back, and they auto-reveal when any row uses them. */
     let rareColsPinned = false;
@@ -1497,10 +1395,10 @@
       });
       const show = has || rareColsPinned;
       document.body.classList.toggle('show-rare-cols', show);
-      const btn = $('#qe-cols');
+      const btn = $('#pkg-cols');
       if (btn) btn.textContent = show ? 'Fewer columns' : 'More columns';
     }
-    $('#qe-cols').addEventListener('click', () => { rareColsPinned = !rareColsPinned; syncRareCols(); });
+    $('#pkg-cols').addEventListener('click', () => { rareColsPinned = !rareColsPinned; syncRareCols(); });
     $('#pkg-rows').addEventListener('change', syncRareCols);
     $('#pkg-rows').addEventListener('input', syncRareCols);
 
@@ -1511,8 +1409,7 @@
         document.querySelectorAll('#pkg-rows tr').forEach((tr) => convertPkgRowUnits(tr, toMetric));
         pkgUnits = toMetric ? 'metric' : 'imperial';
         renderUnitHeaders();
-        syncQuickEntryUnits();
-        syncSegs();
+            syncSegs();
         syncTotalWeightLine();
       });
     });
@@ -1643,7 +1540,7 @@
       if (!el) return;
       let lbs = 0;
       try {
-        lbs = collectPackages().reduce((s, p) => s + (p.qty || 0) * (p.weight_lb || 0), 0);
+        lbs = collectPackages().reduce((s, p) => s + (p.weight_lb || 0), 0);
       } catch { lbs = 0; }
       const m = pkgUnits === 'metric';
       el.innerHTML = 'Total weight: <strong>' + esc(m ? String(round1(lbs * LB_TO_KG)) + ' kg' : String(round2(lbs)) + ' lb') + '</strong>';
@@ -1840,7 +1737,6 @@
       });
     });
     addPkgRow();
-    syncQuickEntryUnits();
     syncRareCols();
     defaultPickupDateToToday();
 
@@ -2063,7 +1959,7 @@
           el.selectedIndex = def >= 0 ? def : 0;
           return;
         }
-        el.value = el.id === 'qe-pieces' ? '1' : '';
+        el.value = '';
         delete el.dataset.prime;
       });
       // Packages back to a single empty row.
@@ -2091,10 +1987,6 @@
 
     $('#quote-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      // Quick-entry shortcut: if the user filled pieces/total weight above but
-      // never pressed "Fill packages", apply it now instead of failing on the
-      // empty grid row.
-      if (!pkgRowsHaveData() && quickEntryValues()) applyQuickEntry(true);
       const missing = missingQuoteFields();
       if (missing.length) {
         popupAlert('Please fill in the required fields', missing);
@@ -3511,7 +3403,7 @@
               <td>${esc((q.created_at || '').slice(0, 10))}</td>
               <td>${esc(q.route || '—')}<br><a href="${esc(q.bol_url)}" target="_blank" rel="noopener">BOL</a></td>
               <td>${esc(q.customer_email || '—')}</td>
-              <td>${(q.dg_lines || []).map((l) => `${esc(l.product)} — UN ${esc(l.un_number)}, Class ${esc(l.class)}${l.pkg_group && l.pkg_group !== '—' ? ', PG ' + esc(l.pkg_group) : ''} (${esc(String(l.qty))} × ${esc(String(l.weight_lb))} lb)`).join('<br>') || '—'}</td>
+              <td>${(q.dg_lines || []).map((l) => `${esc(l.product)} — UN ${esc(l.un_number)}, Class ${esc(l.class)}${l.pkg_group && l.pkg_group !== '—' ? ', PG ' + esc(l.pkg_group) : ''} (${esc(String(l.qty))} pcs, ${esc(String(l.weight_lb))} lb total)`).join('<br>') || '—'}</td>
               <td class="num">${cad(q.charged_amount)}</td>
               <td><button class="btn primary" data-dg-approve="${esc(q.id)}">Approve</button></td>
               <td><button class="btn danger" data-dg-reject="${esc(q.id)}">Reject</button></td>

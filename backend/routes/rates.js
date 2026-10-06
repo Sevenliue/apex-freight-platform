@@ -270,7 +270,7 @@ router.post('/', async (req, res) => {
   } catch (err) {
     return bad(res, 400, err.message);
   }
-  const totalWeightLbs = round2(packages.reduce((s, p) => s + p.qty * p.weight_lb, 0));
+  const totalWeightLbs = round2(packages.reduce((s, p) => s + p.weight_lb, 0));
   // Dimensional weight ("cube rule"): billable = max(actual lb, cube_ft x density
   // floor, linear_ft x 1000 when over the linear threshold). Falls back to actual
   // weight when the engine has no billableWeight (fallback matrix) or no dims.
