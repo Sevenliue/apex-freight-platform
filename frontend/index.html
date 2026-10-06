@@ -376,6 +376,7 @@
               <input type="number" id="qe-hgt" min="0" step="0.1" placeholder="H" aria-label="Height of one piece">
               <span class="qe-dunit">in</span>
             </label>
+            <label class="qe"><input type="checkbox" id="qe-stackable"> <span>stackable</span></label>
             <button type="button" class="btn small" id="qe-apply">Fill packages</button>
             <button type="button" class="btn small" id="qe-cols" title="Show the product-name and dangerous-goods columns">More columns</button>
           </div>
@@ -1420,6 +1421,7 @@
         L: parseFloat($('#qe-len').value) || 0,
         W: parseFloat($('#qe-wid').value) || 0,
         H: parseFloat($('#qe-hgt').value) || 0,
+        stackable: !!($('#qe-stackable') && $('#qe-stackable').checked),
       };
     }
 
@@ -1440,6 +1442,7 @@
         length: qe.L ? round2(qe.L * fD) : '',
         width: qe.W ? round2(qe.W * fD) : '',
         height: qe.H ? round2(qe.H * fD) : '',
+        stackable: qe.stackable,
       });
       syncRareCols();
       return true;
@@ -1449,11 +1452,16 @@
 
     /* Quick entry and the package grid are mutually exclusive: typing in one
        clears the other so the two can never be calculated together. */
-    const QE_FIELD_IDS = ['qe-pieces', 'qe-weight', 'qe-len', 'qe-wid', 'qe-hgt'];
+    const QE_FIELD_IDS = ['qe-pieces', 'qe-weight', 'qe-len', 'qe-wid', 'qe-hgt', 'qe-stackable'];
     const qeField = (id) => document.getElementById(id);
-    const quickEntryHasInput = () =>
-      QE_FIELD_IDS.some((id) => { const el = qeField(id); return el && id !== 'qe-pieces' && (el.value || '').trim() !== ''; }) ||
-      (qeField('qe-pieces') && qeField('qe-pieces').value !== '1' && qeField('qe-pieces').value.trim() !== '');
+    const qeFieldHasInput = (id) => {
+      const el = qeField(id);
+      if (!el) return false;
+      if (el.type === 'checkbox') return el.checked;
+      if (id === 'qe-pieces') return el.value !== '1' && el.value.trim() !== '';
+      return (el.value || '').trim() !== '';
+    };
+    const quickEntryHasInput = () => QE_FIELD_IDS.some(qeFieldHasInput);
     QE_FIELD_IDS.forEach((id) => {
       const el = qeField(id);
       if (el) el.addEventListener('input', () => {
@@ -1468,7 +1476,12 @@
     // Manual grid edits invalidate the quick-entry values.
     $('#pkg-rows').addEventListener('input', () => {
       if (quickEntryHasInput()) {
-        QE_FIELD_IDS.forEach((id) => { const el = qeField(id); if (el) el.value = id === 'qe-pieces' ? '1' : ''; });
+        QE_FIELD_IDS.forEach((id) => {
+          const el = qeField(id);
+          if (!el) return;
+          if (el.type === 'checkbox') el.checked = false;
+          else el.value = id === 'qe-pieces' ? '1' : '';
+        });
       }
     });
 
