@@ -5491,6 +5491,11 @@
       box.innerHTML = '<div class="card empty">Loading density floors…</div>';
       try {
         const { carriers, default_floor } = await api.getDensityFloors();
+        let dimOn = {};
+        try {
+          const dw = await api.getDimWeight();
+          (dw.carriers || []).forEach((c) => { dimOn[c.carrier_id] = c.dim_weight_enabled !== false; });
+        } catch (e) { /* dim-weight endpoint unavailable: assume on */ }
         if (!carriers.length) {
           box.innerHTML = '<h2>Density floors</h2><div class="card empty">No rate-matrix carriers found.</div>';
           return;
@@ -5500,10 +5505,12 @@
           '<h2>Density floors</h2><p class="lede">Dimensional weight bills the greater of actual weight or ' +
           'cubic feet × density floor. The global default is <strong>' + dflt + ' lb/cu ft</strong> (Western Canadian practice). ' +
           'When a carrier confirms its own floor — e.g. 15 lb/cu ft on some lanes — set it per carrier here; ' +
-          'new quotes use it immediately. Clearing a carrier restores the default. Edit any rows, then <strong>Save all changes</strong> once.</p>' +
+          'new quotes use it immediately. Clearing a carrier restores the default. Edit any rows, then <strong>Save all changes</strong> once. ' +
+          'The <strong>Dim weight</strong> checkbox turns dimensional weight off per carrier — ' +
+          'carriers that rate on actual weight only should have it off.</p>' +
           '<div style="margin:0 0 10px"><button type="button" class="btn primary" id="density-save-all">Save all changes</button> <span class="note" id="density-save-all-note"></span></div>' +
           '<div class="table-wrap"><table class="data"><thead><tr>' +
-          '<th>Carrier</th><th class="num">Density floor (lb/cu ft)</th><th>Last updated</th><th></th><th></th>' +
+          '<th>Carrier</th><th class="num">Density floor (lb/cu ft)</th><th>Dim weight</th><th>Last updated</th><th></th><th></th>' +
           '</tr></thead><tbody>' +
           carriers
             .slice()
@@ -5514,6 +5521,7 @@
             return `<tr data-density-row="${esc(c.carrier_id)}">
               <td><strong>${esc(c.carrier_label)}</strong>${c.floor_overridden ? ' <span class="badge">custom</span>' : ''}<br><span class="note">${esc(String(c.lane_count || 0))} lanes · default ${dflt}</span></td>
               <td class="num"><input type="number" min="0" max="100" step="0.5" data-f="floor" value="${cur === '' ? '' : esc(String(cur))}" placeholder="${dflt}" style="width:90px"></td>
+              <td><label class="note"><input type="checkbox" data-f="dimweight"${dimOn[c.carrier_id] === false ? '' : ' checked'}> on</label></td>
               <td>${esc(asOf)}</td>
               <td><button type="button" class="btn primary small" data-density-save="${esc(c.carrier_id)}">Save</button></td>
               <td>${c.floor_overridden ? `<button type="button" class="btn small" data-density-reset="${esc(c.carrier_id)}">Reset</button>` : ''}</td>
@@ -5569,6 +5577,22 @@
               showAlert('Density floor reset to the default.');
               reload();
             } catch (err) { showAlert('Could not reset: ' + err.message); btn.disabled = false; }
+          })
+        );
+        box.querySelectorAll('[data-f="dimweight"]').forEach((cb) =>
+          cb.addEventListener('change', async () => {
+            const row = cb.closest('[data-density-row]');
+            const id = row ? row.getAttribute('data-density-row') : null;
+            if (!id) return;
+            const on = cb.checked;
+            cb.disabled = true;
+            try {
+              await api.setDimWeight(id, on);
+              showAlert(on
+                ? 'Dimensional weight ON — this carrier rates dimensionally again.'
+                : 'Dimensional weight OFF — this carrier now rates on actual weight only.');
+            } catch (err) { showAlert('Could not save: ' + err.message); cb.checked = !on; }
+            cb.disabled = false;
           })
         );
       } catch (err) {

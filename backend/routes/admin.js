@@ -735,3 +735,90 @@ router.put('/density-floors/:carrier_id', async (req, res) => {
     return res.status(502).json({ error: 'Could not save density floor: ' + err.message });
   }
 });
+
+// GET /api/admin/dim-weight — carriers with their dimensional-weight switch.
+// Default is ON for every carrier (dimensional weight applies); an admin can
+// turn it OFF per carrier for carriers that rate on actual weight only.
+router.get('/dim-weight', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const off = typeof matrix.getDimWeightFlags === 'function' ? matrix.getDimWeightFlags() : {};
+    const carriers = matrix.listCarriers().map((c) => ({
+      carrier_id: c.carrier_id,
+      carrier_label: c.carrier_label,
+      lane_count: c.lane_count,
+      dim_weight_enabled: !off[c.carrier_id],
+    }));
+    return res.json({ carriers });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not load dim-weight flags: ' + err.message });
+  }
+});
+
+// PUT /api/admin/dim-weight/bulk — set the dim-weight switch for many
+// carriers in one request. Body {updates: [{carrier_id, enabled}]}.
+router.put('/dim-weight/bulk', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  const updates = Array.isArray((req.body || {}).updates) ? req.body.updates : [];
+  const email = (req.user && req.user.email) || null;
+  const done = [], errors = [];
+  for (const u of updates) {
+    const carrierId = String((u || {}).carrier_id || '').trim();
+    const known = matrix.listCarriers().some((c) => c.carrier_id === carrierId);
+    if (!known) { errors.push({ carrier_id: carrierId, error: 'Unknown carrier.' }); continue; }
+    const enabled = (u || {}).enabled;
+    if (typeof enabled !== 'boolean') { errors.push({ carrier_id: carrierId, error: 'enabled must be true or false.' }); continue; }
+    try {
+      if (enabled) {
+        await db.query('DELETE FROM carrier_dim_weight WHERE carrier_id = $1', [carrierId]);
+      } else {
+        await db.query(
+          `INSERT INTO carrier_dim_weight (carrier_id, enabled, updated_at, updated_by)
+           VALUES ($1, false, now(), $2)
+           ON CONFLICT (carrier_id) DO UPDATE SET
+             enabled = false, updated_at = now(), updated_by = EXCLUDED.updated_by`,
+          [carrierId, email]
+        );
+      }
+      if (typeof matrix.setDimWeightEnabled === 'function') matrix.setDimWeightEnabled(carrierId, enabled);
+      done.push({ carrier_id: carrierId, dim_weight_enabled: enabled });
+    } catch (err) {
+      errors.push({ carrier_id: carrierId, error: err.message });
+    }
+  }
+  return res.json({ updated: done, errors });
+});
+
+// PUT /api/admin/dim-weight/:carrier_id — set one carrier's dim-weight
+// switch. Body {enabled: boolean}. True (the default) deletes the row.
+router.put('/dim-weight/:carrier_id', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  const carrierId = String(req.params.carrier_id || '').trim();
+  const known = matrix.listCarriers().some((c) => c.carrier_id === carrierId);
+  if (!known) return res.status(404).json({ error: 'Unknown carrier.' });
+  const enabled = (req.body || {}).enabled;
+  if (typeof enabled !== 'boolean') {
+    return res.status(400).json({ error: 'enabled must be true or false.' });
+  }
+  try {
+    const email = (req.user && req.user.email) || null;
+    if (enabled) {
+      await db.query('DELETE FROM carrier_dim_weight WHERE carrier_id = $1', [carrierId]);
+    } else {
+      await db.query(
+        `INSERT INTO carrier_dim_weight (carrier_id, enabled, updated_at, updated_by)
+         VALUES ($1, false, now(), $2)
+         ON CONFLICT (carrier_id) DO UPDATE SET
+           enabled = false, updated_at = now(), updated_by = EXCLUDED.updated_by`,
+        [carrierId, email]
+      );
+    }
+    if (typeof matrix.setDimWeightEnabled === 'function') matrix.setDimWeightEnabled(carrierId, enabled);
+    return res.json({ carrier_id: carrierId, dim_weight_enabled: enabled });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not save dim-weight flag: ' + err.message });
+  }
+});

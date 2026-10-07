@@ -438,6 +438,17 @@ CREATE TABLE IF NOT EXISTS carrier_density_floor (
   updated_by        varchar(160)
 );
 
+-- Per-carrier dimensional-weight on/off. When a row exists with enabled =
+-- false, the carrier rates on actual weight only (no cube rule, no
+-- linear-foot rule). No row (or enabled = true) means dimensional weight
+-- applies — the default, preserving existing quote behavior.
+CREATE TABLE IF NOT EXISTS carrier_dim_weight (
+  carrier_id   varchar(80)   PRIMARY KEY,
+  enabled      boolean       NOT NULL DEFAULT true,
+  updated_at   timestamptz   NOT NULL DEFAULT now(),
+  updated_by   varchar(160)
+);
+
 -- Carrier self-serve rate-sheet uploads. Carriers submit their tariff in the
 -- ShipRate template format; rows stay pending until Seven approves them in
 -- Admin, at which point the lanes move to carrier_matrix_rates and go live.

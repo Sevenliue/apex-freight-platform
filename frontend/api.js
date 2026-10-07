@@ -474,6 +474,20 @@ export function setDensityFloorBulk(updates) {
   return request('PUT', '/api/admin/density-floors/bulk', { updates });
 }
 
+/* Admin — per-carrier dimensional-weight on/off. Default ON; turning it off
+   makes the carrier rate on actual weight only. */
+export function getDimWeight() {
+  return get('/api/admin/dim-weight');
+}
+export function setDimWeight(carrierId, enabled) {
+  return request('PUT', `/api/admin/dim-weight/${encodeURIComponent(carrierId)}`, {
+    enabled: !!enabled,
+  });
+}
+export function setDimWeightBulk(updates) {
+  return request('PUT', '/api/admin/dim-weight/bulk', { updates });
+}
+
 /* Carrier self-serve rate uploads. */
 export function submitCarrierUpload(payload) {
   return request('POST', '/api/carrier-uploads', payload);

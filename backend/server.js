@@ -274,9 +274,10 @@ if (require.main === module) {
     // Density-floor overrides: same pattern — load admin-set per-carrier
     // cube-rule floors into the engine, refresh every 5 minutes.
     try {
-      const { loadDensityFloors } = require('./lib/density');
+      const { loadDensityFloors, loadDimWeightFlags } = require('./lib/density');
       await loadDensityFloors();
-      const t = setInterval(() => { loadDensityFloors(); }, 5 * 60 * 1000);
+      await loadDimWeightFlags();
+      const t = setInterval(() => { loadDensityFloors(); loadDimWeightFlags(); }, 5 * 60 * 1000);
       if (t.unref) t.unref();
     } catch (err) {
       console.error('[density] init failed (continuing):', err.message);

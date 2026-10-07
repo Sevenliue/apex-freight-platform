@@ -156,6 +156,28 @@ function densityFloorFor(carrierId) {
   return DENSITY_FLOOR_LB_PER_CUFT;
 }
 
+// Per-carrier dimensional-weight on/off (from the carrier_dim_weight DB
+// table). Default is ON — dimensional weight applies unless an admin turns it
+// off for a carrier (some smaller carriers rate on actual weight only).
+// Stored as a Set of carrier_ids with dim weight DISABLED; absence means on.
+const _dimWeightOff = new Set();
+
+function setDimWeightEnabled(carrierId, enabled) {
+  if (!carrierId) return;
+  if (enabled === false) _dimWeightOff.add(carrierId);
+  else _dimWeightOff.delete(carrierId);
+}
+
+function dimWeightEnabledFor(carrierId) {
+  return !carrierId || !_dimWeightOff.has(carrierId);
+}
+
+function getDimWeightFlags() {
+  const out = {};
+  for (const id of _dimWeightOff) out[id] = { enabled: false };
+  return out;
+}
+
 function ensureLoaded() {
   if (_state) return _state;
   const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
@@ -359,9 +381,12 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
     }
 
     // Dimensional weight with this carrier's density floor (admin override
-    // or the global default). Rating weight: dimensional when bulky.
+    // or the global default) — skipped entirely when dim weight is turned
+    // off for the carrier (rates on actual weight). Rating weight:
+    // dimensional when bulky.
     const dim = billableWeight(w, packages, densityFloorFor(lane.carrier_id));
-    const bw = dim.billable_lbs;
+    const dimOn = dimWeightEnabledFor(lane.carrier_id);
+    const bw = dimOn ? dim.billable_lbs : dim.actual_lbs;
     const brk = (lane.breaks || []).find((b) => bw <= b.max_lb);
     if (!brk || !(brk.rate_cwt > 0)) continue;
     const raw = (bw / 100) * brk.rate_cwt;
@@ -379,8 +404,9 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
       density_pcf: dim.density_pcf,
       cube_ft: dim.cube_ft,
       floor_lb_per_cuft: dim.floor_lb_per_cuft,
-      dimensional_applied: dim.dimensional_applied,
-      dimensional_rule: dim.dimensional_rule,
+      dimensional_applied: dimOn && dim.dimensional_applied,
+      dimensional_rule: dimOn ? dim.dimensional_rule : 'actual',
+      dim_weight_enabled: dimOn,
       rate_cwt_used: brk.rate_cwt,
       base_cad: r2(base),
       fsc_percent: fscPercent,
@@ -572,4 +598,4 @@ function upsertCarrierRows(carrierId, rows) {  const st = ensureLoaded();
   return count;
 }
 
-module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides };
+module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides };
