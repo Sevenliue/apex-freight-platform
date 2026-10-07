@@ -579,8 +579,19 @@ fieldset:has(#acc-pickup) .check-grid .check input, fieldset:has(#acc-delivery) 
 .inv-dir.out { color: #7a5f14; }
 .inv-move-txt { display: flex; flex-direction: column; min-width: 0; }
 .inv-search { display: block; margin-bottom: 8px; }
+.inv-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 6px; }
+.inv-stat { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 6px; text-align: center; display: flex; flex-direction: column; gap: 2px; }
+.inv-stat-n { font-size: 22px; font-weight: 800; }
+.inv-alert { padding: 8px 10px; border-left: 3px solid #d97706; background: #fffbeb; margin: 6px 0; border-radius: 0 8px 8px 0; font-size: 14px; }
+.inv-alert.bad { border-color: #dc2626; background: #fef2f2; }
+.inv-badge { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 20px; margin: 2px 4px 0 0; background: #fef3c7; white-space: nowrap; }
+.inv-badge.bad { background: #fee2e2; }
+.inv-ver { padding: 8px 10px; margin: 6px 0; border-radius: 8px; font-size: 14px; }
+.inv-ver.ok { background: #ecfdf5; }
+.inv-ver.bad { background: #fef2f2; }
 @media (max-width: 640px) {
   .inv-scan-btns .btn { font-size: 16px; padding: 16px 8px; }
+  .inv-stats { grid-template-columns: 1fr 1fr; }
 }
 
 /* ---------- bookstore ---------- */

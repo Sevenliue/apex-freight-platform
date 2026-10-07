@@ -997,6 +997,11 @@
         <span class="note">Inventory needs a free account — it takes less than a minute.</span>
       </div>
       <div id="inv-app" class="hidden">
+        <div class="card" id="inv-dash-card">
+          <h3 class="sub">Today</h3>
+          <div class="inv-stats" id="inv-stats"><div class="note">Loading…</div></div>
+          <div id="inv-alerts"></div>
+        </div>
         <div class="inv-scan-btns">
           <button type="button" class="btn inv-in" id="inv-scan-in">📥 Scan In</button>
           <button type="button" class="btn inv-out" id="inv-scan-out">📤 Scan Out</button>
@@ -1022,11 +1027,30 @@
             <label>Qty <input type="number" id="inv-man-qty" value="1" min="1" max="9999"></label>
             <label>Item name <input type="text" id="inv-man-name" placeholder="Only for new items" maxlength="160" autocomplete="off"></label>
           </div>
+          <div class="row-4 inv-manual">
+            <label>Lot <input type="text" id="inv-man-lot" placeholder="Optional" maxlength="64" autocomplete="off"></label>
+            <label>Expiry <input type="date" id="inv-man-exp"></label>
+            <label>Serial <input type="text" id="inv-man-serial" placeholder="Optional" maxlength="64" autocomplete="off"></label>
+            <label>Condition <select id="inv-man-cond"><option value="ok">OK</option><option value="damaged">Damaged</option></select></label>
+          </div>
           <div class="actions">
             <button type="button" class="btn inv-in" id="inv-man-in">+ In</button>
             <button type="button" class="btn inv-out" id="inv-man-out">− Out</button>
             <span class="note" id="inv-man-msg" aria-live="polite"></span>
           </div>
+        </div>
+        <div class="card">
+          <h3 class="sub">Pick / pack check</h3>
+          <p class="note">Verify what was picked or packed against the expected list — one per line as <code>BARCODE x QTY</code>. Flags shorts, overages, and wrong barcodes.</p>
+          <div class="row-2">
+            <label>Expected <textarea id="inv-ver-exp" rows="4" placeholder="ABC123 x 4&#10;XYZ789 x 2"></textarea></label>
+            <label>Scanned <textarea id="inv-ver-got" rows="4" placeholder="ABC123 x 4&#10;XYZ789 x 1"></textarea></label>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn primary" id="inv-ver-go">Verify</button>
+            <span class="note" id="inv-ver-msg" aria-live="polite"></span>
+          </div>
+          <div id="inv-ver-result"></div>
         </div>
         <div class="card">
           <h3 class="sub">On hand</h3>
@@ -4873,7 +4897,7 @@
       gate.classList.toggle('hidden', signedIn);
       app.classList.toggle('hidden', !signedIn);
       if (!signedIn) { stopInvScanner(); return; }
-      await Promise.all([refreshInvItems(), refreshInvMoves()]);
+      await Promise.all([refreshInvItems(), refreshInvMoves(), refreshInvDash()]);
     }
 
     async function refreshInvItems() {
@@ -4888,6 +4912,36 @@
       renderInvItems();
     }
 
+    function invStat(label, val) {
+      return '<div class="inv-stat"><span class="inv-stat-n">' + val + '</span><span class="note">' + label + '</span></div>';
+    }
+
+    async function refreshInvDash() {
+      const stats = $('#inv-stats'), alerts = $('#inv-alerts');
+      if (!stats) return;
+      try {
+        const d = await api.getInventoryDashboard();
+        stats.innerHTML =
+          invStat('In today', d.today_in) + invStat('Out today', d.today_out) +
+          invStat('SKUs', d.total_skus) + invStat('Units', d.total_units);
+        let h = '';
+        (d.low_stock || []).forEach((i) => {
+          h += '<div class="inv-alert">⚠️ Low stock: <strong>' + esc(i.name) + '</strong> — ' + i.qty + ' left (alert at ' + i.low_stock_at + ')</div>';
+        });
+        (d.expiring_soon || []).forEach((i) => {
+          const dl = i.days_left;
+          h += '<div class="inv-alert">⏳ ' + (dl < 0 ? 'Expired ' + (-dl) + 'd ago' : 'Expires in ' + dl + 'd') +
+            ': <strong>' + esc(i.name) + '</strong> — ' + i.qty + ' on hand (' + esc(i.expiry_date || '') + ')</div>';
+        });
+        (d.damaged || []).forEach((i) => {
+          h += '<div class="inv-alert bad">🔴 Damaged: <strong>' + esc(i.name) + '</strong> — ' + i.damaged_qty + ' units segregated</div>';
+        });
+        alerts.innerHTML = h;
+      } catch (e) {
+        stats.innerHTML = '<div class="note">Dashboard unavailable.</div>';
+      }
+    }
+
     function renderInvItems() {
       const box = $('#inv-items');
       const q = ($('#inv-q').value || '').trim().toLowerCase();
@@ -4898,17 +4952,38 @@
           (invItemsCache.length ? 'No items match your search.' : 'No items yet — scan something in to start.') + '</div>';
         return;
       }
-      box.innerHTML = items.map((i) =>
-        '<div class="inv-row">' +
+      box.innerHTML = items.map((i) => {
+        const badges = [];
+        if (i.damaged_qty > 0) badges.push('<span class="inv-badge bad">🔴 ' + i.damaged_qty + ' damaged</span>');
+        if (i.expiry_date) badges.push('<span class="inv-badge">⏳ ' + esc(i.expiry_date) + '</span>');
+        if (i.low_stock_at > 0 && i.qty <= i.low_stock_at) badges.push('<span class="inv-badge">⚠️ low stock</span>');
+        return '<div class="inv-row">' +
           '<div class="inv-row-txt"><strong>' + esc(i.name) + '</strong>' +
-          '<span class="note">' + esc(i.sku) + '</span></div>' +
+          '<span class="note">' + esc(i.sku) + (badges.length ? '<br>' + badges.join('') : '') + '</span></div>' +
           '<span class="inv-qty' + (i.qty === 0 ? ' zero' : '') + '">' + i.qty + '</span>' +
           '<div class="actions inv-row-btns">' +
+            '<button type="button" class="btn small" data-inv-alert="' + esc(i.sku) + '" title="Set low-stock alert level">🔔</button>' +
             '<button type="button" class="btn small" data-inv-adj="out" data-inv-sku="' + esc(i.sku) + '" title="Take 1 out">−</button>' +
             '<button type="button" class="btn small" data-inv-adj="in" data-inv-sku="' + esc(i.sku) + '" title="Add 1 in">+</button>' +
           '</div>' +
-        '</div>'
-      ).join('');
+        '</div>';
+      }).join('');
+      box.querySelectorAll('[data-inv-alert]').forEach((b) =>
+        b.addEventListener('click', async () => {
+          const item = invItemsCache.find((x) => x.sku === b.dataset.invAlert);
+          const cur = item ? item.low_stock_at : 0;
+          const v = prompt('Alert me when stock falls to (0 = off):', String(cur));
+          if (v === null) return;
+          const n = Math.max(0, Math.min(999999, Math.floor(Number(v) || 0)));
+          b.disabled = true;
+          try {
+            const r = await api.saveInventoryItem(b.dataset.invAlert, item ? item.name : b.dataset.invAlert, n);
+            invItemsCache = invItemsCache.map((x) => x.sku === r.item.sku ? r.item : x);
+            renderInvItems(); refreshInvDash();
+          } catch (e) { showAlert(e.message || 'Could not save alert level.'); }
+          finally { b.disabled = false; }
+        })
+      );
       box.querySelectorAll('[data-inv-adj]').forEach((b) =>
         b.addEventListener('click', async () => {
           b.disabled = true;
@@ -4928,13 +5003,20 @@
         const data = await api.listInventoryMovements(30);
         const ms = data.movements || [];
         if (!ms.length) { box.innerHTML = '<div class="note">No movements yet.</div>'; return; }
-        box.innerHTML = ms.map((m) =>
-          '<div class="inv-move">' +
+        box.innerHTML = ms.map((m) => {
+          const bits = [];
+          if (m.lot) bits.push('lot ' + esc(m.lot));
+          if (m.serial) bits.push('sn ' + esc(m.serial));
+          if (m.expiry_date) bits.push('exp ' + esc(m.expiry_date));
+          if (m.condition === 'damaged') bits.push('⚠️ damaged');
+          if (m.user_email) bits.push(esc(m.user_email));
+          return '<div class="inv-move">' +
             '<span class="inv-dir ' + m.direction + '">' + (m.direction === 'in' ? '+ ' : '− ') + m.qty + '</span>' +
             '<span class="inv-move-txt"><strong>' + esc(m.name) + '</strong>' +
-            '<span class="note">' + esc(m.sku) + ' · ' + esc(invTime(m.created_at)) + '</span></span>' +
-          '</div>'
-        ).join('');
+            '<span class="note">' + esc(m.sku) + ' · ' + esc(invTime(m.created_at)) +
+            (bits.length ? ' · ' + bits.join(' · ') : '') + '</span></span>' +
+          '</div>';
+        }).join('');
       } catch (e) {
         box.innerHTML = '<div class="note">Could not load history (' + esc(e.message) + ').</div>';
       }
@@ -5043,16 +5125,49 @@
         const qty = Math.max(1, Math.min(9999, parseInt($('#inv-man-qty').value, 10) || 1));
         const name = $('#inv-man-name').value.trim();
         if (!sku) { manMsg.textContent = 'Enter a barcode first.'; return; }
+        const extra = {
+          lot: $('#inv-man-lot').value.trim() || undefined,
+          expiry_date: $('#inv-man-exp').value || undefined,
+          serial: $('#inv-man-serial').value.trim() || undefined,
+          condition: $('#inv-man-cond').value,
+        };
         manMsg.textContent = 'Saving…';
         try {
-          const r = await api.scanInventory(sku, direction, qty, name || undefined);
+          const r = await api.scanInventory(sku, direction, qty, name || undefined, extra);
           manMsg.textContent = (direction === 'in' ? 'Added ' : 'Removed ') + qty + ' × ' + r.item.name + ' — now ' + r.item.qty + '.';
           $('#inv-man-sku').value = ''; $('#inv-man-name').value = '';
-          refreshInvItems(); refreshInvMoves();
+          $('#inv-man-lot').value = ''; $('#inv-man-exp').value = ''; $('#inv-man-serial').value = '';
+          $('#inv-man-cond').value = 'ok';
+          refreshInvItems(); refreshInvMoves(); refreshInvDash();
         } catch (e) { manMsg.textContent = e.message || 'Save failed.'; }
       };
       $('#inv-man-in').addEventListener('click', () => manGo('in'));
       $('#inv-man-out').addEventListener('click', () => manGo('out'));
+      $('#inv-ver-go').addEventListener('click', async () => {
+        const msg = $('#inv-ver-msg'), out = $('#inv-ver-result');
+        const parse = (txt) => String(txt || '').split('\n').map((line) => {
+          const m = line.trim().match(/^(.*?)\s*[x×,]\s*(\d+)\s*$/);
+          if (m && m[1].trim()) return { sku: m[1].trim(), qty: parseInt(m[2], 10) };
+          const s = line.trim();
+          return s ? { sku: s, qty: 1 } : null;
+        }).filter(Boolean);
+        msg.textContent = 'Checking…'; out.innerHTML = '';
+        try {
+          const r = await api.verifyInventory(parse($('#inv-ver-exp').value), parse($('#inv-ver-got').value));
+          invBeep(r.ok);
+          let h = '';
+          r.shorts.forEach((s) => { h += '<div class="inv-ver bad">Short: <strong>' + esc(s.sku) + '</strong> — expected ' + s.expected + ', scanned ' + s.scanned + '</div>'; });
+          r.overages.forEach((s) => { h += '<div class="inv-ver bad">Over: <strong>' + esc(s.sku) + '</strong> — expected ' + s.expected + ', scanned ' + s.scanned + '</div>'; });
+          r.unknown.forEach((s) => { h += '<div class="inv-ver bad">Wrong barcode: <strong>' + esc(s.sku) + '</strong> × ' + s.qty + '</div>'; });
+          if (r.ok) {
+            msg.textContent = '✅ All matched.';
+            h = '<div class="inv-ver ok">✅ ' + r.matched.length + ' line(s) verified — nothing missing, nothing extra.</div>';
+          } else {
+            msg.textContent = '❌ Mismatches found — see below.';
+          }
+          out.innerHTML = h;
+        } catch (e) { msg.textContent = e.message || 'Verify failed.'; invBeep(false); }
+      });
     }
 
     function handleStoreReturn() {

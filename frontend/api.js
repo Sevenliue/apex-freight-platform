@@ -635,14 +635,20 @@ export function updateStoreProduct(id, patch) {
 export function listInventoryItems() {
   return request('GET', '/api/inventory/items');
 }
-export function saveInventoryItem(sku, name) {
-  return request('POST', '/api/inventory/items', { sku, name });
+export function saveInventoryItem(sku, name, low_stock_at) {
+  return request('POST', '/api/inventory/items', { sku, name, low_stock_at });
 }
-export function scanInventory(sku, direction, qty, name) {
-  return request('POST', '/api/inventory/scan', { sku, direction, qty, name });
+export function scanInventory(sku, direction, qty, name, extra) {
+  return request('POST', '/api/inventory/scan', { sku, direction, qty, name, ...(extra || {}) });
 }
 export function listInventoryMovements(limit) {
   return request('GET', '/api/inventory/movements' + (limit ? '?limit=' + limit : ''));
+}
+export function getInventoryDashboard() {
+  return request('GET', '/api/inventory/dashboard');
+}
+export function verifyInventory(expected, scanned) {
+  return request('POST', '/api/inventory/verify', { expected, scanned });
 }
 
 /* Schedule Pickup — customer-booked carrier pickups. */
