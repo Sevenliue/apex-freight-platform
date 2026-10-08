@@ -914,3 +914,11 @@ dl.kv dd { margin: 0; font-weight: 600; }
 @media (max-width: 700px) {
   .land-stats-row { flex-direction: column; gap: 20px; }
 }
+
+/* Diesel 4-week graph card (dashboard) */
+.diesel-card { margin-top: 18px; }
+.diesel-now { font-size: 15px; margin: 0 0 6px; color: #2c3a34; }
+.diesel-now strong { font-size: 20px; color: #14402f; }
+.diesel-chg { color: #5a6b62; font-size: 13px; }
+.diesel-svg { width: 100%; height: auto; display: block; }
+#diesel-src a { color: #14402f; }
