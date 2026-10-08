@@ -49,6 +49,7 @@
             <button class="tab sub" data-tab="pickups" role="tab" aria-selected="false"><span>Schedule Pickup</span></button>
             <button class="tab sub" data-tab="comingsoon" data-comingsoon="Import Excel" role="tab" aria-selected="false"><span>Import Excel</span></button>
             <button class="tab sub" data-tab="dashboard" data-scroll="dash-orders" role="tab" aria-selected="false"><span>Shipping Orders</span></button>
+            <a class="tab sub" href="/waybill.html"><span>Waybill</span></a>
           </div>
         </div>
         <div class="nav-group" data-group="freight">
@@ -4374,7 +4375,7 @@
               <td>${esc(r.Carrier || '—')}</td>
               <td class="num">${r['Charged (CAD)'] == null ? '—' : cad(r['Charged (CAD)']) + ' CAD'}</td>
               <td>${statusPill(r)}</td>
-              <td><button type="button" class="btn small" data-track="${esc(r['PRO / Tracking'] || '')}">Track</button>${cancellable ? ` <button type="button" class="btn small danger" data-cancel="${esc(r['Order ID'])}">Cancel</button>` : ''}</td>
+              <td><button type="button" class="btn small" data-track="${esc(r['PRO / Tracking'] || '')}">Track</button> <a class="btn small" href="/waybill.html?order=${esc(r['Order ID'])}" target="_blank" rel="noopener">Waybill</a>${cancellable ? ` <button type="button" class="btn small danger" data-cancel="${esc(r['Order ID'])}">Cancel</button>` : ''}</td>
             </tr>`;
           })
           .join('')}</tbody></table></div>`;

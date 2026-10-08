@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Waybill / Bill of Lading — ShipRate</title>
+<style>
+  :root { --pine: #14402f; --gold: #c9a227; --ink: #1c1c1c; --mut: #6b7280; --line: #9aa3ad; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--ink); background: #f3f4f6; }
+  .toolbar { position: sticky; top: 0; z-index: 50; background: var(--pine); color: #fff; padding: 10px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .toolbar .brand { font-weight: 700; letter-spacing: .3px; margin-right: 6px; }
+  .toolbar .brand a { color: #fff; text-decoration: none; }
+  .toolbar select, .toolbar button { font-size: 14px; padding: 7px 10px; border-radius: 6px; border: 1px solid #2c5c46; }
+  .toolbar button { background: var(--gold); color: #1c1c1c; font-weight: 600; cursor: pointer; border: none; }
+  .toolbar button.ghost { background: transparent; color: #fff; border: 1px solid #2c5c46; }
+  .toolbar .note { font-size: 12px; color: #d1d5db; }
+  .wrap { max-width: 900px; margin: 18px auto 60px; padding: 0 14px; }
+  .doc { background: #fff; border: 1px solid #d1d5db; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 28px 30px; }
+  .doc h1 { margin: 0; font-size: 22px; letter-spacing: 1px; }
+  .doc .sub { color: var(--mut); font-size: 12px; margin-top: 2px; }
+  .doc-head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid var(--pine); padding-bottom: 12px; margin-bottom: 14px; gap: 12px; }
+  .meta-grid { display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; font-size: 13px; align-items: center; }
+  .meta-grid label { font-weight: 600; white-space: nowrap; }
+  .sec { border: 1px solid var(--line); margin-bottom: 12px; }
+  .sec > .sec-title { background: #eef2f0; font-weight: 700; font-size: 13px; padding: 6px 10px; border-bottom: 1px solid var(--line); letter-spacing: .4px; }
+  .sec-body { padding: 10px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .frow { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; margin-bottom: 6px; font-size: 13px; }
+  .frow label { font-weight: 600; color: #374151; }
+  input.fld, textarea.fld, select.fld { width: 100%; font: inherit; font-size: 13px; padding: 5px 6px; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; color: var(--ink); }
+  textarea.fld { resize: vertical; min-height: 56px; }
+  input.fld:focus, textarea.fld:focus, select.fld:focus { outline: 2px solid var(--gold); border-color: var(--gold); }
+  table.pkgs { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.pkgs th { background: #eef2f0; border: 1px solid var(--line); padding: 6px 4px; font-size: 11.5px; }
+  table.pkgs td { border: 1px solid var(--line); padding: 2px; }
+  table.pkgs input { width: 100%; border: none; font: inherit; font-size: 12.5px; padding: 5px 4px; background: transparent; }
+  table.pkgs input:focus { outline: 2px solid var(--gold); }
+  table.pkgs td.num input { text-align: right; }
+  .rowbtn { border: none; background: #fee2e2; color: #991b1b; border-radius: 4px; cursor: pointer; padding: 4px 8px; font-size: 12px; }
+  .totals { display: flex; gap: 18px; justify-content: flex-end; font-size: 13px; font-weight: 700; padding: 8px 10px 0; }
+  .sigs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .sigbox { border-top: 1px solid var(--ink); margin-top: 34px; padding-top: 6px; font-size: 12px; color: var(--mut); }
+  .sigbox input { border: none; border-bottom: 1px solid var(--line); width: 100%; font: inherit; font-size: 13px; padding: 4px 2px; margin-bottom: 2px; }
+  .terms { font-size: 10.5px; color: var(--mut); line-height: 1.5; border-top: 1px solid var(--line); margin-top: 14px; padding-top: 10px; }
+  .chk { display: flex; gap: 14px; font-size: 13px; align-items: center; flex-wrap: wrap; }
+  .chk label { display: flex; gap: 6px; align-items: center; font-weight: 600; }
+  @media (max-width: 640px) { .grid2, .sigs { grid-template-columns: 1fr; } .doc { padding: 18px 14px; } }
+  @media print {
+    body { background: #fff; }
+    .no-print { display: none !important; }
+    .wrap { max-width: none; margin: 0; padding: 0; }
+    .doc { border: none; box-shadow: none; padding: 0; }
+    input.fld, textarea.fld, select.fld { border: none; padding-left: 0; }
+    table.pkgs input { padding: 4px 2px; }
+    .doc-head { border-bottom-width: 2px; }
+    @page { margin: 12mm; }
+  }
+</style>
+</head>
+<body>
+<div class="toolbar no-print">
+  <span class="brand"><a href="/">← ShipRate</a></span>
+  <strong>Waybill / Bill of Lading</strong>
+  <select id="shipSel" title="Pre-fill from one of your shipments" style="max-width:280px;display:none"></select>
+  <button id="btnBlank" class="ghost" type="button">Blank</button>
+  <button id="btnPrint" type="button">🖨 Print / PDF</button>
+  <span class="note" id="authNote"></span>
+</div>
+
+<div class="wrap">
+<div class="doc" id="doc">
+  <div class="doc-head">
+    <div>
+      <h1>BILL OF LADING</h1>
+      <div class="sub">Straight bill of lading — not negotiable</div>
+    </div>
+    <div class="meta-grid">
+      <label for="f_bolno">BOL No.</label><input class="fld" id="f_bolno" data-k="bol_no">
+      <label for="f_date">Date</label><input class="fld" id="f_date" data-k="date" type="date">
+      <label for="f_po">PO No.</label><input class="fld" id="f_po" data-k="po_no">
+      <label for="f_ref">Shipper ref</label><input class="fld" id="f_ref" data-k="shipper_ref">
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="sec">
+      <div class="sec-title">SHIPPER (FROM)</div>
+      <div class="sec-body">
+        <div class="frow"><label>Name</label><input class="fld" data-k="shipper.name"></div>
+        <div class="frow"><label>Street</label><input class="fld" data-k="shipper.street"></div>
+        <div class="frow"><label>City / Prov</label><input class="fld" data-k="shipper.cityprov" placeholder="City, PR"></div>
+        <div class="frow"><label>Postal code</label><input class="fld" data-k="shipper.postal"></div>
+        <div class="frow"><label>Contact</label><input class="fld" data-k="shipper.contact"></div>
+        <div class="frow"><label>Phone</label><input class="fld" data-k="shipper.phone" type="tel"></div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-title">CONSIGNEE (TO)</div>
+      <div class="sec-body">
+        <div class="frow"><label>Name</label><input class="fld" data-k="consignee.name"></div>
+        <div class="frow"><label>Street</label><input class="fld" data-k="consignee.street"></div>
+        <div class="frow"><label>City / Prov</label><input class="fld" data-k="consignee.cityprov" placeholder="City, PR"></div>
+        <div class="frow"><label>Postal code</label><input class="fld" data-k="consignee.postal"></div>
+        <div class="frow"><label>Contact</label><input class="fld" data-k="consignee.contact"></div>
+        <div class="frow"><label>Phone</label><input class="fld" data-k="consignee.phone" type="tel"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="sec">
+      <div class="sec-title">FREIGHT CHARGES</div>
+      <div class="sec-body">
+        <div class="chk" id="freightTerms">
+          <label><input type="radio" name="fterms" value="prepaid" checked> Prepaid</label>
+          <label><input type="radio" name="fterms" value="collect"> Collect</label>
+          <label><input type="radio" name="fterms" value="third_party"> 3rd party</label>
+        </div>
+        <div class="frow" style="margin-top:8px"><label>Bill to</label><input class="fld" data-k="bill_to"></div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="sec-title">CARRIER</div>
+      <div class="sec-body">
+        <div class="frow"><label>Carrier</label><input class="fld" data-k="carrier.name"></div>
+        <div class="frow"><label>Trailer No.</label><input class="fld" data-k="carrier.trailer"></div>
+        <div class="frow"><label>Seal No.</label><input class="fld" data-k="carrier.seal"></div>
+        <div class="frow"><label>PRO No.</label><input class="fld" data-k="carrier.pro"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-title">DESCRIPTION OF ARTICLES</div>
+    <div class="sec-body" style="padding:6px">
+      <table class="pkgs" id="pkgTable">
+        <thead><tr>
+          <th style="width:52px">Qty</th><th style="width:90px">Units</th><th>Description</th>
+          <th style="width:70px">Wt (lb)</th><th style="width:52px">L"</th><th style="width:52px">W"</th><th style="width:52px">H"</th>
+          <th style="width:56px">Class</th><th class="no-print" style="width:44px"></th>
+        </tr></thead>
+        <tbody id="pkgBody"></tbody>
+      </table>
+      <div class="no-print" style="margin-top:8px"><button type="button" class="rowbtn" id="btnAddRow" style="background:#dcfce7;color:#166534">+ Add line</button></div>
+      <div class="totals"><span>Total pieces: <span id="totQty">0</span></span><span>Total weight: <span id="totWt">0</span> lb</span></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="sec">
+      <div class="sec-title">SPECIAL INSTRUCTIONS</div>
+      <div class="sec-body"><textarea class="fld" data-k="instructions" rows="3"></textarea></div>
+    </div>
+    <div class="sec">
+      <div class="sec-title">VALUE &amp; COD</div>
+      <div class="sec-body">
+        <div class="frow"><label>Declared value $</label><input class="fld num" data-k="declared_value" inputmode="decimal"></div>
+        <div class="frow"><label>COD amount $</label><input class="fld num" data-k="cod_amount" inputmode="decimal"></div>
+        <div class="frow"><label>Collect on delivery</label><select class="fld" data-k="cod_collect"><option value="">—</option><option>Yes</option><option>No</option></select></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sigs">
+    <div class="sigbox"><input data-k="sig_shipper" placeholder=""><strong>Shipper signature</strong><br><span>Date: <input data-k="sig_shipper_date" type="date" style="width:150px"></span></div>
+    <div class="sigbox"><input data-k="sig_driver" placeholder=""><strong>Driver signature</strong><br><span>Date: <input data-k="sig_driver_date" type="date" style="width:150px"></span></div>
+    <div class="sigbox"><input data-k="sig_consignee" placeholder=""><strong>Consignee signature</strong><br><span>Date: <input data-k="sig_consignee_date" type="date" style="width:150px"></span></div>
+  </div>
+
+  <div class="terms">
+    Received, subject to the classifications and tariffs in effect on the date of shipment. The carrier's liability is limited as set out in the applicable tariff and
+    terms of carriage. The shipper certifies the goods are properly described, packaged, and marked, and declares the weight shown is correct. Dangerous goods, if any,
+    are declared in accordance with the Transportation of Dangerous Goods Regulations.
+  </div>
+</div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var TOKEN_KEY = 'shiprate_auth_token';
+  var DRAFT_KEY = 'shiprate_waybill_draft';
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+
+  function token() { try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; } }
+  function headers() { var h = { 'Content-Type': 'application/json' }; var t = token(); if (t) h.Authorization = 'Bearer ' + t; return h; }
+  async function api(path) {
+    var r = await fetch(path, { headers: headers() });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var ct = r.headers.get('content-type') || '';
+    return ct.indexOf('application/json') >= 0 ? r.json() : r.text();
+  }
+
+  /* ---------- package rows ---------- */
+  function addRow(d) {
+    d = d || {};
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td class="num"><input data-c="qty" inputmode="numeric" value="' + esc(d.qty || '') + '"></td>' +
+      '<td><input data-c="units" value="' + esc(d.units || 'PLT') + '"></td>' +
+      '<td><input data-c="desc" value="' + esc(d.desc || '') + '"></td>' +
+      '<td class="num"><input data-c="wt" inputmode="decimal" value="' + esc(d.wt || '') + '"></td>' +
+      '<td class="num"><input data-c="l" inputmode="decimal" value="' + esc(d.l || '') + '"></td>' +
+      '<td class="num"><input data-c="w" inputmode="decimal" value="' + esc(d.w || '') + '"></td>' +
+      '<td class="num"><input data-c="h" inputmode="decimal" value="' + esc(d.h || '') + '"></td>' +
+      '<td class="num"><input data-c="cls" value="' + esc(d.cls || '') + '"></td>' +
+      '<td class="no-print" style="text-align:center"><button type="button" class="rowbtn">✕</button></td>';
+    tr.querySelector('.rowbtn').addEventListener('click', function () { tr.remove(); recalc(); saveDraft(); });
+    $$('input', tr).forEach(function (i) { i.addEventListener('input', function () { recalc(); saveDraft(); }); });
+    $('#pkgBody').appendChild(tr);
+    return tr;
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function num(v) { var n = parseFloat(String(v).replace(/,/g, '')); return isFinite(n) ? n : 0; }
+  function recalc() {
+    // Weight column is the TOTAL line weight (matches ShipRate's package grid convention).
+    var q = 0, w = 0;
+    $$('#pkgBody tr').forEach(function (tr) {
+      q += num($('input[data-c="qty"]', tr).value);
+      w += num($('input[data-c="wt"]', tr).value);
+    });
+    $('#totQty').textContent = q;
+    $('#totWt').textContent = w.toLocaleString('en-CA');
+  }
+
+  /* ---------- field get/set ---------- */
+  function getVal(k) {
+    if (k === 'fterms') { var r = $('input[name="fterms"]:checked'); return r ? r.value : 'prepaid'; }
+    var el = $('[data-k="' + k + '"]'); return el ? el.value : '';
+  }
+  function setVal(k, v) {
+    if (v == null) v = '';
+    if (k === 'fterms') { var r = $('input[name="fterms"][value="' + v + '"]'); if (r) r.checked = true; return; }
+    var el = $('[data-k="' + k + '"]'); if (el) el.value = v;
+  }
+  function collect() {
+    var o = { pkgs: [] };
+    $$('[data-k]').forEach(function (el) { o[el.getAttribute('data-k')] = el.value; });
+    o.fterms = getVal('fterms');
+    $$('#pkgBody tr').forEach(function (tr) {
+      var g = function (c) { return $('input[data-c="' + c + '"]', tr).value; };
+      o.pkgs.push({ qty: g('qty'), units: g('units'), desc: g('desc'), wt: g('wt'), l: g('l'), w: g('w'), h: g('h'), cls: g('cls') });
+    });
+    return o;
+  }
+  function applyState(o) {
+    Object.keys(o).forEach(function (k) { if (k !== 'pkgs' && k !== 'fterms') setVal(k, o[k]); });
+    if (o.fterms) setVal('fterms', o.fterms);
+    $('#pkgBody').innerHTML = '';
+    (o.pkgs && o.pkgs.length ? o.pkgs : [{}]).forEach(addRow);
+    recalc();
+  }
+  function saveDraft() { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(collect())); } catch (e) {} }
+  function loadDraft() { try { var s = localStorage.getItem(DRAFT_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+
+  /* ---------- pre-fill from a ShipRate order ---------- */
+  function party(p) {
+    p = p || {};
+    var cityprov = [p.city, p.province || p.state || p.prov].filter(Boolean).join(', ');
+    return {
+      name: p.name || '', street: p.street1 || p.street || '',
+      cityprov: cityprov, postal: p.postal || p.zip || '',
+      contact: p.contact || p.contact_name || '', phone: p.phone || ''
+    };
+  }
+  function fillFromOrder(ord) {
+    var b = ord.bol || {};
+    var refs = b.references || {};
+    var refVals = Object.keys(refs).map(function (k) { return refs[k]; }).filter(Boolean);
+    var s = party(b.shipper), c = party(b.consignee);
+    var st = {
+      bol_no: ord.tracking_code || ord.shipper_order_no || ('WB-' + String(ord.id).slice(0, 8)),
+      date: (ord.created_at || '').slice(0, 10) || new Date().toISOString().slice(0, 10),
+      po_no: ord.receiver_po_no || refVals[0] || '',
+      shipper_ref: ord.shipper_order_no || '',
+      'shipper.name': s.name, 'shipper.street': s.street, 'shipper.cityprov': s.cityprov,
+      'shipper.postal': s.postal, 'shipper.contact': s.contact, 'shipper.phone': s.phone,
+      'consignee.name': c.name, 'consignee.street': c.street, 'consignee.cityprov': c.cityprov,
+      'consignee.postal': c.postal, 'consignee.contact': c.contact, 'consignee.phone': c.phone,
+      bill_to: (b.bill_to && (b.bill_to.name || '')) || '',
+      'carrier.name': ord.carrier || '', 'carrier.pro': ord.tracking_code || '',
+      fterms: b.freight_charges || 'prepaid',
+      instructions: [b.delivery_note_1, b.delivery_note_2].filter(Boolean).join(' — ') || '',
+      pkgs: (b.packages || []).map(function (p) {
+        return { qty: p.qty || '', units: p.package_type || 'PLT', desc: p.product_name || p.description || '',
+                 wt: p.weight_lb || '', l: p.length || '', w: p.width || '', h: p.height || '', cls: p.freight_class || '' };
+      })
+    };
+    if (b.pickup_date) st.date = String(b.pickup_date).slice(0, 10);
+    applyState(st);
+    saveDraft();
+  }
+  async function loadShipments() {
+    var sel = $('#shipSel');
+    try {
+      var d = await api('/api/reports/shipments');
+      var rows = d.rows || [];
+      if (!rows.length) return;
+      sel.style.display = '';
+      sel.innerHTML = '<option value="">Pre-fill from shipment…</option>' + rows.map(function (r) {
+        var lbl = (r.Date || '') + ' · ' + (r.Origin || '?') + ' → ' + (r.Destination || '?') + ' · ' + (r.Carrier || '');
+        return '<option value="' + esc(r['Order ID']) + '">' + esc(lbl) + '</option>';
+      }).join('');
+      sel.addEventListener('change', async function () {
+        if (!sel.value) return;
+        try { var ord = await api('/api/shipments/order/' + encodeURIComponent(sel.value)); fillFromOrder(ord); }
+        catch (e) { alert('Could not load that shipment: ' + e.message); }
+        sel.value = '';
+      });
+    } catch (e) { /* signed out or no DB — blank template still works */ }
+  }
+
+  /* ---------- wire up ---------- */
+  $('#btnAddRow').addEventListener('click', function () { addRow({}); saveDraft(); });
+  $('#btnPrint').addEventListener('click', function () { window.print(); });
+  $('#btnBlank').addEventListener('click', function () {
+    if (!confirm('Clear the waybill and start blank?')) return;
+    try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+    applyState({ date: new Date().toISOString().slice(0, 10), pkgs: [{}] });
+  });
+  $$('[data-k]').forEach(function (el) { el.addEventListener('input', saveDraft); });
+  $$('input[name="fterms"]').forEach(function (el) { el.addEventListener('change', saveDraft); });
+
+  (function init() {
+    var draft = loadDraft();
+    var qs = new URLSearchParams(location.search);
+    var orderId = qs.get('order');
+    if (draft && !orderId) { applyState(draft); }
+    else {
+      applyState({ date: new Date().toISOString().slice(0, 10), pkgs: [{}] });
+      if (orderId && token()) {
+        api('/api/shipments/order/' + encodeURIComponent(orderId)).then(fillFromOrder).catch(function () {});
+      }
+    }
+    if (token()) { loadShipments(); }
+    else { $('#authNote').textContent = 'Sign in on ShipRate to pre-fill from your shipments.'; }
+  })();
+})();
+</script>
+</body>
+</html>
