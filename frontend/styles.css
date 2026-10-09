@@ -871,7 +871,7 @@ dl.kv dd { margin: 0; font-weight: 600; }
 .land-stats strong { font-size: 30px; color: var(--accent); }
 .land-stats span { font-size: 13.5px; color: rgba(255,255,255,.75); }
 .land-section { padding: 56px 12px 8px; }
-.land-section, .land-cta-band { max-width: 1080px; margin-left: auto; margin-right: auto; }
+.land-section, .land-cta-band { max-width: 1080px; margin-left: 0; margin-right: auto; }
 .land-section h2 { font-size: 30px; margin: 0 0 8px; color: var(--brand-dark); text-align: center; }
 .land-section > p { text-align: center; max-width: 640px; margin: 0 auto; color: var(--muted); font-size: 17px; }
 .land-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 32px; }
