@@ -8,7 +8,7 @@
   <meta property="og:description" content="Instant LTL freight quotes across Canada. Compare carrier rates, save quotes, and track shipments — free account.">
   <meta property="og:type" content="website">
   <title>ShipRate — Instant LTL Freight Quotes</title>
-  <link rel="stylesheet" href="styles.css?v=20261009f">
+  <link rel="stylesheet" href="styles.css?v=20261009g">
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
 </head>
 <body>
@@ -231,22 +231,22 @@
         </footer>
         </div><!-- /land-main -->
         <aside class="land-rail">
-          <div class="card land-diesel-card">
+          <div class="card rail-card rail-diesel">
             <h3>⛽ Diesel — Canada average</h3>
             <div id="diesel-graph-home"><p class="note">Loading diesel prices…</p></div>
             <p class="note" id="diesel-src-home" style="margin-bottom:0"></p>
           </div>
-          <div class="card rail-card">
+          <div class="card rail-card rail-diesel">
             <h3>⛽ Diesel by province</h3>
             <div id="rail-diesel-prov"><p class="note">Loading…</p></div>
             <p class="note" style="margin-bottom:0">NRCan weekly retail · latest week</p>
           </div>
-          <div class="card rail-card">
+          <div class="card rail-card rail-fx">
             <h3>💱 CAD / USD</h3>
             <div id="rail-fx"><p class="note">Loading…</p></div>
             <p class="note" style="margin-bottom:0">Source: <a href="https://www.bankofcanada.ca/rates/exchange/daily-exchange-rates/" target="_blank" rel="noopener">Bank of Canada</a> · daily</p>
           </div>
-          <div class="card rail-card">
+          <div class="card rail-card rail-road">
             <h3>🚧 Road conditions</h3>
             <ul class="rail-links">
               <li><a href="https://511.alberta.ca" target="_blank" rel="noopener">511 Alberta</a></li>
@@ -261,7 +261,7 @@
               <li><a href="https://nl511.ca" target="_blank" rel="noopener">NL 511 — Newfoundland &amp; Labrador</a></li>
             </ul>
           </div>
-          <div class="card rail-card">
+          <div class="card rail-card rail-ferry">
             <h3>⛴️ Ferries</h3>
             <ul class="rail-links">
               <li><a href="https://www.bcferries.com/current-conditions" target="_blank" rel="noopener">BC Ferries — current conditions</a></li>
@@ -6351,10 +6351,14 @@
       const res = await fetch('/api/fuel/diesel-provinces');
       const data = await res.json();
       if (!res.ok || !data.provinces || !data.provinces.length) throw new Error('bad data');
+      const vals = data.provinces.map(function(p) { return Number(p.cents_per_litre); });
+      const lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
       box.innerHTML = '<table class="rail-table"><tbody>' +
         data.provinces.map(function(p) {
-          return '<tr><td>' + p.code + ' <span class="note">' + p.city + '</span></td><td>' +
-            Number(p.cents_per_litre).toFixed(1) + '¢</td></tr>';
+          const v = Number(p.cents_per_litre);
+          const cls = v === lo ? ' class="rail-min"' : v === hi ? ' class="rail-max"' : '';
+          return '<tr><td>' + p.code + ' <span class="note">' + p.city + '</span></td><td' + cls + '>' +
+            v.toFixed(1) + '¢</td></tr>';
         }).join('') + '</tbody></table>';
     } catch (e) {
       box.innerHTML = '<p class="note">Unavailable right now.</p>';

@@ -848,8 +848,15 @@ dl.kv dd { margin: 0; font-weight: 600; }
   content: ""; position: absolute; right: -60px; top: -60px; width: 280px; height: 280px;
   border: 40px solid rgba(224, 177, 62, 0.12); border-radius: 50%; pointer-events: none;
 }
-.land-diesel-card { margin-top: 0; }
-.land-diesel-card h3, .rail-card h3 { margin: 0 0 10px; font-size: 17px; color: var(--brand-dark); }
+.rail-card h3 { margin: 0 0 10px; font-size: 17px; color: var(--brand-dark); }
+/* Per-card accent tints for the market-pulse rail */
+.rail-card { border-top: 4px solid var(--rail-accent, #14402f); background: var(--rail-bg, #fff); }
+.rail-diesel { --rail-accent: #14402f; --rail-bg: #f0f6f2; }
+.rail-fx { --rail-accent: #2b6cb0; --rail-bg: #edf4fb; }
+.rail-road { --rail-accent: #bd8a1e; --rail-bg: #faf5e8; }
+.rail-ferry { --rail-accent: #0f766e; --rail-bg: #eaf5f4; }
+.rail-table td.rail-min { color: #1c7a3d; }
+.rail-table td.rail-max { color: #b3402a; }
 #diesel-src-home a { color: #14402f; }
 /* Market-pulse rail cards */
 .rail-table { width: 100%; border-collapse: collapse; font-size: 14px; }
