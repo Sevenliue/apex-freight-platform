@@ -834,7 +834,7 @@ dl.kv dd { margin: 0; font-weight: 600; }
 .qo-tip.qo-tip-out { opacity: 0; }
 
 /* ---------- marketing homepage ---------- */
-.landing { max-width: 1500px; margin: 0 auto; padding: 8px 24px 24px; }
+.landing { max-width: 1500px; margin: 0; padding: 8px 24px 24px; }
 .land-hero {
   display: grid; grid-template-columns: minmax(0, 1080px) minmax(320px, 1fr);
   gap: 24px; align-items: start; justify-content: center;
