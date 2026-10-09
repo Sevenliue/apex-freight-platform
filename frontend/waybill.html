@@ -63,9 +63,12 @@
   <span class="brand"><a href="/">← ShipRate</a></span>
   <strong>Waybill / Bill of Lading</strong>
   <select id="shipSel" title="Pre-fill from one of your shipments" style="max-width:280px;display:none"></select>
-  <button id="btnBlank" class="ghost" type="button">Blank</button>
+  <select id="histSel" title="Open a saved waybill" style="max-width:280px;display:none"></select>
+  <button id="btnSave" type="button">💾 Save</button>
+  <button id="btnBlank" class="ghost" type="button">New</button>
   <button id="btnPrint" type="button">🖨 Print / PDF</button>
   <span class="note" id="authNote"></span>
+  <span class="note" id="saveNote"></span>
 </div>
 
 <div class="wrap">
@@ -186,11 +189,65 @@
 
   function token() { try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; } }
   function headers() { var h = { 'Content-Type': 'application/json' }; var t = token(); if (t) h.Authorization = 'Bearer ' + t; return h; }
-  async function api(path) {
-    var r = await fetch(path, { headers: headers() });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
+  async function api(path, opts) {
+    opts = opts || {};
+    var r = await fetch(path, {
+      method: opts.method || 'GET',
+      headers: headers(),
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    });
+    if (!r.ok) {
+      var msg = 'HTTP ' + r.status;
+      try { var e = await r.json(); if (e && e.error) msg = e.error; } catch (x) {}
+      throw new Error(msg);
+    }
     var ct = r.headers.get('content-type') || '';
     return ct.indexOf('application/json') >= 0 ? r.json() : r.text();
+  }
+
+  /* ---------- saved waybills: sequenced numbers + history ---------- */
+  var currentId = null;
+  function setSaveNote(t) { $('#saveNote').textContent = t || ''; }
+  async function saveWaybill() {
+    if (!token()) { alert('Sign in on ShipRate to save waybills.'); return; }
+    setSaveNote('Saving…');
+    try {
+      var payload = { bol_json: collect() };
+      var saved = currentId
+        ? await api('/api/waybills/' + encodeURIComponent(currentId), { method: 'PUT', body: payload })
+        : await api('/api/waybills', { method: 'POST', body: payload });
+      currentId = saved.id;
+      setVal('bol_no', saved.waybill_no);
+      saveDraft();
+      setSaveNote('Saved as ' + saved.waybill_no + ' ✓');
+      await loadHistory();
+    } catch (e) { setSaveNote('Save failed: ' + e.message); }
+  }
+  async function loadHistory() {
+    var sel = $('#histSel');
+    try {
+      var d = await api('/api/waybills');
+      var rows = d.rows || [];
+      if (!rows.length) { sel.style.display = 'none'; return; }
+      sel.style.display = '';
+      sel.innerHTML = '<option value="">Saved waybills…</option>' + rows.map(function (r) {
+        var b = r.bol_json || {};
+        var lbl = r.waybill_no + ' · ' + String(r.created_at || '').slice(0, 10) +
+          ' · ' + [b['shipper.name'], b['consignee.name']].filter(Boolean).join(' → ');
+        return '<option value="' + esc(r.id) + '"' + (r.id === currentId ? ' selected' : '') + '>' + esc(lbl) + '</option>';
+      }).join('');
+    } catch (e) { /* signed out or unavailable */ }
+  }
+  async function openWaybill(id) {
+    try {
+      var r = await api('/api/waybills/' + encodeURIComponent(id));
+      currentId = r.id;
+      var st = r.bol_json || {};
+      st.bol_no = r.waybill_no;
+      applyState(st);
+      saveDraft();
+      setSaveNote('Opened ' + r.waybill_no);
+    } catch (e) { setSaveNote('Could not open: ' + e.message); }
   }
 
   /* ---------- package rows ---------- */
@@ -315,9 +372,16 @@
   /* ---------- wire up ---------- */
   $('#btnAddRow').addEventListener('click', function () { addRow({}); saveDraft(); });
   $('#btnPrint').addEventListener('click', function () { window.print(); });
+  $('#btnSave').addEventListener('click', saveWaybill);
+  $('#histSel').addEventListener('change', function () {
+    if (this.value) openWaybill(this.value);
+    this.value = currentId || '';
+  });
   $('#btnBlank').addEventListener('click', function () {
-    if (!confirm('Clear the waybill and start blank?')) return;
+    if (!confirm('Clear the waybill and start a new one?')) return;
     try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+    currentId = null;
+    setSaveNote('');
     applyState({ date: new Date().toISOString().slice(0, 10), pkgs: [{}] });
   });
   $$('[data-k]').forEach(function (el) { el.addEventListener('input', saveDraft); });
@@ -327,15 +391,18 @@
     var draft = loadDraft();
     var qs = new URLSearchParams(location.search);
     var orderId = qs.get('order');
-    if (draft && !orderId) { applyState(draft); }
+    var wbId = qs.get('wb');
+    if (draft && !orderId && !wbId) { applyState(draft); }
     else {
       applyState({ date: new Date().toISOString().slice(0, 10), pkgs: [{}] });
       if (orderId && token()) {
         api('/api/shipments/order/' + encodeURIComponent(orderId)).then(fillFromOrder).catch(function () {});
+      } else if (wbId && token()) {
+        openWaybill(wbId);
       }
     }
-    if (token()) { loadShipments(); }
-    else { $('#authNote').textContent = 'Sign in on ShipRate to pre-fill from your shipments.'; }
+    if (token()) { loadShipments(); loadHistory(); }
+    else { $('#authNote').textContent = 'Sign in on ShipRate to save waybills and pre-fill from your shipments.'; }
   })();
 })();
 </script>
