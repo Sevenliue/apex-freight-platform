@@ -834,22 +834,33 @@ dl.kv dd { margin: 0; font-weight: 600; }
 .qo-tip.qo-tip-out { opacity: 0; }
 
 /* ---------- marketing homepage ---------- */
-.landing { max-width: 1500px; margin: 0; padding: 8px 24px 24px; }
+.landing { max-width: 1500px; margin: 0; padding: 8px 24px 24px;
+  display: grid; grid-template-columns: minmax(0, 1080px) minmax(300px, 1fr);
+  gap: 24px; align-items: start; }
+.land-main { min-width: 0; }
+.land-rail { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.land-rail .card { margin-bottom: 0; }
 .land-hero {
-  display: grid; grid-template-columns: minmax(0, 1080px) minmax(320px, 1fr);
-  gap: 24px; align-items: start; justify-content: center;
-}
-.land-hero-main {
   background: linear-gradient(135deg, var(--brand-dark) 0%, var(--brand) 70%);
   color: #fff; border-radius: 16px; padding: 64px 48px; position: relative; overflow: hidden;
 }
-.land-hero-main::after {
+.land-hero::after {
   content: ""; position: absolute; right: -60px; top: -60px; width: 280px; height: 280px;
   border: 40px solid rgba(224, 177, 62, 0.12); border-radius: 50%; pointer-events: none;
 }
 .land-diesel-card { margin-top: 0; }
-.land-diesel-card h3 { margin: 0 0 10px; font-size: 17px; color: var(--brand-dark); }
+.land-diesel-card h3, .rail-card h3 { margin: 0 0 10px; font-size: 17px; color: var(--brand-dark); }
 #diesel-src-home a { color: #14402f; }
+/* Market-pulse rail cards */
+.rail-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.rail-table td { padding: 5px 0; border-bottom: 1px solid var(--line); color: #2c3a34; }
+.rail-table tr:last-child td { border-bottom: none; }
+.rail-table td:last-child { text-align: right; font-weight: 700; color: #14402f; white-space: nowrap; }
+.rail-links { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+.rail-links a { color: #14402f; font-size: 14.5px; font-weight: 600; }
+.rail-fx-now { margin: 0 0 4px; color: #2c3a34; font-size: 14px; }
+.rail-fx-now strong { font-size: 26px; color: #14402f; }
+.rail-fx-chg { font-size: 13px; color: #5a6b62; }
 .land-badge {
   display: inline-block; font-size: 13px; font-weight: 600; letter-spacing: .04em;
   color: var(--accent); border: 1px solid rgba(224,177,62,.5); border-radius: 999px;
@@ -897,8 +908,9 @@ dl.kv dd { margin: 0; font-weight: 600; }
 .land-cta-band p { color: rgba(255,255,255,.8); margin: 0 0 24px; }
 .land-foot { text-align: center; color: var(--muted); font-size: 13.5px; padding: 32px 0 8px; }
 @media (max-width: 860px) {
-  .land-hero { grid-template-columns: 1fr; }
-  .land-hero-main { padding: 44px 26px; }
+  .landing { grid-template-columns: 1fr; }
+  .land-rail { position: static; }
+  .land-hero { padding: 44px 26px; }
   .land-hero h1 { font-size: 32px; }
   .land-steps, .land-grid { grid-template-columns: 1fr; }
   .land-alt { padding: 36px 22px 44px; }

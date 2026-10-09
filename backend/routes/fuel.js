@@ -116,3 +116,76 @@ router.get('/diesel', async (req, res) => {
 });
 
 module.exports = router;
+
+// GET /api/fuel/diesel-provinces — latest completed week of retail diesel
+// (cents/litre) for representative cities, one per province. NRCan publishes
+// city-level weekly prices; provinces are represented by their major market.
+// Fetched in parallel, cached 24h. Partial failures return what succeeded.
+const PROVINCE_CITIES = [
+  { code: 'BC', city: 'Vancouver', locationID: 2 },
+  { code: 'AB', city: 'Edmonton', locationID: 10 },
+  { code: 'SK', city: 'Regina', locationID: 12 },
+  { code: 'MB', city: 'Winnipeg', locationID: 15 },
+  { code: 'ON', city: 'Toronto', locationID: 17 },
+  { code: 'QC', city: 'Montreal', locationID: 28 },
+  { code: 'NB', city: 'Saint John', locationID: 33 },
+  { code: 'NS', city: 'Halifax', locationID: 39 },
+  { code: 'NL', city: "St. John's", locationID: 44 },
+];
+const PROV_CACHE_FILE = path.join(__dirname, '..', 'data', 'diesel-provinces-cache.json');
+let provMemCache = null;
+
+function nrcanCityUrl(locationID) {
+  return 'https://www2.nrcan.gc.ca/eneene/sources/pripri/prices_bycity_e.cfm'
+    + '?productID=5&locationID=' + locationID + '&frequency=W&priceYear=' + new Date().getFullYear();
+}
+
+async function fetchCityLatest(entry) {
+  const res = await fetch(nrcanCityUrl(entry.locationID), {
+    headers: { 'User-Agent': 'ShipRate/1.0 (diesel-price-widget)' },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error('NRCan status ' + res.status + ' for ' + entry.city);
+  const prices = parseWeeklyDiesel(await res.text());
+  const latest = prices[prices.length - 1];
+  return { code: entry.code, city: entry.city, date: latest.date, cents_per_litre: latest.cents_per_litre };
+}
+
+router.get('/diesel-provinces', async (req, res) => {
+  const now = Date.now();
+  if (provMemCache && now - provMemCache.fetched_at < CACHE_TTL_MS) {
+    return res.json({ ...provMemCache, stale: false });
+  }
+  try {
+    const cached = JSON.parse(fs.readFileSync(PROV_CACHE_FILE, 'utf8'));
+    if (cached && Date.now() - cached.fetched_at < CACHE_TTL_MS) {
+      provMemCache = cached;
+      return res.json({ ...cached, stale: false });
+    }
+  } catch (e) { /* no usable cache */ }
+  const results = await Promise.allSettled(PROVINCE_CITIES.map(fetchCityLatest));
+  const provinces = results
+    .filter((r) => r.status === 'fulfilled')
+    .map((r) => r.value);
+  if (!provinces.length) {
+    return res.status(502).json({ error: 'Provincial diesel prices unavailable right now.' });
+  }
+  const payload = {
+    updated_at: new Date().toISOString(),
+    fetched_at: now,
+    source: 'Natural Resources Canada',
+    source_url: 'https://www2.nrcan.gc.ca/eneene/sources/pripri/prices_byfuel_e.cfm',
+    unit: 'cents_per_litre',
+    provinces,
+  };
+  provMemCache = payload;
+  writeCacheTo(PROV_CACHE_FILE, payload);
+  return res.json({ ...payload, stale: false });
+});
+
+function writeCacheTo(file, payload) {
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(payload));
+  } catch (e) { /* cache is best-effort */ }
+}

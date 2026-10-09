@@ -181,6 +181,7 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/pickups', require('./routes/pickups'));
 app.use('/api/holidays', require('./routes/holidays'));
 app.use('/api/fuel', require('./routes/fuel'));
+app.use('/api/market', require('./routes/market'));
 app.use('/api/store', require('./routes/store'));
 app.use('/api/inventory', require('./routes/inventory'));
 
