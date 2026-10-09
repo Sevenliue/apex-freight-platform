@@ -200,11 +200,14 @@ function loadMatrix() {
 
 // Resolve the fuel-surcharge percent for a carrier at a given weight.
 // Admin overrides (carrier_fsc table) win over the rate-sheet values.
-function fscFor(carrier, weightLbs) {
+// tlHint: carrier-specific TL signal (e.g. Guilbault's 6-pallet/12-ft rule)
+// so the admin TL override applies even below the 10,000-lb weight gate.
+function fscFor(carrier, weightLbs, tlHint) {
   if (!carrier) return 0;
   const ov = _fscOverrides.get(carrier.carrier_id);
   if (ov && Number.isFinite(ov.ltl)) {
-    if (weightLbs >= ROSENAU_TL_MIN_LB && ov.tl != null && Number.isFinite(ov.tl)) return ov.tl;
+    if (ov.tl != null && Number.isFinite(ov.tl)
+        && (weightLbs >= ROSENAU_TL_MIN_LB || tlHint === true)) return ov.tl;
     return ov.ltl;
   }
   if (carrier.carrier_id === 'rosenau' && weightLbs >= ROSENAU_TL_MIN_LB) return ROSENAU_TL_FSC;
@@ -325,6 +328,77 @@ function billableWeight(actualLbs, packages, floorLbPerCuFt) {
   };
 }
 
+// Guilbault Transport tariff — pallet-position linear-foot rule.
+// Confirmed in writing by Stéphan Naud (Directeur de comptes) 2026-10-08 and
+// verified to the dollar against probills GU1630706-1 (28,000 lb billable on
+// 14 pallets of 48x40x48) and GU1630711-1 (12,000 lb billable on 6 pallets):
+//   - standard pallets load two-wide: linear_ft = ceil(pallets / 2) x 4
+//   - 12+ trailer feet: billable = max(actual, linear_ft x 1,000 lb/ft)
+//   - below 12 feet: 64 cu ft per pallet space x 10 lb/cu ft (QC/ON/Maritimes)
+//     = 640 lb minimum per pallet
+//   - TL surcharge table at 6+ pallets, 12+ trailer feet, or 10,000+ lb
+// A package line whose footprint is a standard 48x40 pallet (either
+// orientation) counts qty as pallets. Loose-piece lines fall back to the
+// footprint method at 1,200 lb per engine-foot (footprint/8 ft) — the factor
+// that reproduces the reconciled probills exactly (23.33 engine-ft -> 28 ft).
+const GUILBAULT_ID = 'guilbault';
+const GUILBAULT_LF_THRESHOLD_FT = 12;
+const GUILBAULT_LB_PER_FT = 1000;
+const GUILBAULT_LB_PER_PALLET_SPACE = 640; // 64 cu ft x 10 lb/cu ft
+const GUILBAULT_LOOSE_LB_PER_ENGINE_FT = 1200;
+const GUILBAULT_TL_MIN_PALLETS = 6;
+const GUILBAULT_TL_MIN_LB = 10000;
+
+function isGuilbaultPalletLine(p) {
+  const L = Number(p.length), W = Number(p.width);
+  return (L === 48 && W === 40) || (L === 40 && W === 48);
+}
+
+function guilbaultBillableWeight(actualLbs, packages, floorLbPerCuFt) {
+  const w = Number(actualLbs);
+  const floor = Number(floorLbPerCuFt) > 0 ? Number(floorLbPerCuFt) : DENSITY_FLOOR_LB_PER_CUFT;
+  let pallets = 0, cubeFt = 0, looseFootprint = 0, dimLines = 0;
+  for (const p of packages || []) {
+    const q = Math.max(1, Math.floor(Number(p.qty) || 1));
+    const L = Number(p.length), W = Number(p.width), H = Number(p.height);
+    if (!(L > 0 && W > 0 && H > 0)) continue;
+    dimLines++;
+    cubeFt += (q * L * W * H) / 1728;
+    if (isGuilbaultPalletLine(p)) pallets += q;
+    else looseFootprint += ((q * L * W) / 144) * (p.stackable ? 0.5 : 1);
+  }
+  const palletFt = Math.ceil(pallets / 2) * 4;
+  const looseFt = (looseFootprint / TRAILER_WIDTH_FT) * (GUILBAULT_LOOSE_LB_PER_ENGINE_FT / GUILBAULT_LB_PER_FT);
+  const linearFt = palletFt + looseFt;
+  let billable, rule;
+  if (pallets > 0 && linearFt >= GUILBAULT_LF_THRESHOLD_FT) {
+    billable = Math.max(w, linearFt * GUILBAULT_LB_PER_FT);
+    rule = 'guilbault_linear_foot';
+  } else if (pallets > 0) {
+    billable = Math.max(w, pallets * GUILBAULT_LB_PER_PALLET_SPACE, cubeFt * floor);
+    rule = 'guilbault_pallet_space';
+  } else {
+    billable = Math.max(w, cubeFt * floor,
+      (looseFootprint / TRAILER_WIDTH_FT) * GUILBAULT_LOOSE_LB_PER_ENGINE_FT);
+    rule = 'guilbault_loose_footprint';
+  }
+  return {
+    billable_lbs: r2(billable),
+    actual_lbs: r2(w),
+    cube_ft: r2(cubeFt),
+    linear_ft: r2(linearFt),
+    density_pcf: cubeFt > 0 ? r2(w / cubeFt) : null,
+    floor_lb_per_cuft: floor,
+    dimensional_applied: billable > w,
+    dimensional_rule: rule,
+    dim_lines: dimLines,
+    pallet_count: pallets,
+    guilbault_tl: pallets >= GUILBAULT_TL_MIN_PALLETS
+      || linearFt >= GUILBAULT_LF_THRESHOLD_FT
+      || billable >= GUILBAULT_TL_MIN_LB,
+  };
+}
+
 // Rate one shipment across every matching lane; cheapest first.
 // Rating math (weight lanes): first break with billableLbs <= max_lb;
 // base = max(min_charge, billableLbs/100 * rate_cwt); fsc = base * fsc%/100; total = base + fsc.
@@ -384,15 +458,20 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
     // or the global default) — skipped entirely when dim weight is turned
     // off for the carrier (rates on actual weight). Rating weight:
     // dimensional when bulky.
-    const dim = billableWeight(w, packages, densityFloorFor(lane.carrier_id));
+    // Guilbault rates on pallet positions (Naud tariff), not footprint area.
+    const dim = lane.carrier_id === GUILBAULT_ID
+      ? guilbaultBillableWeight(w, packages, densityFloorFor(lane.carrier_id))
+      : billableWeight(w, packages, densityFloorFor(lane.carrier_id));
     const dimOn = dimWeightEnabledFor(lane.carrier_id);
     const bw = dimOn ? dim.billable_lbs : dim.actual_lbs;
+    // Guilbault TL surcharge table: 6+ pallets, 12+ trailer feet, or 10,000+ lb.
+    const tlHint = lane.carrier_id === GUILBAULT_ID && dimOn && dim.guilbault_tl === true;
     const brk = (lane.breaks || []).find((b) => bw <= b.max_lb);
     if (!brk || !(brk.rate_cwt > 0)) continue;
     const raw = (bw / 100) * brk.rate_cwt;
     const minApplied = raw < lane.min_charge_cad;
     const base = minApplied ? lane.min_charge_cad : raw;
-    const fscPercent = fscFor(carrier, bw);
+    const fscPercent = fscFor(carrier, bw, tlHint);
     const fsc = base * fscPercent / 100;
 
     quotes.push({
@@ -403,7 +482,10 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
       billable_weight_lbs: bw,
       density_pcf: dim.density_pcf,
       cube_ft: dim.cube_ft,
+      linear_ft: dim.linear_ft,
       floor_lb_per_cuft: dim.floor_lb_per_cuft,
+      pallet_count: dim.pallet_count != null ? dim.pallet_count : null,
+      guilbault_tl: !!dim.guilbault_tl,
       dimensional_applied: dimOn && dim.dimensional_applied,
       dimensional_rule: dimOn ? dim.dimensional_rule : 'actual',
       dim_weight_enabled: dimOn,
@@ -598,4 +680,4 @@ function upsertCarrierRows(carrierId, rows) {  const st = ensureLoaded();
   return count;
 }
 
-module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides };
+module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, guilbaultBillableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides };

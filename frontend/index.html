@@ -2279,6 +2279,21 @@
         const aw = Number(data.total_weight_lbs || 0);
         const bw = Number(data.billable_weight_lbs || aw);
         const cube = Number(data.cube_ft || 0);
+        /* Guilbault pallet-position rule: show the tariff wording when a
+           Guilbault quote on the board rated on it. */
+        const gRow = (rates || []).find((r) =>
+          r.dimensional_applied && String(r.dimensional_rule || '').indexOf('guilbault_') === 0);
+        if (gRow) {
+          const gbw = Number(gRow.billable_weight_lbs || aw);
+          const grule = gRow.dimensional_rule === 'guilbault_linear_foot'
+            ? `trailer-foot rule (${lb(gRow.linear_ft)} ft × 1,000 lb/ft)`
+            : gRow.dimensional_rule === 'guilbault_pallet_space'
+            ? `pallet-space rule (${lb(gRow.pallet_count)} pallets × 640 lb)`
+            : `trailer-footprint rule`;
+          return `<div class="card dim-notice"><p>⚖ <strong>Dimensional weight applied.</strong> ` +
+            `Actual weight ${lb(aw)} lb → rated at <strong>${lb(gbw)} lb</strong> billable ` +
+            `(Guilbault ${grule}). Carriers price bulky freight on the trailer space it takes, not just scale weight.</p></div>`;
+        }
         if (data.dimensional_applied) {
           const ruleTxt = data.dimensional_rule === 'linear_foot'
             ? `linear-foot rule (${lb(data.linear_ft)} ft × 1,000 lb/ft)`
