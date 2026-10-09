@@ -34,7 +34,8 @@ router.get('/fx', async (req, res) => {
     const data = await r.json();
     const obs = (data.observations || [])
       .filter((o) => o && o.FXCADUSD && Number.isFinite(Number(o.FXCADUSD.v)))
-      .map((o) => ({ date: o.d, rate: Number(o.FXCADUSD.v) }));
+      .map((o) => ({ date: o.d, rate: Number(o.FXCADUSD.v) }))
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
     if (obs.length < 1) throw new Error('BoC parse: no observations');
     const last = obs[obs.length - 1];
     const prev = obs.length > 1 ? obs[obs.length - 2] : null;
