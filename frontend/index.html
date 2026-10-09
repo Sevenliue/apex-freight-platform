@@ -210,6 +210,15 @@
           </div>
         </div>
 
+        <div class="land-section">
+          <h2>⛽ Diesel price trend</h2>
+          <p>Fuel surcharges follow the pump. Here's the Canada average retail diesel price, updated weekly from Natural Resources Canada.</p>
+          <div class="card diesel-card" id="diesel-card-home">
+            <div id="diesel-graph-home"><p class="note">Loading diesel prices…</p></div>
+            <p class="note" id="diesel-src-home" style="margin-bottom:0"></p>
+          </div>
+        </div>
+
         <div class="land-section land-beta">
           <h2>Fine-tuning, lane by lane</h2>
           <p>We're working with real shippers right now to dial in every lane against real invoices. Join free, run your lanes, and help us build the most accurate freight quotes in Canada.</p>
@@ -6225,58 +6234,63 @@
 </script>
 <script>
 (function() {
-  // 4-week Canada diesel price graph for the signed-in dashboard.
+  // 4-week Canada diesel price graph — shown on the public homepage and the signed-in dashboard.
   // Data: GET /api/fuel/diesel (NRCan weekly average, cents/litre).
   function fmtDate(iso) {
     const d = new Date(iso + 'T12:00:00');
     return d.toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
   }
-  async function renderDieselGraph() {
-    const box = document.getElementById('diesel-graph');
-    const src = document.getElementById('diesel-src');
-    if (!box) return;
+  function paintGraph(box, src, pts, data) {
+    const W = 400, H = 170, PL = 8, PR = 8, PT = 26, PB = 26;
+    const vals = pts.map(p => p.cents_per_litre);
+    let lo = Math.min(...vals), hi = Math.max(...vals);
+    if (hi === lo) { hi += 1; lo -= 1; }
+    const pad = (hi - lo) * 0.25 || 1;
+    lo -= pad; hi += pad;
+    const X = i => PL + (i * (W - PL - PR)) / (pts.length - 1);
+    const Y = v => PT + (1 - (v - lo) / (hi - lo)) * (H - PT - PB);
+    const line = pts.map((p, i) => X(i).toFixed(1) + ',' + Y(p.cents_per_litre).toFixed(1)).join(' ');
+    const area = PL + ',' + (H - PB) + ' ' + line + ' ' + (W - PR) + ',' + (H - PB);
+    const dots = pts.map((p, i) =>
+      '<circle cx="' + X(i).toFixed(1) + '" cy="' + Y(p.cents_per_litre).toFixed(1) + '" r="4.5" fill="#14402f"/>' +
+      '<text x="' + X(i).toFixed(1) + '" y="' + (Y(p.cents_per_litre) - 10).toFixed(1) + '" text-anchor="middle" font-size="12" font-weight="600" fill="#14402f">' + p.cents_per_litre.toFixed(1) + '¢</text>' +
+      '<text x="' + X(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="11" fill="#5a6b62">' + fmtDate(p.date) + '</text>'
+    ).join('');
+    const first = pts[0], last = pts[pts.length - 1];
+    const chg = last.cents_per_litre - first.cents_per_litre;
+    const chgTxt = (chg >= 0 ? '+' : '') + chg.toFixed(1) + '¢ vs ' + fmtDate(first.date);
+    box.innerHTML =
+      '<p class="diesel-now"><strong>' + last.cents_per_litre.toFixed(1) + '¢/L</strong> as of ' + fmtDate(last.date) +
+      ' <span class="diesel-chg">(' + chgTxt + ')</span></p>' +
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" class="diesel-svg" role="img" aria-label="Diesel price trend, last 4 weeks">' +
+      '<polygon points="' + area + '" fill="#14402f" opacity="0.10"/>' +
+      '<polyline points="' + line + '" fill="none" stroke="#14402f" stroke-width="2.5" stroke-linejoin="round"/>' +
+      dots + '</svg>';
+    if (src) {
+      src.innerHTML = 'Source: <a href="' + data.source_url + '" target="_blank" rel="noopener">Natural Resources Canada</a> · weekly average retail, Canada' +
+        (data.stale ? ' · showing last available data' : '');
+    }
+  }
+  async function renderDieselGraphs() {
+    const pairs = [
+      [document.getElementById('diesel-graph'), document.getElementById('diesel-src')],
+      [document.getElementById('diesel-graph-home'), document.getElementById('diesel-src-home')]
+    ].filter(function(pair) { return pair[0]; });
+    if (!pairs.length) return;
     try {
       const res = await fetch('/api/fuel/diesel');
       const data = await res.json();
       const pts = data.prices;
       if (!res.ok || !pts || pts.length < 2) throw new Error('bad data');
-      const W = 400, H = 170, PL = 8, PR = 8, PT = 26, PB = 26;
-      const vals = pts.map(p => p.cents_per_litre);
-      let lo = Math.min(...vals), hi = Math.max(...vals);
-      if (hi === lo) { hi += 1; lo -= 1; }
-      const pad = (hi - lo) * 0.25 || 1;
-      lo -= pad; hi += pad;
-      const X = i => PL + (i * (W - PL - PR)) / (pts.length - 1);
-      const Y = v => PT + (1 - (v - lo) / (hi - lo)) * (H - PT - PB);
-      const line = pts.map((p, i) => X(i).toFixed(1) + ',' + Y(p.cents_per_litre).toFixed(1)).join(' ');
-      const area = PL + ',' + (H - PB) + ' ' + line + ' ' + (W - PR) + ',' + (H - PB);
-      const dots = pts.map((p, i) =>
-        '<circle cx="' + X(i).toFixed(1) + '" cy="' + Y(p.cents_per_litre).toFixed(1) + '" r="4.5" fill="#14402f"/>' +
-        '<text x="' + X(i).toFixed(1) + '" y="' + (Y(p.cents_per_litre) - 10).toFixed(1) + '" text-anchor="middle" font-size="12" font-weight="600" fill="#14402f">' + p.cents_per_litre.toFixed(1) + '¢</text>' +
-        '<text x="' + X(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="11" fill="#5a6b62">' + fmtDate(p.date) + '</text>'
-      ).join('');
-      const first = pts[0], last = pts[pts.length - 1];
-      const chg = last.cents_per_litre - first.cents_per_litre;
-      const chgTxt = (chg >= 0 ? '+' : '') + chg.toFixed(1) + '¢ vs ' + fmtDate(first.date);
-      box.innerHTML =
-        '<p class="diesel-now"><strong>' + last.cents_per_litre.toFixed(1) + '¢/L</strong> as of ' + fmtDate(last.date) +
-        ' <span class="diesel-chg">(' + chgTxt + ')</span></p>' +
-        '<svg viewBox="0 0 ' + W + ' ' + H + '" class="diesel-svg" role="img" aria-label="Diesel price trend, last 4 weeks">' +
-        '<polygon points="' + area + '" fill="#14402f" opacity="0.10"/>' +
-        '<polyline points="' + line + '" fill="none" stroke="#14402f" stroke-width="2.5" stroke-linejoin="round"/>' +
-        dots + '</svg>';
-      if (src) {
-        src.innerHTML = 'Source: <a href="' + data.source_url + '" target="_blank" rel="noopener">Natural Resources Canada</a> · weekly average retail, Canada' +
-          (data.stale ? ' · showing last available data' : '');
-      }
+      pairs.forEach(function(pair) { paintGraph(pair[0], pair[1], pts, data); });
     } catch (e) {
-      box.innerHTML = '<p class="note">Diesel prices unavailable right now.</p>';
+      pairs.forEach(function(pair) { pair[0].innerHTML = '<p class="note">Diesel prices unavailable right now.</p>'; });
     }
   }
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', renderDieselGraph);
+    document.addEventListener('DOMContentLoaded', renderDieselGraphs);
   } else {
-    renderDieselGraph();
+    renderDieselGraphs();
   }
 })();
 </script>
