@@ -167,6 +167,7 @@
     <section id="tab-home" class="panel" role="tabpanel">
       <div class="landing">
         <div class="land-hero">
+          <div class="land-hero-main">
           <div class="land-badge">🍁 Canadian freight, simplified</div>
           <h1>Instant LTL freight quotes,<br>Canada-wide.</h1>
           <p class="land-sub">ShipRate compares live carrier rates in seconds — built on real carrier rate sheets, priced in Canadian dollars, tuned lane by lane.</p>
@@ -184,6 +185,12 @@
               <span>⛽ US diesel: <strong id="doe-price">—</strong></span>
               <span class="land-diesel-row"><span>⛽ Canada diesel: <strong id="nrcan-price">—</strong></span><span class="land-diesel-note" id="diesel-asof"></span></span>
             </div>
+          </div>
+          </div>
+          <div class="card diesel-card land-diesel-card">
+            <h3>⛽ Diesel — Canada average</h3>
+            <div id="diesel-graph-home"><p class="note">Loading diesel prices…</p></div>
+            <p class="note" id="diesel-src-home" style="margin-bottom:0"></p>
           </div>
         </div>
 
@@ -207,15 +214,6 @@
             <div class="land-card"><h3>🍁 Priced for Canada</h3><p>Canadian carriers, Canadian dollars, Canada-wide lanes.</p></div>
             <div class="land-card"><h3>⛽ Fuel surcharge included</h3><p>Every quote includes each carrier's current fuel surcharge. Carriers reset it weekly from the fuel price index, so quotes always use the current week's rate.</p></div>
             <div class="land-card"><h3>🚛 For carriers</h3><p>Upload your rate sheet and get quoted on ShipRate — more lanes in front of more shippers. <a href="/carriers/join" data-page="carrier-join">Get listed →</a></p></div>
-          </div>
-        </div>
-
-        <div class="land-section">
-          <h2>⛽ Diesel price trend</h2>
-          <p>Fuel surcharges follow the pump. Here's the Canada average retail diesel price, updated weekly from Natural Resources Canada.</p>
-          <div class="card diesel-card" id="diesel-card-home">
-            <div id="diesel-graph-home"><p class="note">Loading diesel prices…</p></div>
-            <p class="note" id="diesel-src-home" style="margin-bottom:0"></p>
           </div>
         </div>
 

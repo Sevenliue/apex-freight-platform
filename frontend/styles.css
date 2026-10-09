@@ -836,13 +836,19 @@ dl.kv dd { margin: 0; font-weight: 600; }
 /* ---------- marketing homepage ---------- */
 .landing { max-width: 1080px; margin: 0 auto; padding: 8px 0 24px; }
 .land-hero {
+  display: grid; grid-template-columns: 1.65fr 1fr; gap: 24px; align-items: start;
+}
+.land-hero-main {
   background: linear-gradient(135deg, var(--brand-dark) 0%, var(--brand) 70%);
-  color: #fff; border-radius: 16px; padding: 64px 48px; position: relative; overflow: hidden;
+  color: #fff; border-radius: 16px; padding: 56px 44px; position: relative; overflow: hidden;
 }
-.land-hero::after {
+.land-hero-main::after {
   content: ""; position: absolute; right: -60px; top: -60px; width: 280px; height: 280px;
-  border: 40px solid rgba(224, 177, 62, 0.12); border-radius: 50%;
+  border: 40px solid rgba(224, 177, 62, 0.12); border-radius: 50%; pointer-events: none;
 }
+.land-diesel-card { margin-top: 0; }
+.land-diesel-card h3 { margin: 0 0 10px; font-size: 17px; color: var(--brand-dark); }
+#diesel-src-home a { color: #14402f; }
 .land-badge {
   display: inline-block; font-size: 13px; font-weight: 600; letter-spacing: .04em;
   color: var(--accent); border: 1px solid rgba(224,177,62,.5); border-radius: 999px;
@@ -889,7 +895,8 @@ dl.kv dd { margin: 0; font-weight: 600; }
 .land-cta-band p { color: rgba(255,255,255,.8); margin: 0 0 24px; }
 .land-foot { text-align: center; color: var(--muted); font-size: 13.5px; padding: 32px 0 8px; }
 @media (max-width: 860px) {
-  .land-hero { padding: 44px 26px; }
+  .land-hero { grid-template-columns: 1fr; }
+  .land-hero-main { padding: 44px 26px; }
   .land-hero h1 { font-size: 32px; }
   .land-steps, .land-grid { grid-template-columns: 1fr; }
   .land-alt { padding: 36px 22px 44px; }
