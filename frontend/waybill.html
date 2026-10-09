@@ -51,10 +51,26 @@
     .no-print { display: none !important; }
     .wrap { max-width: none; margin: 0; padding: 0; }
     .doc { border: none; box-shadow: none; padding: 0; }
-    input.fld, textarea.fld, select.fld { border: none; padding-left: 0; }
-    table.pkgs input { padding: 4px 2px; }
-    .doc-head { border-bottom-width: 2px; }
-    @page { margin: 12mm; }
+    .doc h1 { font-size: 18px; }
+    .doc .sub { font-size: 10px; }
+    .doc-head { border-bottom-width: 2px; padding-bottom: 8px; margin-bottom: 8px; }
+    .meta-grid { font-size: 11px; gap: 2px 6px; }
+    .grid2 { gap: 8px; }
+    .sec { margin-bottom: 8px; }
+    .sec > .sec-title { font-size: 11px; padding: 4px 8px; }
+    .sec-body { padding: 6px 8px; }
+    .frow { font-size: 11px; margin-bottom: 3px; grid-template-columns: 92px 1fr; }
+    input.fld, textarea.fld, select.fld { border: none; padding: 2px 0; font-size: 11px; }
+    textarea.fld { min-height: 34px; }
+    table.pkgs { font-size: 10.5px; }
+    table.pkgs th { padding: 3px 2px; font-size: 10px; }
+    table.pkgs input { padding: 2px; font-size: 10.5px; }
+    .totals { font-size: 11px; padding: 4px 8px 0; }
+    .sigs { gap: 8px; }
+    .sigbox { margin-top: 18px; font-size: 10px; }
+    .sigbox input { font-size: 11px; padding: 2px; margin-bottom: 0; }
+    .terms { font-size: 9px; margin-top: 8px; padding-top: 6px; line-height: 1.4; }
+    @page { margin: 10mm; size: letter; }
   }
 </style>
 </head>
