@@ -4976,12 +4976,22 @@
     let invTextTarget = null;
     let invOcrWorker = null;
     let invOcrWarming = false;
+    function invOcrLog(m) {
+      const status = $('#inv-text-status');
+      if (!status || !m) return;
+      const pct = (m.status === 'recognizing text' || typeof m.progress !== 'number') ? '' : ' ' + Math.round(m.progress * 100) + '%';
+      const label = { 'loading tesseract core': 'Loading text reader', 'loading language traineddata': 'Loading language data', 'initializing tesseract': 'Starting text reader', 'recognizing text': 'Reading text' }[m.status] || m.status || 'Working';
+      status.textContent = label + pct + '…';
+    }
     async function invOcrWarmup() {
       if (invOcrWorker || invOcrWarming || typeof Tesseract === 'undefined') return;
       invOcrWarming = true;
-      try { invOcrWorker = await Tesseract.createWorker('eng'); }
+      try { invOcrWorker = await Tesseract.createWorker('eng', undefined, { logger: invOcrLog }); }
       catch { invOcrWorker = null; }
       invOcrWarming = false;
+      const s = $('#inv-text-status');
+      const r = $('#inv-text-result');
+      if (s && r && r.value === '' && invTextTarget) s.textContent = '';
     }
 
     async function loadInventory() {
@@ -5322,8 +5332,11 @@
         const c = document.createElement('canvas');
         c.width = Math.round(vw * scale); c.height = Math.round(vh * scale);
         c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
-        const engine = invOcrWorker || Tesseract;
-        const { data: { text } } = await engine.recognize(c, 'eng');
+        const doOcr = invOcrWorker
+          ? invOcrWorker.recognize(c, { logger: invOcrLog })
+          : Tesseract.recognize(c, 'eng', { logger: invOcrLog });
+        const giveUp = new Promise((_, rej) => setTimeout(() => rej(new Error('timed out — check connection and retry')), 60000));
+        const { data: { text } } = await Promise.race([doOcr, giveUp]);
         const clean = String(text || '').replace(/[ \t]+\n/g, '\n').trim();
         $('#inv-text-result').value = clean;
         $('#inv-text-result-wrap').classList.remove('hidden');
@@ -5358,7 +5371,17 @@
       if (!si) return;
       si.addEventListener('click', () => startInvScan('in'));
       so.addEventListener('click', () => startInvScan('out'));
-      $('#inv-scanner-stop').addEventListener('click', () => { stopTextScan(); stopInvScanner(); });
+      $('#inv-scanner-stop').addEventListener('click', () => {
+        const backToNew = invTextTarget === 'inv-new-name' && $('#inv-new-sku').textContent;
+        stopTextScan();
+        stopInvScanner();
+        if (backToNew) {
+          const wrap = $('#inv-scanner-wrap');
+          wrap.classList.remove('hidden');
+          $('#inv-scanner-title').textContent = invScanDir === 'in' ? 'Scan to add stock' : 'Scan to remove stock';
+          $('#inv-new-item').classList.remove('hidden');
+        }
+      });
       $('#inv-new-save').addEventListener('click', async () => {
         const name = $('#inv-new-name').value.trim();
         if (!name) { showAlert('Give the item a name first.'); return; }
