@@ -5141,12 +5141,28 @@
       const ctx = invAudio();
       if (!ctx) return;
       try {
-        const o = ctx.createOscillator(), g = ctx.createGain();
-        o.connect(g); g.connect(ctx.destination);
-        o.frequency.value = ok ? 880 : 220; o.type = 'sine';
-        g.gain.setValueAtTime(0.15, ctx.currentTime);
-        o.start(); o.stop(ctx.currentTime + 0.15);
+        const t = ctx.currentTime;
+        const mk = (freq, start, dur) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.connect(g); g.connect(ctx.destination);
+          o.frequency.value = freq; o.type = 'sine';
+          g.gain.setValueAtTime(0.0001, t + start);
+          g.gain.exponentialRampToValueAtTime(0.5, t + start + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.0001, t + start + dur);
+          o.start(t + start); o.stop(t + start + dur + 0.05);
+        };
+        if (ok) { mk(880, 0, 0.12); mk(1318, 0.13, 0.18); }
+        else { mk(220, 0, 0.25); }
       } catch { /* no audio */ }
+    }
+
+    function invFlash(el) {
+      if (!el) return;
+      try {
+        el.style.transition = 'background-color .35s';
+        el.style.backgroundColor = '#bbf7d0';
+        setTimeout(() => { el.style.backgroundColor = ''; }, 450);
+      } catch { /* noop */ }
     }
 
     async function invRecordScan(sku, direction, qty, name) {
@@ -5154,6 +5170,7 @@
       try {
         const r = await api.scanInventory(sku, direction, qty, name);
         invBeep(true);
+        invFlash($('#inv-scanner-wrap'));
         if (msgEl) msgEl.innerHTML = '<strong>' + (direction === 'in' ? 'Added ' : 'Removed ') + qty +
           ' × ' + esc(r.item.name) + '</strong> — now ' + r.item.qty + ' on hand.';
         refreshInvItems(); refreshInvMoves();
@@ -5247,6 +5264,7 @@
         try {
           const r = await api.scanInventory(sku, direction, qty, name || undefined, extra);
           invBeep(true);
+          invFlash(manMsg);
           manMsg.textContent = (direction === 'in' ? 'Added ' : 'Removed ') + qty + ' × ' + r.item.name + ' — now ' + r.item.qty + '.';
           $('#inv-man-sku').value = ''; $('#inv-man-name').value = '';
           $('#inv-man-lot').value = ''; $('#inv-man-exp').value = ''; $('#inv-man-serial').value = '';
