@@ -382,6 +382,15 @@ router.post('/', async (req, res) => {
       applied.push({ code: 'dangerous_goods', label: 'Dangerous Goods', group: 'pickup', fee_cad: dg });
       accTotal = round2(accTotal + dg);
     }
+    // J&R Hall declared-value surcharge: carrier covers $2/lb included; over
+    // $2/lb declared, they charge 2% of declared value. A carrier charge, so
+    // it joins cost before markup like accessorials (separate from the
+    // platform's optional 1% add-on insurance, which is added to retail).
+    const dvSurcharge = acc.declaredValueSurcharge(q.carrier_id, declared_value, totalWeightLbs);
+    if (dvSurcharge > 0) {
+      applied.push({ code: 'declared_value_surcharge', label: 'Declared value surcharge (2%)', group: 'pickup', fee_cad: dvSurcharge });
+      accTotal = round2(accTotal + dvSurcharge);
+    }
     const cost = round2(freight + accTotal);
     return {
       rate_id: `matrix_${q.carrier_id}_${i}`,
@@ -413,6 +422,7 @@ router.post('/', async (req, res) => {
       fsc_cad: round2(q.fsc_cad),
       accessorials_applied: applied,
       accessorial_total_cad: accTotal,
+      declared_value_surcharge_cad: dvSurcharge,
       min_charge_applied: !!q.min_charge_applied,
       max_charge_applied: !!q.max_charge_applied,
       lane_origin_city: q.lane_origin_city || null,

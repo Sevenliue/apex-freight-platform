@@ -129,6 +129,19 @@ function dgFee(weightLbs, carrierId) {
   return Number(weightLbs) > 20000 ? 128.6 : 80.2;
 }
 
+// declaredValueSurcharge(carrierId, declaredValue, weightLbs): the carrier's
+// own declared-value surcharge. J&R Hall includes $2/lb coverage; when the
+// declared value works out over $2/lb, they charge 2% of the declared value
+// (standard tariff reading of the 2026 T&C's compressed wording).
+function declaredValueSurcharge(carrierId, declaredValue, weightLbs) {
+  if (String(carrierId || '').toLowerCase() !== 'jrhall') return 0;
+  const dv = Number(declaredValue) || 0;
+  const w = Number(weightLbs) || 0;
+  if (!(dv > 0) || !(w > 0)) return 0;
+  if (dv / w <= 2) return 0;
+  return round2(dv * 0.02);
+}
+
 // estimateTransit(originProv, destProv): simple planning estimate in the
 // reference tool's style ("1 Day(s)"). NEVER guaranteed — the board labels it
 // as an estimate.
@@ -139,4 +152,4 @@ function estimateTransit(originProv, destProv) {
   return '2-5 Day(s)';
 }
 
-module.exports = { list, isKnown, feeFor, applyAccessorials, dgFee, estimateTransit };
+module.exports = { list, isKnown, feeFor, applyAccessorials, dgFee, declaredValueSurcharge, estimateTransit };
