@@ -4974,6 +4974,15 @@
     let invItemsCache = [];
     let invTextStream = null;
     let invTextTarget = null;
+    let invOcrWorker = null;
+    let invOcrWarming = false;
+    async function invOcrWarmup() {
+      if (invOcrWorker || invOcrWarming || typeof Tesseract === 'undefined') return;
+      invOcrWarming = true;
+      try { invOcrWorker = await Tesseract.createWorker('eng'); }
+      catch { invOcrWorker = null; }
+      invOcrWarming = false;
+    }
 
     async function loadInventory() {
       const gate = $('#inv-gate'), app = $('#inv-app');
@@ -5293,6 +5302,7 @@
         $('#inv-text-video-wrap').appendChild(video);
         await video.play();
         status.textContent = '';
+        invOcrWarmup();
       } catch (e) {
         status.textContent = 'Camera unavailable (' + (e.message || e) + ').';
       }
@@ -5304,13 +5314,16 @@
       if (!video || video.readyState < 2) { status.textContent = 'Camera not ready yet — wait a moment.'; return; }
       if (typeof Tesseract === 'undefined') { status.textContent = 'Text reader still loading — check connection and retry.'; return; }
       status.textContent = 'Reading text…';
+      const capBtn = $('#inv-text-capture');
+      if (capBtn) capBtn.disabled = true;
       try {
         const vw = video.videoWidth, vh = video.videoHeight;
         const scale = Math.min(1, 1280 / vw);
         const c = document.createElement('canvas');
         c.width = Math.round(vw * scale); c.height = Math.round(vh * scale);
         c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
-        const { data: { text } } = await Tesseract.recognize(c, 'eng');
+        const engine = invOcrWorker || Tesseract;
+        const { data: { text } } = await engine.recognize(c, 'eng');
         const clean = String(text || '').replace(/[ \t]+\n/g, '\n').trim();
         $('#inv-text-result').value = clean;
         $('#inv-text-result-wrap').classList.remove('hidden');
@@ -5320,6 +5333,7 @@
         status.textContent = 'Could not read text (' + (e.message || e) + ').';
         invBeep(false);
       }
+      if (capBtn) capBtn.disabled = false;
     }
 
     function invTextUse() {
