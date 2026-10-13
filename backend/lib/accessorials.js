@@ -13,6 +13,23 @@
 // - Special Request is $0 here (quoted case-by-case).
 // - Dangerous goods: auto-added per shipment when any package line is flagged
 //   DG — $80.20 (1-20,000 lb) / $128.60 (20,001+ lb), Guilbault basis.
+//   J&R Hall bills a flat $100 (see CARRIER_OVERRIDES).
+//
+// Per-carrier overrides (J&R Hall, Nov 1 2026 tariff / 2026 T&C): the quote
+// form's accessorial codes are shared across carriers, but J&R Hall prices
+// several differently. feeFor/applyAccessorials/dgFee take an optional
+// carrierId and apply these instead of the catalog defaults.
+//
+// J&R Hall T&C charges NOT in the quote form (post-shipment, not selectable
+// at quote time): waiting $90/hr (first 1 hr TL / first 1/2 hr LTL free),
+// after-hours/weekend delivery $250 + waiting, additional drops/pick-ups
+// $100 each, missed pick-up $150, same-day cancellation $50 LTL / $200 TL,
+// border cross $25, trailer detention $50/day beyond scheduled delivery,
+// storage $5/skid/day beyond scheduled delivery, blanket wrap +15% of
+// line-haul (min $300), insurance $2/lb included + 2% on declared value
+// over $2/lb. After-hours and blanket wrap are quote-time in principle but
+// stay out: the shared catalog applies every selected code to ALL carriers,
+// so adding them would misprice the other carriers.
 //
 // Accessorial fees are added to the carrier freight cost BEFORE the platform
 // markup is applied, so the board's "Est. Total Cost" is the shipper's
@@ -46,6 +63,25 @@ const CATALOG = [
 
 const BY_CODE = new Map(CATALOG.map((a) => [a.code, a]));
 
+// Per-carrier price overrides, keyed by carrier_id. An entry replaces the
+// catalog fee (fee_cad), percent (pct_of_freight), or minimum (min_cad) for
+// that carrier only. Other carriers keep the catalog defaults.
+const CARRIER_OVERRIDES = {
+  // J&R Hall Transport — Nov 1 2026 tariff + 2026 Terms & Conditions.
+  jrhall: {
+    tailgate_pickup: { fee_cad: 150 }, // T&C: $150 minimum
+    tailgate_delivery: { fee_cad: 150 }, // T&C: $150 minimum
+    appointment_delivery: { fee_cad: 100 }, // T&C: $100 each
+    freeze_protect: { pct_of_freight: 15, min_cad: 300 }, // T&C: heated +15%, min $300
+  },
+};
+
+function overrideFor(carrierId, code) {
+  if (!carrierId) return null;
+  const ov = CARRIER_OVERRIDES[String(carrierId).toLowerCase()];
+  return (ov && ov[code]) || null;
+}
+
 function list() {
   return CATALOG.map((a) => ({ ...a }));
 }
@@ -54,32 +90,42 @@ function isKnown(code) {
   return BY_CODE.has(code);
 }
 
-// feeFor(code, freightCost): CAD fee for one accessorial against a freight
-// cost. Percent-based entries (freeze protection) scale with freight.
-function feeFor(code, freightCost) {
+// feeFor(code, freightCost, carrierId?): CAD fee for one accessorial against
+// a freight cost. Percent-based entries scale with freight; a per-carrier
+// override may replace the fee, the percent, or add a minimum.
+function feeFor(code, freightCost, carrierId) {
   const a = BY_CODE.get(code);
   if (!a) return 0;
-  if (a.pct_of_freight) return round2(Number(freightCost) * (a.pct_of_freight / 100));
-  return round2(a.fee_cad || 0);
+  const ov = overrideFor(carrierId, code);
+  const pct = ov && ov.pct_of_freight != null ? ov.pct_of_freight : a.pct_of_freight;
+  const min = ov && ov.min_cad != null ? ov.min_cad : null;
+  if (pct) {
+    const fee = round2(Number(freightCost) * (pct / 100));
+    return min != null ? Math.max(fee, min) : fee;
+  }
+  const flat = ov && ov.fee_cad != null ? ov.fee_cad : a.fee_cad;
+  return round2(flat || 0);
 }
 
-// applyAccessorials(codes, freightCost): dedupes codes, returns the applied
-// line items and their total.
-function applyAccessorials(codes, freightCost) {
+// applyAccessorials(codes, freightCost, carrierId?): dedupes codes, returns
+// the applied line items and their total.
+function applyAccessorials(codes, freightCost, carrierId) {
   const seen = new Set();
   const applied = [];
   for (const code of codes || []) {
     if (!code || seen.has(code) || !BY_CODE.has(code)) continue;
     seen.add(code);
     const a = BY_CODE.get(code);
-    applied.push({ code, label: a.label, group: a.group, fee_cad: feeFor(code, freightCost) });
+    applied.push({ code, label: a.label, group: a.group, fee_cad: feeFor(code, freightCost, carrierId) });
   }
   const total_cad = round2(applied.reduce((s, x) => s + x.fee_cad, 0));
   return { applied, total_cad };
 }
 
-// dgFee(weightLbs): dangerous-goods surcharge per shipment (Guilbault basis).
-function dgFee(weightLbs) {
+// dgFee(weightLbs, carrierId?): dangerous-goods surcharge per shipment.
+// Guilbault basis by default; J&R Hall bills a flat $100.
+function dgFee(weightLbs, carrierId) {
+  if (String(carrierId || '').toLowerCase() === 'jrhall') return 100;
   return Number(weightLbs) > 20000 ? 128.6 : 80.2;
 }
 

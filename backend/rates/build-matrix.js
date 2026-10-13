@@ -212,6 +212,9 @@ function buildLanes(carrierId) {
     const lane = { carrier_id: carrierId, origin_city, origin_prov, dest_city, dest_prov, min_charge_cad, breaks };
     const svc = (carrierId === 'hifab' || carrierId === 'jrhall') ? num(cell('service_days')) : null;
     if (svc !== null) lane.service_days = svc;
+    // J&R Hall MAX F/L cap (Nov 1 2026 tariff): line-haul base never exceeds it.
+    const mx = num(cell('max_charge_cad'));
+    if (mx !== null && mx > 0) lane.max_charge_cad = mx;
 
     const key = [carrierId, origin_city, origin_prov, dest_city, dest_prov].join('|');
     if (seen.has(key)) { duplicates++; continue; } // keep first occurrence

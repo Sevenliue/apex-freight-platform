@@ -374,11 +374,11 @@ router.post('/', async (req, res) => {
   // Price each matrix rate: freight + accessorials (+ DG) -> markup -> retail.
   const rates = (matrixQuotes || []).map((q, i) => {
     const freight = round2(q.total_cad);
-    const accRes = acc.applyAccessorials(accessorialCodes, freight);
+    const accRes = acc.applyAccessorials(accessorialCodes, freight, q.carrier_id);
     const applied = accRes.applied.slice();
     let accTotal = accRes.total_cad;
     if (hasDG) {
-      const dg = acc.dgFee(totalWeightLbs);
+      const dg = acc.dgFee(totalWeightLbs, q.carrier_id);
       applied.push({ code: 'dangerous_goods', label: 'Dangerous Goods', group: 'pickup', fee_cad: dg });
       accTotal = round2(accTotal + dg);
     }
@@ -414,6 +414,7 @@ router.post('/', async (req, res) => {
       accessorials_applied: applied,
       accessorial_total_cad: accTotal,
       min_charge_applied: !!q.min_charge_applied,
+      max_charge_applied: !!q.max_charge_applied,
       lane_origin_city: q.lane_origin_city || null,
       lane_origin_prov: q.lane_origin_prov || null,
       lane_dest_city: q.lane_dest_city || null,

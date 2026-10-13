@@ -470,7 +470,12 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
     if (!brk || !(brk.rate_cwt > 0)) continue;
     const raw = (bw / 100) * brk.rate_cwt;
     const minApplied = raw < lane.min_charge_cad;
-    const base = minApplied ? lane.min_charge_cad : raw;
+    let base = minApplied ? lane.min_charge_cad : raw;
+    // MAX F/L cap (e.g. J&R Hall Nov 1 2026 tariff): the line-haul base never
+    // exceeds the lane's max_charge_cad. Applies after the min-charge floor,
+    // before FSC (FSC is computed on the capped base).
+    const maxApplied = Number(lane.max_charge_cad) > 0 && base > lane.max_charge_cad;
+    if (maxApplied) base = lane.max_charge_cad;
     const fscPercent = fscFor(carrier, bw, tlHint);
     const fsc = base * fscPercent / 100;
 
@@ -495,6 +500,7 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
       fsc_cad: r2(fsc),
       total_cad: r2(base + fsc),
       min_charge_applied: minApplied,
+      max_charge_applied: maxApplied,
       currency: 'CAD',
       source: 'matrix',
       // Actual lane cities that rated this quote; when the quoted city is a
@@ -537,7 +543,10 @@ function quoteFtl({ originCity, originProv, destCity, destProv, weightLbs, packa
     const last = breaks[breaks.length - 1];
     if (!last || !(last.max_lb >= 20000) || !(last.rate_cwt > 0)) continue;
     const dim = billableWeight(w, packages, densityFloorFor(lane.carrier_id));
-    const base = (bw / 100) * last.rate_cwt;
+    let base = (bw / 100) * last.rate_cwt;
+    // MAX F/L cap (e.g. J&R Hall Nov 1 2026 tariff) applies to FTL too.
+    const maxApplied = Number(lane.max_charge_cad) > 0 && base > lane.max_charge_cad;
+    if (maxApplied) base = lane.max_charge_cad;
     const fscPercent = fscFor(carrier, bw);
     const fsc = base * fscPercent / 100;
     quotes.push({
@@ -559,6 +568,7 @@ function quoteFtl({ originCity, originProv, destCity, destProv, weightLbs, packa
       fsc_cad: r2(fsc),
       total_cad: r2(base + fsc),
       min_charge_applied: false,
+      max_charge_applied: maxApplied,
       currency: 'CAD',
       source: 'matrix',
       lane_origin_city: lane.origin_city,
