@@ -134,8 +134,9 @@ function lookupFsc(table, dieselPrice) {
 // updateGrimshawFsc() writes the values to carrier_fsc + the in-memory
 // override, but ONLY when they differ from the stored override — the
 // server runs this daily, so most runs are no-ops.
-// Grimshaw has no matrix lanes yet (account rates pending from the rep),
-// so the override sits ready and applies the moment lanes are added.
+// Grimshaw has 60 Edmonton LTL lanes in matrix-data.json (TOTTIEDM02
+// Rate ID 23863, eff. 2025-01-01 to 2026-12-31); the override applies to
+// them the moment the server loads the matrix.
 // ---------------------------------------------------------------------------
 const GRIMSHAW_NEWS_URL = 'https://www.grimshaw-trucking.com/news';
 
