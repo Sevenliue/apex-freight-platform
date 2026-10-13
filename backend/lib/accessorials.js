@@ -31,6 +31,14 @@
 // stay out: the shared catalog applies every selected code to ALL carriers,
 // so adding them would misprice the other carriers.
 //
+// Gardewine Tariff 100 charges NOT in the quote form (post-shipment, not
+// selectable at quote time): after-hours pick-up/delivery $115.21, 2-man
+// delivery $170.50 above 15 pieces, detention $0 for Total Tire (account
+// exception), storage $1.15/CWT/day (min $23.05), re-weigh $11.52 + extra
+// freight, long freight (10 ft+) $57.61, explosives $115.21, Churchill DG
+// $282.28. Rural/off-route, private residence and tailgate are $0 for
+// Total Tire per the account exceptions — modeled above as $0 overrides.
+//
 // Accessorial fees are added to the carrier freight cost BEFORE the platform
 // markup is applied, so the board's "Est. Total Cost" is the shipper's
 // sell price excluding tax.
@@ -73,6 +81,21 @@ const CARRIER_OVERRIDES = {
     tailgate_delivery: { fee_cad: 150 }, // T&C: $150 minimum
     appointment_delivery: { fee_cad: 100 }, // T&C: $100 each
     freeze_protect: { pct_of_freight: 15, min_cad: 300 }, // T&C: heated +15%, min $300
+  },
+  // Gardewine Group — Tariff 100 + Total Tire (TOTATIR) account exceptions.
+  // Tailgate, inside and residential are $0 for Total Tire (account-exempt).
+  // Appointment $34.56 (Item 555), call prior $17.29 (Item 560), heated
+  // 13.83% of freight min $17.29 (Item 725).
+  gardewine: {
+    tailgate_pickup: { fee_cad: 0 }, // TOTATIR exception: no charge
+    tailgate_delivery: { fee_cad: 0 }, // TOTATIR exception: no charge
+    inside_pickup: { fee_cad: 0 }, // TOTATIR exception: no charge
+    inside_delivery: { fee_cad: 0 }, // TOTATIR exception: no charge
+    residential_pickup: { fee_cad: 0 }, // TOTATIR exception: no charge
+    residential_delivery: { fee_cad: 0 }, // TOTATIR exception: no charge
+    appointment_delivery: { fee_cad: 34.56 }, // Tariff Item 555
+    notify_consignee: { fee_cad: 17.29 }, // Tariff Item 560, call prior
+    freeze_protect: { pct_of_freight: 13.83, min_cad: 17.29 }, // Tariff Item 725, heated
   },
 };
 
@@ -123,9 +146,12 @@ function applyAccessorials(codes, freightCost, carrierId) {
 }
 
 // dgFee(weightLbs, carrierId?): dangerous-goods surcharge per shipment.
-// Guilbault basis by default; J&R Hall bills a flat $100.
+// Guilbault basis by default; J&R Hall bills a flat $100;
+// Gardewine bills $46.08 (Tariff Item 810). Gardewine DG to/from
+// Churchill is $282.28 — not modeled: dgFee has no origin/dest.
 function dgFee(weightLbs, carrierId) {
   if (String(carrierId || '').toLowerCase() === 'jrhall') return 100;
+  if (String(carrierId || '').toLowerCase() === 'gardewine') return 46.08;
   return Number(weightLbs) > 20000 ? 128.6 : 80.2;
 }
 
@@ -133,8 +159,19 @@ function dgFee(weightLbs, carrierId) {
 // own declared-value surcharge. J&R Hall includes $2/lb coverage; when the
 // declared value works out over $2/lb, they charge 2% of the declared value
 // (standard tariff reading of the 2026 T&C's compressed wording).
+// Gardewine (Tariff Item 800) also includes $2/lb; the surcharge is 3.46%
+// of the value IN EXCESS of $2/lb, minimum $11.52 per shipment.
 function declaredValueSurcharge(carrierId, declaredValue, weightLbs) {
-  if (String(carrierId || '').toLowerCase() !== 'jrhall') return 0;
+  const id = String(carrierId || '').toLowerCase();
+  if (id === 'gardewine') {
+    const dv = Number(declaredValue) || 0;
+    const w = Number(weightLbs) || 0;
+    if (!(dv > 0) || !(w > 0)) return 0;
+    const excess = dv - 2 * w;
+    if (excess <= 0) return 0;
+    return Math.max(round2(excess * 0.0346), 11.52);
+  }
+  if (id !== 'jrhall') return 0;
   const dv = Number(declaredValue) || 0;
   const w = Number(weightLbs) || 0;
   if (!(dv > 0) || !(w > 0)) return 0;

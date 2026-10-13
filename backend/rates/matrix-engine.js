@@ -402,6 +402,11 @@ function guilbaultBillableWeight(actualLbs, packages, floorLbPerCuFt) {
 // Rate one shipment across every matching lane; cheapest first.
 // Rating math (weight lanes): first break with billableLbs <= max_lb;
 // base = max(min_charge, billableLbs/100 * rate_cwt); fsc = base * fsc%/100; total = base + fsc.
+// Flat-band lanes (e.g. Gardewine 2026): when billableLbs falls in a
+// lane.flat_bands entry, that entry's per-shipment price IS the base —
+// no CWT math, no minimum-charge floor. Above the last flat band the lane
+// falls through to its CWT breaks; above the last break there is no quote
+// (the sheet publishes no rate for that weight).
 // billableLbs = max(actual lb, cube_ft x density floor, linear_ft x 1000 when over
 // the linear threshold) — see billableWeight(). With no dimensions it == actual.
 // Skid lanes (lane.skid_rates): flat per-shipment price for the exact skid count;
@@ -466,11 +471,27 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
     const bw = dimOn ? dim.billable_lbs : dim.actual_lbs;
     // Guilbault TL surcharge table: 6+ pallets, 12+ trailer feet, or 10,000+ lb.
     const tlHint = lane.carrier_id === GUILBAULT_ID && dimOn && dim.guilbault_tl === true;
-    const brk = (lane.breaks || []).find((b) => bw <= b.max_lb);
-    if (!brk || !(brk.rate_cwt > 0)) continue;
-    const raw = (bw / 100) * brk.rate_cwt;
-    const minApplied = raw < lane.min_charge_cad;
-    let base = minApplied ? lane.min_charge_cad : raw;
+    // Flat per-shipment band wins when the billable weight falls in one;
+    // otherwise CWT breaks; no band and no break means no quote.
+    // A band may carry an optional min_lb (a sheet gap, e.g. Gardewine
+    // Winnipeg→Churchill publishes no rate under 500 lb); bands without
+    // min_lb rate from 0, as before.
+    const flat = (lane.flat_bands || []).find((b) => bw <= b.max_lb && bw >= (b.min_lb || 0));
+    let base, rateCwtUsed, minApplied, rateBasis;
+    if (flat && flat.price_cad > 0) {
+      base = flat.price_cad;
+      rateCwtUsed = null;
+      minApplied = false;
+      rateBasis = 'flat';
+    } else {
+      const brk = (lane.breaks || []).find((b) => bw <= b.max_lb && bw >= (b.min_lb || 0));
+      if (!brk || !(brk.rate_cwt > 0)) continue;
+      const raw = (bw / 100) * brk.rate_cwt;
+      minApplied = raw < lane.min_charge_cad;
+      base = minApplied ? lane.min_charge_cad : raw;
+      rateCwtUsed = brk.rate_cwt;
+      rateBasis = undefined;
+    }
     // MAX F/L cap (e.g. J&R Hall Nov 1 2026 tariff): the line-haul base never
     // exceeds the lane's max_charge_cad. Applies after the min-charge floor,
     // before FSC (FSC is computed on the capped base).
@@ -494,7 +515,8 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
       dimensional_applied: dimOn && dim.dimensional_applied,
       dimensional_rule: dimOn ? dim.dimensional_rule : 'actual',
       dim_weight_enabled: dimOn,
-      rate_cwt_used: brk.rate_cwt,
+      rate_cwt_used: rateCwtUsed,
+      ...(rateBasis ? { rate_basis: rateBasis } : {}),
       base_cad: r2(base),
       fsc_percent: fscPercent,
       fsc_cad: r2(fsc),
@@ -623,7 +645,9 @@ function getAccessorials(carrierId) {
 
 // Merge canonical lane rows into the in-memory matrix.
 // rows: [{origin_city, origin_prov, dest_city, dest_prov, min_charge_cad,
-//          breaks:[{max_lb, rate_cwt}, ...], service_days?}]
+//          breaks:[{max_lb, rate_cwt}, ...],
+//          flat_bands:[{max_lb, price_cad}, ...] (per-shipment flat bands),
+//          service_days?}]
 // Same origin/dest lane is replaced; new lanes are appended.
 // Returns the number of rows successfully upserted.
 // NOTE: in-memory only — the caller (e.g. the upload endpoint) must persist.
@@ -663,8 +687,24 @@ function upsertCarrierRows(carrierId, rows) {  const st = ensureLoaded();
     const min_charge_cad = Number(r.min_charge_cad);
     const breaks = Array.isArray(r.breaks)
       ? r.breaks
-          .map((b) => ({ max_lb: Number(b && b.max_lb), rate_cwt: Number(b && b.rate_cwt) }))
+          .map((b) => {
+            const o = { max_lb: Number(b && b.max_lb), rate_cwt: Number(b && b.rate_cwt) };
+            const mn = Number(b && b.min_lb);
+            if (Number.isFinite(mn) && mn > 0) o.min_lb = mn;
+            return o;
+          })
           .filter((b) => Number.isFinite(b.max_lb) && b.max_lb > 0 && Number.isFinite(b.rate_cwt) && b.rate_cwt > 0)
+          .sort((a, b) => a.max_lb - b.max_lb)
+      : [];
+    const flat_bands = Array.isArray(r.flat_bands)
+      ? r.flat_bands
+          .map((b) => {
+            const o = { max_lb: Number(b && b.max_lb), price_cad: Number(b && b.price_cad) };
+            const mn = Number(b && b.min_lb);
+            if (Number.isFinite(mn) && mn > 0) o.min_lb = mn;
+            return o;
+          })
+          .filter((b) => Number.isFinite(b.max_lb) && b.max_lb > 0 && Number.isFinite(b.price_cad) && b.price_cad > 0)
           .sort((a, b) => a.max_lb - b.max_lb)
       : [];
     const skid_rates = r.skid_rates && typeof r.skid_rates === 'object'
@@ -672,9 +712,10 @@ function upsertCarrierRows(carrierId, rows) {  const st = ensureLoaded();
           .map(([k, v]) => [Number(k), Number(v)])
           .filter(([k, v]) => Number.isInteger(k) && k > 0 && Number.isFinite(v) && v > 0))
       : null;
-    if (!origin_city || !dest_city || !Number.isFinite(min_charge_cad) || min_charge_cad < 0 || (breaks.length === 0 && !skid_rates)) continue;
+    if (!origin_city || !dest_city || !Number.isFinite(min_charge_cad) || min_charge_cad < 0 || (breaks.length === 0 && flat_bands.length === 0 && !skid_rates)) continue;
 
     const lane = { carrier_id: carrierId, origin_city, origin_prov, dest_city, dest_prov, min_charge_cad, breaks };
+    if (flat_bands.length) lane.flat_bands = flat_bands;
     if (skid_rates) lane.skid_rates = skid_rates;
     if (Number.isFinite(Number(r.service_days))) lane.service_days = Number(r.service_days);
 
