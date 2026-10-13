@@ -5128,9 +5128,19 @@
       catch { return ''; }
     }
 
-    function invBeep(ok) {
+    let invAudioCtx = null;
+    function invAudio() {
       try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (!invAudioCtx) invAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (invAudioCtx.state === 'suspended') invAudioCtx.resume();
+        return invAudioCtx;
+      } catch { return null; }
+    }
+
+    function invBeep(ok) {
+      const ctx = invAudio();
+      if (!ctx) return;
+      try {
         const o = ctx.createOscillator(), g = ctx.createGain();
         o.connect(g); g.connect(ctx.destination);
         o.frequency.value = ok ? 880 : 220; o.type = 'sine';
@@ -5165,6 +5175,7 @@
 
     async function startInvScan(direction) {
       invScanDir = direction;
+      invAudio();
       await stopInvScanner();
       const wrap = $('#inv-scanner-wrap');
       wrap.classList.remove('hidden');
@@ -5235,15 +5246,34 @@
         manMsg.textContent = 'Saving…';
         try {
           const r = await api.scanInventory(sku, direction, qty, name || undefined, extra);
+          invBeep(true);
           manMsg.textContent = (direction === 'in' ? 'Added ' : 'Removed ') + qty + ' × ' + r.item.name + ' — now ' + r.item.qty + '.';
           $('#inv-man-sku').value = ''; $('#inv-man-name').value = '';
           $('#inv-man-lot').value = ''; $('#inv-man-exp').value = ''; $('#inv-man-serial').value = '';
           $('#inv-man-cond').value = 'ok';
           refreshInvItems(); refreshInvMoves(); refreshInvDash();
-        } catch (e) { manMsg.textContent = e.message || 'Save failed.'; }
+          $('#inv-man-sku').focus();
+        } catch (e) { manMsg.textContent = e.message || 'Save failed.'; invBeep(false); }
       };
-      $('#inv-man-in').addEventListener('click', () => manGo('in'));
-      $('#inv-man-out').addEventListener('click', () => manGo('out'));
+      $('#inv-man-in').addEventListener('click', () => { invAudio(); manGo('in'); });
+      $('#inv-man-out').addEventListener('click', () => { invAudio(); manGo('out'); });
+      // Enter moves through manual fields; Enter on the last field adds the stock in.
+      const invManFields = ['inv-man-sku', 'inv-man-qty', 'inv-man-name', 'inv-man-lot', 'inv-man-exp', 'inv-man-serial', 'inv-man-cond'];
+      invManFields.forEach((id, i) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter') return;
+          e.preventDefault();
+          if (i === invManFields.length - 1) { invAudio(); manGo('in'); }
+          else { const nx = document.getElementById(invManFields[i + 1]); if (nx) nx.focus(); }
+        });
+      });
+      // Enter in the new-item name field saves it.
+      const invNewName = $('#inv-new-name');
+      if (invNewName) invNewName.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); $('#inv-new-save').click(); }
+      });
       $('#inv-ver-go').addEventListener('click', async () => {
         const msg = $('#inv-ver-msg'), out = $('#inv-ver-result');
         const parse = (txt) => String(txt || '').split('\n').map((line) => {
