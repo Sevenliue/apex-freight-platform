@@ -664,6 +664,42 @@ export function getInventoryDashboard() {
 export function verifyInventory(expected, scanned) {
   return request('POST', '/api/inventory/verify', { expected, scanned });
 }
+export function listInventoryReports() {
+  return request('GET', '/api/inventory/reports');
+}
+export function runInventoryReportNow() {
+  return request('POST', '/api/inventory/reports/run');
+}
+export function setInventoryReportEmail(enabled) {
+  return request('PATCH', '/api/inventory/report-email', { enabled });
+}
+export async function downloadInventoryReport(id) {
+  const token = getAuthToken();
+  const res = await fetch(`/api/inventory/reports/${encodeURIComponent(id)}/download`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    let msg = `Download failed (${res.status})`;
+    try {
+      const d = await res.json();
+      if (d && d.error) msg = d.error;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  const blob = await res.blob();
+  const cd = res.headers.get('content-disposition') || '';
+  const m = cd.match(/filename="([^"]+)"/);
+  const name = m ? m[1] : 'inventory-report.csv';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(a.href);
+    a.remove();
+  }, 1000);
+}
 
 /* Schedule Pickup — customer-booked carrier pickups. */
 export function listPickups() {

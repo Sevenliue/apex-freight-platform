@@ -20,6 +20,7 @@
 
 const express = require('express');
 const db = require('../db');
+const { ensureInventoryReportTables, edmontonToday, saveAndEmailReport } = require('../lib/inventory-reports');
 
 const router = express.Router();
 
@@ -59,6 +60,7 @@ async function ensureInventoryTables() {
   await db.query(`ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS condition TEXT NOT NULL DEFAULT 'ok' CHECK (condition IN ('ok','damaged'))`);
 }
 ensureInventoryTables().catch((e) => console.error('[inventory] table init failed:', e.message));
+ensureInventoryReportTables().catch((e) => console.error('[inventory-reports] table init failed:', e.message));
 
 function needDb(res) {
   if (!db.isEnabled()) { res.status(503).json({ error: 'Inventory is unavailable right now.' }); return false; }
@@ -229,6 +231,60 @@ router.get('/dashboard', async (req, res) => {
       low_stock: low.rows, expiring_soon: exp.rows, damaged: dmg.rows,
     });
   } catch (e) { res.status(500).json({ error: 'Could not load dashboard.' }); }
+});
+
+// Daily reports: saved snapshots of this account's inventory list.
+// Opt-in email goes to the account owner each evening (see server.js).
+router.get('/reports', async (req, res) => {
+  if (!needUser(req, res) || !needDb(res)) return;
+  try {
+    const r = await db.query(
+      `SELECT id, report_date::text AS report_date, item_count, total_units, damaged_units, today_in, today_out,
+              low_stock_count, expiring_count, email_status, created_at
+       FROM inventory_reports WHERE user_id = $1 ORDER BY report_date DESC LIMIT 60`,
+      [req.user.id]
+    );
+    const u = await db.query(`SELECT inventory_report_email FROM users WHERE id = $1`, [req.user.id]);
+    res.json({
+      reports: r.rows,
+      report_email_enabled: !u.rows[0] || u.rows[0].inventory_report_email !== false,
+    });
+  } catch (e) { res.status(500).json({ error: 'Could not load reports.' }); }
+});
+
+router.get('/reports/:id/download', async (req, res) => {
+  if (!needUser(req, res) || !needDb(res)) return;
+  try {
+    const r = await db.query(
+      `SELECT id, report_date::text AS report_date, csv FROM inventory_reports WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.user.id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Report not found.' });
+    const date = String(r.rows[0].report_date).slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="inventory-report-${date}.csv"`);
+    res.send(r.rows[0].csv || '');
+  } catch (e) { res.status(500).json({ error: 'Could not download report.' }); }
+});
+
+// Generate (idempotent) and email today's report for this account now.
+router.post('/reports/run', async (req, res) => {
+  if (!needUser(req, res) || !needDb(res)) return;
+  try {
+    const out = await saveAndEmailReport(req.user.id, edmontonToday(), { email: true });
+    if (out.failed) return res.status(500).json({ error: 'Could not generate report.' });
+    res.json({ report: out.report, summary: out.summary || null, email_status: out.emailStatus || null, existing: !!out.existing });
+  } catch (e) { res.status(500).json({ error: 'Could not generate report.' }); }
+});
+
+// Opt in/out of the daily report email.
+router.patch('/report-email', async (req, res) => {
+  if (!needUser(req, res) || !needDb(res)) return;
+  try {
+    const enabled = req.body && (req.body.enabled === true || req.body.enabled === 'true');
+    await db.query(`UPDATE users SET inventory_report_email = $1 WHERE id = $2`, [enabled, req.user.id]);
+    res.json({ enabled });
+  } catch (e) { res.status(500).json({ error: 'Could not update email preference.' }); }
 });
 
 // Pick/pack verification: compare a scanned set against the expected list.

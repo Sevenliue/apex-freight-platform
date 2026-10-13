@@ -1045,6 +1045,15 @@
           <div class="inv-stats" id="inv-stats"><div class="note">Loading…</div></div>
           <div id="inv-alerts"></div>
         </div>
+        <div class="card" id="inv-reports-card">
+          <h3 class="sub">Daily reports</h3>
+          <label class="check"><input type="checkbox" id="inv-report-email"> Email me a daily inventory report</label>
+          <div class="actions">
+            <button type="button" class="btn" id="inv-report-now">Generate today's report now</button>
+            <span class="note" id="inv-report-msg" aria-live="polite"></span>
+          </div>
+          <div id="inv-reports"><div class="note">Loading…</div></div>
+        </div>
         <div class="inv-scan-btns">
           <button type="button" class="btn inv-in" id="inv-scan-in">📥 Scan In</button>
           <button type="button" class="btn inv-out" id="inv-scan-out">📤 Scan Out</button>
@@ -4955,7 +4964,7 @@
       gate.classList.toggle('hidden', signedIn);
       app.classList.toggle('hidden', !signedIn);
       if (!signedIn) { stopInvScanner(); return; }
-      await Promise.all([refreshInvItems(), refreshInvMoves(), refreshInvDash()]);
+      await Promise.all([refreshInvItems(), refreshInvMoves(), refreshInvDash(), loadInvReports()]);
     }
 
     async function refreshInvItems() {
@@ -4997,6 +5006,40 @@
         alerts.innerHTML = h;
       } catch (e) {
         stats.innerHTML = '<div class="note">Dashboard unavailable.</div>';
+      }
+    }
+
+    async function loadInvReports() {
+      const box = $('#inv-reports'), chk = $('#inv-report-email');
+      if (!box) return;
+      try {
+        const data = await api.listInventoryReports();
+        if (chk) chk.checked = data.report_email_enabled !== false;
+        const reports = data.reports || [];
+        if (!reports.length) {
+          box.innerHTML = '<div class="note">No reports yet — one is saved and emailed every evening.</div>';
+          return;
+        }
+        box.innerHTML = reports.map((r) => {
+          const emailed = r.email_status === 'sent' ? '✉️ emailed'
+            : (r.email_status ? '· ' + esc(r.email_status) : '');
+          return '<div class="inv-row">' +
+            '<div class="inv-row-txt"><strong>' + esc(String(r.report_date).slice(0, 10)) + '</strong>' +
+            '<span class="note">' + r.item_count + ' SKUs · ' + r.total_units + ' units · in ' + r.today_in + ' / out ' + r.today_out + ' ' + emailed + '</span></div>' +
+            '<div class="actions inv-row-btns">' +
+              '<button type="button" class="btn small" data-inv-report-dl="' + esc(r.id) + '" title="Download CSV">CSV</button>' +
+            '</div></div>';
+        }).join('');
+        box.querySelectorAll('[data-inv-report-dl]').forEach((b) =>
+          b.addEventListener('click', async () => {
+            b.disabled = true;
+            try { await api.downloadInventoryReport(b.dataset.invReportDl); }
+            catch (e) { showAlert(e.message || 'Download failed.'); }
+            finally { b.disabled = false; }
+          })
+        );
+      } catch (e) {
+        box.innerHTML = '<div class="note">Could not load reports (' + esc(e.message) + ').</div>';
       }
     }
 
@@ -5225,6 +5268,29 @@
           }
           out.innerHTML = h;
         } catch (e) { msg.textContent = e.message || 'Verify failed.'; invBeep(false); }
+      });
+      $('#inv-report-email').addEventListener('change', async (e) => {
+        const chk = e.target;
+        try {
+          const r = await api.setInventoryReportEmail(chk.checked);
+          chk.checked = r.enabled !== false;
+          showAlert(r.enabled ? 'Daily report email turned on.' : 'Daily report email turned off.');
+        } catch (err) {
+          chk.checked = !chk.checked;
+          showAlert(err.message || 'Could not update email preference.');
+        }
+      });
+      $('#inv-report-now').addEventListener('click', async (e) => {
+        const btn = e.currentTarget, msg = $('#inv-report-msg');
+        btn.disabled = true; msg.textContent = 'Generating…';
+        try {
+          const r = await api.runInventoryReportNow();
+          const s = r.summary || {};
+          msg.textContent = 'Done — ' + (s.item_count || 0) + ' SKUs, ' + (s.total_units || 0) + ' units' +
+            (r.email_status ? ' (' + r.email_status + ')' : '') + '.';
+          await loadInvReports();
+        } catch (err) { msg.textContent = err.message || 'Generation failed.'; }
+        finally { btn.disabled = false; }
       });
     }
 

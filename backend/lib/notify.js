@@ -19,18 +19,28 @@ function adminEmail() {
   return list[0] || null;
 }
 
-async function sendEmail({ to, subject, text, event }) {
+async function sendEmail({ to, subject, text, event, attachments }) {
   if (!to) return { skipped: 'no recipient' };
   const p = provider();
+  const attachList = Array.isArray(attachments) ? attachments.filter((a) => a && a.filename && a.content) : [];
   try {
     if (p === 'resend') {
       const key = process.env.RESEND_API_KEY;
       const from = process.env.NOTIFY_FROM;
       if (!key || !from) return { skipped: 'resend not configured' };
+      const body = { from, to, subject, text };
+      if (attachList.length) {
+        // Resend attachments: [{filename, content (base64 string), content_type?}]
+        body.attachments = attachList.map((a) => ({
+          filename: a.filename,
+          content: a.content,
+          ...(a.contentType ? { content_type: a.contentType } : {}),
+        }));
+      }
       const r = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from, to, subject, text }),
+        body: JSON.stringify(body),
       });
       if (!r.ok) throw new Error(`resend ${r.status}`);
       return { sent: true, provider: 'resend' };
@@ -50,7 +60,7 @@ async function sendEmail({ to, subject, text, event }) {
     console.error('[notify] send failed:', err.message);
     return { failed: err.message };
   }
-  console.log(`[notify:${event || 'email'}] to=${to} subject=${subject}`);
+  console.log(`[notify:${event || 'email'}] to=${to} subject=${subject}${attachList.length ? ` attachments=${attachList.length}` : ''}`);
   return { logged: true };
 }
 

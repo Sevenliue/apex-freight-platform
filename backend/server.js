@@ -295,6 +295,35 @@ if (require.main === module) {
     } catch (err) {
       console.error('[carrier-lanes] init failed (continuing):', err.message);
     }
+    // Daily inventory reports: once per day (America/Edmonton), each account
+    // with inventory gets a saved snapshot emailed to the account owner,
+    // unless they opted out (users.inventory_report_email). Idempotent by
+    // (user_id, report_date); never crashes boot.
+    try {
+      const invReports = require('./lib/inventory-reports');
+      const INVENTORY_REPORT_TIME = process.env.INVENTORY_REPORT_TIME || '23:45';
+      const tickInventoryReports = async () => {
+        try {
+          if (!db.isEnabled()) return;
+          const today = invReports.edmontonToday();
+          if (invReports.edmontonClock() < INVENTORY_REPORT_TIME) return;
+          const r = await db.query(
+            'SELECT COUNT(*)::int AS n FROM inventory_reports WHERE report_date = $1',
+            [today]
+          );
+          if (r.rows[0].n === 0) await invReports.runDailyInventoryReports({ reportDate: today });
+        } catch (err) {
+          console.error('[inventory-reports] tick failed (continuing):', err.message);
+        }
+      };
+      const t = setInterval(() => { tickInventoryReports(); }, 5 * 60 * 1000);
+      if (t.unref) t.unref();
+      // Boot catch-up: backfill up to 3 missed days (email only the newest).
+      invReports.catchUpInventoryReports().catch((err) =>
+        console.error('[inventory-reports] catch-up failed (continuing):', err.message));
+    } catch (err) {
+      console.error('[inventory-reports] init failed (continuing):', err.message);
+    }
   })();
 }
 
