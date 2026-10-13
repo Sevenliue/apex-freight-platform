@@ -5165,6 +5165,7 @@
 
     async function startInvScan(direction) {
       invScanDir = direction;
+      await stopInvScanner();
       const wrap = $('#inv-scanner-wrap');
       wrap.classList.remove('hidden');
       wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -5175,7 +5176,6 @@
         showAlert('Camera scanner is still loading — use manual entry below for now.');
         return;
       }
-      await stopInvScanner();
       invScanner = new Html5Qrcode('inv-scanner');
       try {
         await invScanner.start(
