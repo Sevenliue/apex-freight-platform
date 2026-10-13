@@ -122,6 +122,116 @@ function lookupFsc(table, dieselPrice) {
 // ---------------------------------------------------------------------------
 // Main updater.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Grimshaw Trucking LP — direct FSC scrape (2026-10-13).
+//
+// Grimshaw is the first carrier with a PUBLIC FSC page: their News tab
+// (https://www.grimshaw-trucking.com/news) publishes the current surcharge
+// with its effective date, split LTL (<10,000 lb) / TL (10,000+ lb).
+// No diesel-index table needed — read their numbers directly.
+//
+// fetchGrimshawFsc() returns { effective, fsc_ltl, fsc_tl } or null.
+// updateGrimshawFsc() writes the values to carrier_fsc + the in-memory
+// override, but ONLY when they differ from the stored override — the
+// server runs this daily, so most runs are no-ops.
+// Grimshaw has no matrix lanes yet (account rates pending from the rep),
+// so the override sits ready and applies the moment lanes are added.
+// ---------------------------------------------------------------------------
+const GRIMSHAW_NEWS_URL = 'https://www.grimshaw-trucking.com/news';
+
+function parseGrimshawFsc(html) {
+  if (typeof html !== 'string' || !html) return null;
+  // The page embeds JSON with \uXXXX escapes; decode them first.
+  const decoded = html.replace(/\\u([0-9a-fA-F]{4})/g, (_, h) =>
+    String.fromCharCode(parseInt(h, 16)));
+  const text = decoded
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;/g, ' ')
+    .replace(/\s+/g, ' ');
+  // Anchor on "Current FSC" so the older "FSC Until ..." block below it
+  // is never picked up.
+  const anchor = text.indexOf('Current FSC');
+  if (anchor < 0) return null;
+  const seg = text.slice(anchor, anchor + 400);
+  const eff = /Effective as of ([A-Za-z]+ \d+(?:st|nd|rd|th), \d{4})/.exec(seg);
+  const ltl = /less than 10,000 lbs\s*=\s*([\d.]+)\s*%/.exec(seg);
+  const tl = /10,000 lbs or more\s*=\s*([\d.]+)\s*%/.exec(seg);
+  if (!eff || !ltl || !tl) return null;
+  const fscLtl = Number(ltl[1]);
+  const fscTl = Number(tl[1]);
+  if (!Number.isFinite(fscLtl) || !Number.isFinite(fscTl)) return null;
+  return { effective: eff[1], fsc_ltl: fscLtl, fsc_tl: fscTl };
+}
+
+async function fetchGrimshawFsc() {
+  try {
+    const res = await fetch(GRIMSHAW_NEWS_URL, {
+      headers: { 'User-Agent': 'ShipRate/1.0 (fuel-surcharge-monitor)' },
+    });
+    if (!res.ok) {
+      console.error('[fsc-auto] Grimshaw HTTP', res.status);
+      return null;
+    }
+    const html = await res.text();
+    const parsed = parseGrimshawFsc(html);
+    if (!parsed) console.error('[fsc-auto] Grimshaw parse failed: current FSC block not found');
+    return parsed;
+  } catch (err) {
+    console.error('[fsc-auto] Grimshaw fetch failed:', err.message);
+    return null;
+  }
+}
+
+async function updateGrimshawFsc() {
+  if (!db.isEnabled()) {
+    console.log('[fsc-auto] Grimshaw: DB not enabled, skipping');
+    return { updated: false, reason: 'db-disabled' };
+  }
+  const fresh = await fetchGrimshawFsc();
+  if (!fresh) return { updated: false, reason: 'fetch-parse-failed' };
+  // Change-only: compare against the stored override, if any.
+  try {
+    const cur = await db.query(
+      'SELECT fsc_ltl_percent, fsc_tl_percent FROM carrier_fsc WHERE carrier_id = $1',
+      ['grimshaw']
+    );
+    const row = cur.rows[0];
+    if (
+      row &&
+      Number(row.fsc_ltl_percent) === fresh.fsc_ltl &&
+      Number(row.fsc_tl_percent) === fresh.fsc_tl
+    ) {
+      console.log(`[fsc-auto] Grimshaw: FSC unchanged (${fresh.fsc_ltl}% / ${fresh.fsc_tl}%, eff. ${fresh.effective})`);
+      return { updated: false, reason: 'unchanged', ...fresh };
+    }
+  } catch (err) {
+    console.error('[fsc-auto] Grimshaw current-value check failed (continuing):', err.message);
+  }
+  try {
+    await db.query(
+      `INSERT INTO carrier_fsc (carrier_id, fsc_ltl_percent, fsc_tl_percent, updated_at)
+       VALUES ('grimshaw', $1, $2, now())
+       ON CONFLICT (carrier_id) DO UPDATE SET
+         fsc_ltl_percent = EXCLUDED.fsc_ltl_percent,
+         fsc_tl_percent = EXCLUDED.fsc_tl_percent,
+         updated_at = EXCLUDED.updated_at`,
+      [fresh.fsc_ltl, fresh.fsc_tl]
+    );
+    if (typeof matrix.setFscOverride === 'function') {
+      matrix.setFscOverride('grimshaw', {
+        ltl: fresh.fsc_ltl,
+        tl: fresh.fsc_tl,
+        updated_at: new Date().toISOString(),
+      });
+    }
+    console.log(`[fsc-auto] Grimshaw: FSC → ${fresh.fsc_ltl}% LTL / ${fresh.fsc_tl}% TL (eff. ${fresh.effective})`);
+    return { updated: true, ...fresh };
+  } catch (err) {
+    console.error('[fsc-auto] Grimshaw update failed:', err.message);
+    return { updated: false, reason: 'db-write-failed' };
+  }
+}
+
 async function updateAllCarrierFsc() {
   if (!db.isEnabled()) {
     console.log('[fsc-auto] DB not enabled, skipping');
@@ -184,5 +294,8 @@ module.exports = {
   lookupFsc,
   fetchDoeDieselPrice,
   fetchNrcanDieselPrice,
+  fetchGrimshawFsc,
+  updateGrimshawFsc,
+  parseGrimshawFsc,
   CARRIER_FSC_TABLES,
 };

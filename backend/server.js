@@ -285,6 +285,22 @@ if (require.main === module) {
     } catch (err) {
       console.error('[density] init failed (continuing):', err.message);
     }
+    // Grimshaw FSC auto-pull: Grimshaw publishes its current surcharge on
+    // its public News page (first carrier with a public FSC page). Pull
+    // once a day plus once at boot; the updater only writes when the
+    // values changed, so most runs are no-ops.
+    try {
+      const { updateGrimshawFsc } = require('./lib/fsc-auto');
+      const tickGrimshaw = () => {
+        updateGrimshawFsc().catch((err) =>
+          console.error('[fsc-auto] Grimshaw tick failed (continuing):', err.message));
+      };
+      const t = setInterval(tickGrimshaw, 24 * 60 * 60 * 1000);
+      if (t.unref) t.unref();
+      setTimeout(tickGrimshaw, 30 * 1000); // boot pull, after DB init
+    } catch (err) {
+      console.error('[fsc-auto] Grimshaw init failed (continuing):', err.message);
+    }
     // Self-serve carrier lanes: merge approved upload lanes over the baked-in
     // matrix, refresh every 5 minutes in case of approval.
     try {
