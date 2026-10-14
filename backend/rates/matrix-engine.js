@@ -216,8 +216,17 @@ function fscFor(carrier, weightLbs, tlHint) {
 
 // City match: case-insensitive + trimmed, on (city, prov);
 // falls back to city-only match when prov is empty on either side.
+// County fallback: Google returns the municipal district ("Ponoka County")
+// for rural addresses with no locality. When no exact county lane matched,
+// rate the quote as the town ("Ponoka"). Only the quoted city is stripped —
+// lane cities like "RED DEER COUNTY" stay distinct, so a town quote never
+// matches a county lane, while a county quote sees both its county lanes
+// and the town's lanes.
 function placeMatches(laneCity, laneProv, qCity, qProv) {
-  if (metroOf(laneCity) !== metroOf(qCity)) return false;
+  if (metroOf(laneCity) !== metroOf(qCity)) {
+    const stripped = metroOf(qCity).replace(/ COUNTY$/, '');
+    if (stripped === metroOf(qCity) || metroOf(laneCity) !== metroOf(stripped)) return false;
+  }
   return laneProv === qProv || laneProv === '' || qProv === '';
 }
 
