@@ -413,6 +413,9 @@ function guilbaultBillableWeight(actualLbs, packages, floorLbPerCuFt) {
 // they only rate when a matching skidCount is supplied. Money rounded to 2 decimals.
 // Per-unit lanes (lane.per_unit_bands): price per unit by the unit's weight band
 // (line weight / qty); shipment base = sum over lines of band price x qty.
+// Flat per-piece lanes (lane.flat_per_piece_cad): one flat rate per piece,
+// no weight rating; billable pieces = max(total package qty, lane.min_pieces).
+// Dimensional weight never applies to either.
 function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, skidCount, packages }) {
   const st = ensureLoaded();
   const oCity = norm(originCity);
@@ -497,6 +500,46 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
         fsc_cad: r2(fsc),
         total_cad: r2(base + fsc),
         min_charge_applied: false,
+        currency: 'CAD',
+        source: 'matrix',
+        lane_origin_city: lane.origin_city,
+        lane_origin_prov: lane.origin_prov,
+        lane_dest_city: lane.dest_city,
+        lane_dest_prov: lane.dest_prov,
+        metro_matched:
+          lane.origin_city !== oCity || lane.dest_city !== dCity,
+      });
+      continue;
+    }
+
+    // Flat per-piece lanes (e.g. Bee Express Total Tire): one flat rate per
+    // piece, no weight rating. Billable pieces = max(total package qty,
+    // lane.min_pieces). Dimensional weight never applies here.
+    if (lane.flat_per_piece_cad) {
+      const lines = Array.isArray(packages) ? packages : [];
+      let pieces = 0;
+      let rated = lines.length > 0;
+      for (const p of lines) {
+        pieces += Math.max(1, Math.floor(Number(p.qty) || 1));
+      }
+      if (!rated) continue;
+      const minPieces = Math.max(1, Math.floor(Number(lane.min_pieces) || 1));
+      const billed = Math.max(pieces, minPieces);
+      const base = lane.flat_per_piece_cad * billed;
+      const fscPercent = fscFor(carrier, w);
+      const fsc = base * fscPercent / 100;
+      quotes.push({
+        carrier_id: lane.carrier_id,
+        carrier_label: carrier ? carrier.carrier_label : lane.carrier_id,
+        service: 'LTL',
+        weight_lbs: w,
+        rate_basis: 'per_piece',
+        rate_cwt_used: null,
+        base_cad: r2(base),
+        fsc_percent: fscPercent,
+        fsc_cad: r2(fsc),
+        total_cad: r2(base + fsc),
+        min_charge_applied: billed > pieces,
         currency: 'CAD',
         source: 'matrix',
         lane_origin_city: lane.origin_city,
@@ -774,12 +817,16 @@ function upsertCarrierRows(carrierId, rows) {  const st = ensureLoaded();
           .filter((b) => Number.isFinite(b.max_lb) && b.max_lb > 0 && Number.isFinite(b.price_cad) && b.price_cad > 0)
           .sort((a, b) => a.max_lb - b.max_lb)
       : [];
-    if (!origin_city || !dest_city || !Number.isFinite(min_charge_cad) || min_charge_cad < 0 || (breaks.length === 0 && flat_bands.length === 0 && !skid_rates && per_unit_bands.length === 0)) continue;
+    if (!origin_city || !dest_city || !Number.isFinite(min_charge_cad) || min_charge_cad < 0 || (breaks.length === 0 && flat_bands.length === 0 && !skid_rates && per_unit_bands.length === 0 && !(Number(r.flat_per_piece_cad) > 0))) continue;
 
     const lane = { carrier_id: carrierId, origin_city, origin_prov, dest_city, dest_prov, min_charge_cad, breaks };
     if (flat_bands.length) lane.flat_bands = flat_bands;
     if (skid_rates) lane.skid_rates = skid_rates;
     if (per_unit_bands.length) lane.per_unit_bands = per_unit_bands;
+    if (Number(r.flat_per_piece_cad) > 0) {
+      lane.flat_per_piece_cad = Number(r.flat_per_piece_cad);
+      lane.min_pieces = Math.max(1, Math.floor(Number(r.min_pieces) || 1));
+    }
     if (Number.isFinite(Number(r.service_days))) lane.service_days = Number(r.service_days);
 
     const key = laneKey(carrierId, origin_city, origin_prov, dest_city, dest_prov);
