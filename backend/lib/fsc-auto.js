@@ -233,6 +233,109 @@ async function updateGrimshawFsc() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Rockfall Freightways — direct FSC scrape (2026-10-14, Seven-approved
+// weekly auto-pull).
+//
+// Rockfall publishes its current surcharge in a banner at the top of its
+// homepage (https://www.rockfallfreightways.com/): "Current FSC Rate 18%
+// Effective September 28th" — live page text in an <h2>, not an image.
+// No year is stated on the page, so the parser returns the effective
+// string as printed (e.g. "September 28th") without inventing one.
+// Rockfall has no TL tier on its sheet, so only the LTL value is managed;
+// any existing TL override is left untouched.
+//
+// fetchRockfallFsc() returns { effective, fsc_ltl, fsc_tl: null } or null.
+// updateRockfallFsc() writes the LTL value to carrier_fsc + the in-memory
+// override, but ONLY when it differs from the stored override — the
+// server runs this weekly plus once at boot, so most runs are no-ops.
+// ---------------------------------------------------------------------------
+const ROCKFALL_HOME_URL = 'https://www.rockfallfreightways.com/';
+
+function parseRockfallFsc(html) {
+  if (typeof html !== 'string' || !html) return null;
+  const decoded = html.replace(/\\u([0-9a-fA-F]{4})/g, (_, h) =>
+    String.fromCharCode(parseInt(h, 16)));
+  const text = decoded
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;/g, ' ')
+    .replace(/\s+/g, ' ');
+  const m = /Current FSC Rate\s*([\d.]+)\s*%\s*Effective\s+([A-Za-z]+\s+\d+(?:st|nd|rd|th))/.exec(text);
+  if (!m) return null;
+  const fscLtl = Number(m[1]);
+  if (!Number.isFinite(fscLtl)) return null;
+  return { effective: m[2], fsc_ltl: fscLtl, fsc_tl: null };
+}
+
+async function fetchRockfallFsc() {
+  try {
+    const res = await fetch(ROCKFALL_HOME_URL, {
+      headers: { 'User-Agent': 'ShipRate/1.0 (fuel-surcharge-monitor)' },
+    });
+    if (!res.ok) {
+      console.error('[fsc-auto] Rockfall HTTP', res.status);
+      return null;
+    }
+    const html = await res.text();
+    const parsed = parseRockfallFsc(html);
+    if (!parsed) console.error('[fsc-auto] Rockfall parse failed: FSC banner not found');
+    return parsed;
+  } catch (err) {
+    console.error('[fsc-auto] Rockfall fetch failed:', err.message);
+    return null;
+  }
+}
+
+async function updateRockfallFsc() {
+  if (!db.isEnabled()) {
+    console.log('[fsc-auto] Rockfall: DB not enabled, skipping');
+    return { updated: false, reason: 'db-disabled' };
+  }
+  const fresh = await fetchRockfallFsc();
+  if (!fresh) return { updated: false, reason: 'fetch-parse-failed' };
+  // Change-only: compare against the stored LTL override, if any.
+  // Rockfall has no TL tier — preserve whatever TL value is stored.
+  let existingTl = null;
+  try {
+    const cur = await db.query(
+      'SELECT fsc_ltl_percent, fsc_tl_percent FROM carrier_fsc WHERE carrier_id = $1',
+      ['rockfall']
+    );
+    const row = cur.rows[0];
+    if (row) {
+      existingTl = row.fsc_tl_percent == null ? null : Number(row.fsc_tl_percent);
+      if (Number(row.fsc_ltl_percent) === fresh.fsc_ltl) {
+        console.log(`[fsc-auto] Rockfall: FSC unchanged (${fresh.fsc_ltl}%, eff. ${fresh.effective})`);
+        return { updated: false, reason: 'unchanged', ...fresh };
+      }
+    }
+  } catch (err) {
+    console.error('[fsc-auto] Rockfall current-value check failed (continuing):', err.message);
+  }
+  try {
+    await db.query(
+      `INSERT INTO carrier_fsc (carrier_id, fsc_ltl_percent, fsc_tl_percent, updated_at)
+       VALUES ('rockfall', $1, NULL, now())
+       ON CONFLICT (carrier_id) DO UPDATE SET
+         fsc_ltl_percent = EXCLUDED.fsc_ltl_percent,
+         updated_at = EXCLUDED.updated_at`,
+      [fresh.fsc_ltl]
+    );
+    if (typeof matrix.setFscOverride === 'function') {
+      matrix.setFscOverride('rockfall', {
+        ltl: fresh.fsc_ltl,
+        tl: existingTl,
+        updated_at: new Date().toISOString(),
+      });
+    }
+    console.log(`[fsc-auto] Rockfall: FSC → ${fresh.fsc_ltl}% LTL (eff. ${fresh.effective})`);
+    return { updated: true, ...fresh };
+  } catch (err) {
+    console.error('[fsc-auto] Rockfall update failed:', err.message);
+    return { updated: false, reason: 'db-write-failed' };
+  }
+}
+
 async function updateAllCarrierFsc() {
   if (!db.isEnabled()) {
     console.log('[fsc-auto] DB not enabled, skipping');
@@ -298,5 +401,8 @@ module.exports = {
   fetchGrimshawFsc,
   updateGrimshawFsc,
   parseGrimshawFsc,
+  fetchRockfallFsc,
+  updateRockfallFsc,
+  parseRockfallFsc,
   CARRIER_FSC_TABLES,
 };

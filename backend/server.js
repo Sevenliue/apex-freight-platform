@@ -301,6 +301,22 @@ if (require.main === module) {
     } catch (err) {
       console.error('[fsc-auto] Grimshaw init failed (continuing):', err.message);
     }
+    // Rockfall FSC auto-pull: Rockfall publishes its current surcharge in
+    // a banner on its homepage (Seven-approved weekly pull, 2026-10-14).
+    // Pull once a week plus once at boot; the updater only writes when
+    // the value changed, so most runs are no-ops.
+    try {
+      const { updateRockfallFsc } = require('./lib/fsc-auto');
+      const tickRockfall = () => {
+        updateRockfallFsc().catch((err) =>
+          console.error('[fsc-auto] Rockfall tick failed (continuing):', err.message));
+      };
+      const t = setInterval(tickRockfall, 7 * 24 * 60 * 60 * 1000);
+      if (t.unref) t.unref();
+      setTimeout(tickRockfall, 35 * 1000); // boot pull, after DB init
+    } catch (err) {
+      console.error('[fsc-auto] Rockfall init failed (continuing):', err.message);
+    }
     // Self-serve carrier lanes: merge approved upload lanes over the baked-in
     // matrix, refresh every 5 minutes in case of approval.
     try {
