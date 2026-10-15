@@ -358,6 +358,28 @@ const GUILBAULT_LOOSE_LB_PER_ENGINE_FT = 1200;
 const GUILBAULT_TL_MIN_PALLETS = 6;
 const GUILBAULT_TL_MIN_LB = 10000;
 
+// Bee Express farm / implement tires (Total Tire sheet update, eff. 2026-10-15
+// per Seven). Per-piece weight bands replace the OD tiers for heavy tires:
+//   - per-piece weight 150-1000 lb: flat band rate for the lane's zone
+//     (near = regular tier $6.66, far = regular tier $9.90)
+//   - per-piece weight under 150 lb: falls back to the OD tiers (Semi)
+//   - per-piece weight over 1000 lb: no quote
+// Bands are upper-inclusive (a 250 lb tire bills at the 150-250 band).
+// FSC 33% still applies via fscFor(). Lines with no weight keep the old
+// OD-tier behaviour.
+const BEE_ID = 'beeexpress';
+const BEE_FARM_BANDS = {
+  near: [[250, 53.67], [500, 80.10], [750, 104.51], [1000, 128.98]],
+  far: [[250, 61.39], [500, 96.73], [750, 123.73], [1000, 150.73]],
+};
+const BEE_FARM_MIN_LB = 150;
+const BEE_FARM_MAX_LB = 1000;
+function beeFarmBandPrice(regularTierPrice, unitW) {
+  const bands = regularTierPrice <= 7 ? BEE_FARM_BANDS.near : BEE_FARM_BANDS.far;
+  const band = bands.find((b) => unitW <= b[0]);
+  return band ? band[1] : 0;
+}
+
 function isGuilbaultPalletLine(p) {
   const L = Number(p.length), W = Number(p.width);
   return (L === 48 && W === 40) || (L === 40 && W === 48);
@@ -531,6 +553,9 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
     // Tiered lanes (lane.per_piece_tiers): each line is priced by its overall
     // diameter = max(length, width, height) in inches. A line with no dims
     // falls back to the first (regular) tier.
+    // Bee Express farm tires: a line whose per-piece weight is 150-1000 lb
+    // bills at the farm weight-band rate (see BEE_FARM_BANDS); under 150 lb
+    // uses the OD tiers; over 1000 lb per piece gets no quote.
     if (lane.flat_per_piece_cad || lane.per_piece_tiers) {
       const lines = Array.isArray(packages) ? packages : [];
       let pieces = 0;
@@ -542,7 +567,15 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
         const q = Math.max(1, Math.floor(Number(p.qty) || 1));
         pieces += q;
         let price;
-        if (tiers) {
+        // Bee Express farm tires: per-piece weight drives the rate.
+        const lineW = Number(p.weight_lb);
+        const unitW = Number.isFinite(lineW) && lineW > 0 ? lineW / q : 0;
+        if (lane.carrier_id === BEE_ID && tiers && unitW > BEE_FARM_MAX_LB) {
+          rated = false; break;
+        }
+        if (lane.carrier_id === BEE_ID && tiers && unitW >= BEE_FARM_MIN_LB) {
+          price = beeFarmBandPrice(Number(tiers[0] && tiers[0].price_cad) || 0, unitW);
+        } else if (tiers) {
           const L = Number(p.length), W = Number(p.width), H = Number(p.height);
           const od = (L > 0 && W > 0 && H > 0) ? Math.max(L, W, H) : 0;
           const tier = tiers.find((t) => od <= Number(t.max_od_in)) || tiers[tiers.length - 1];
