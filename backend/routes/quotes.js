@@ -19,6 +19,51 @@ function bad(res, code, error) {
   return res.status(code).json({ error });
 }
 
+// Sequential quote numbers (QT-000001, …), minted on save — same pattern as
+// waybill numbers (routes/waybills.js). Each account gets its own sequence,
+// minted atomically, so abandoned/unsaved quotes never burn a number.
+// Re-saving a quote keeps its original number.
+async function ensureQuoteNumberTables() {
+  if (!db.isEnabled()) return;
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS quote_counters (
+        user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        last_no INTEGER NOT NULL DEFAULT 0
+      )`);
+    await db.query(`ALTER TABLE quotes ADD COLUMN IF NOT EXISTS quote_no TEXT`);
+    await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS quotes_user_no_idx ON quotes (user_id, quote_no)`);
+  } catch (e) {
+    console.error('[quotes] quote-number table setup failed:', e.message);
+  }
+}
+ensureQuoteNumberTables().catch((e) => console.error('[quotes] quote-number table setup failed:', e.message));
+
+function fmtQuoteNo(n) { return 'QT-' + String(n).padStart(6, '0'); }
+
+// Mint the next sequence number for this user, atomically.
+async function nextQuoteNo(userId) {
+  // Belt-and-suspenders: the boot migration normally adds this column, but
+  // a boot-time DB hiccup must not leave saves failing on a missing column.
+  try {
+    await db.query(`ALTER TABLE quotes ADD COLUMN IF NOT EXISTS quote_no TEXT`);
+  } catch { /* boot migration covers the normal path */ }
+  const r = await db.query(`
+    INSERT INTO quote_counters (user_id, last_no) VALUES ($1, 1)
+    ON CONFLICT (user_id) DO UPDATE SET last_no = quote_counters.last_no + 1
+    RETURNING last_no`, [userId]);
+  return fmtQuoteNo(r.rows[0].last_no);
+}
+
+// In-memory fallback counters (no database): per-account sequence.
+const memQuoteCounters = new Map();
+function nextMemQuoteNo(userId) {
+  const key = String(userId || 'guest');
+  const n = (memQuoteCounters.get(key) || 0) + 1;
+  memQuoteCounters.set(key, n);
+  return fmtQuoteNo(n);
+}
+
 router.get('/accessorials', (req, res) => {
   res.json({ accessorials: acc.list() });
 });
@@ -105,6 +150,7 @@ function rowToQuote(row) {
   return {
     id: row.id,
     shipment_id: row.id,
+    quote_no: row.quote_no || null,
     quote_name: row.quote_name,
     user_id: row.user_id,
     origin: {
@@ -141,6 +187,7 @@ function memToQuote(q) {
   return {
     id: q.db_quote_id || q.shipment_id,
     shipment_id: q.shipment_id,
+    quote_no: q.quote_no || null,
     quote_name: q.quote_name || null,
     user_id: q.user_id || null,
     origin: q.origin,
@@ -189,15 +236,20 @@ router.post('/:id/save', async (req, res) => {
     store.savedQuotes.set(mem.shipment_id, mem);
     if (db.isEnabled() && mem.db_quote_id) {
       try {
+        // Mint a QT number on first save only; re-saves keep the original.
+        if (!mem.quote_no) mem.quote_no = await nextQuoteNo(req.user.id);
         await db.query(
           `UPDATE quotes SET is_saved = true, quote_name = $2, delivery_note_1 = $3, delivery_note_2 = $4,
-                             private_notes = $5, add_insurance = $6, insurance_declared = $7 WHERE id = $1`,
+                             private_notes = $5, add_insurance = $6, insurance_declared = $7, quote_no = $8 WHERE id = $1`,
           [mem.db_quote_id, name, notes.delivery_note_1, notes.delivery_note_2, notes.private_notes,
-           !!mem.add_insurance, mem.declared_value != null ? mem.declared_value : null]
+           !!mem.add_insurance, mem.declared_value != null ? mem.declared_value : null, mem.quote_no]
         );
       } catch (err) {
         return bad(res, 502, 'Could not mark quote saved: ' + err.message);
       }
+    } else if (!mem.quote_no) {
+      // No database: in-memory sequence for this account.
+      mem.quote_no = nextMemQuoteNo(req.user.id);
     }
     return res.json({ saved: true, quote: memToQuote(mem) });
   }
@@ -205,14 +257,18 @@ router.post('/:id/save', async (req, res) => {
   // Fall back to a DB row by uuid (e.g. after a server restart).
   if (db.isEnabled()) {
     try {
-      const chk = await db.query('SELECT user_id FROM quotes WHERE id = $1', [id]);
+      const chk = await db.query('SELECT user_id, quote_no FROM quotes WHERE id = $1', [id]);
       if (!chk.rows.length) return bad(res, 404, 'Unknown quote id — request a fresh quote first');
       if (ownerMismatch(req, chk.rows[0].user_id)) return bad(res, 403, 'Not your quote');
+      // Mint a QT number on first save only; re-saves keep the original.
+      let quoteNo = chk.rows[0].quote_no || null;
+      if (!quoteNo) quoteNo = await nextQuoteNo(req.user.id);
       const r = await db.query(
         `UPDATE quotes SET is_saved = true, quote_name = COALESCE($2, quote_name),
-                           delivery_note_1 = $3, delivery_note_2 = $4, private_notes = $5
+                           delivery_note_1 = $3, delivery_note_2 = $4, private_notes = $5,
+                           quote_no = COALESCE(quote_no, $6)
          WHERE id = $1 RETURNING *`,
-        [id, name, notes.delivery_note_1, notes.delivery_note_2, notes.private_notes]
+        [id, name, notes.delivery_note_1, notes.delivery_note_2, notes.private_notes, quoteNo]
       );
       if (!r.rows.length) return bad(res, 404, 'Unknown quote id — request a fresh quote first');
       return res.json({ saved: true, quote: rowToQuote(r.rows[0]) });

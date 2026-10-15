@@ -2478,12 +2478,12 @@
       if (name === null) return; // user cancelled
       try {
         const f = new FormData(document.querySelector('#quote-form'));
-        await api.saveQuote(currentQuote.shipment_id, name || suggested, {
+        const res = await api.saveQuote(currentQuote.shipment_id, name || suggested, {
           delivery_note_1: (f.get('delivery_note_1') || '').toString().trim().slice(0, 60),
           delivery_note_2: (f.get('delivery_note_2') || '').toString().trim().slice(0, 60),
           private_notes: (f.get('private_notes') || '').toString().trim().slice(0, 4000),
         });
-        showAlert('Quote saved.');
+        showAlert(res.quote && res.quote.quote_no ? `Quote saved as ${res.quote.quote_no}.` : 'Quote saved.');
         loadSavedQuotes();
       } catch (err) {
         showAlert('Could not save quote: ' + err.message);
@@ -2718,12 +2718,13 @@
           return;
         }
         box.innerHTML = `<div class="table-wrap"><table class="data"><thead><tr>
-          <th>Name</th><th>Lane</th><th>Weight</th><th>Best total</th><th>Saved</th><th></th>
+          <th>Name</th><th>Quote #</th><th>Lane</th><th>Weight</th><th>Best total</th><th>Saved</th><th></th>
         </tr></thead><tbody>${quotes
           .map((q) => {
             const best = (q.rates || []).reduce((m, r) => (m == null || r.retail_cad < m ? r.retail_cad : m), null);
             return `<tr>
               <td>${esc(q.quote_name || 'Untitled quote')}</td>
+              <td>${esc(q.quote_no || '—')}</td>
               <td>${esc(q.origin.city || '')}, ${esc(q.origin.state || '')} → ${esc(q.destination.city || '')}, ${esc(q.destination.state || '')}</td>
               <td class="num">${q.total_weight_lbs != null ? esc(String(q.total_weight_lbs)) + ' lb' : '—'}</td>
               <td class="num">${best != null ? cad(best) : '—'}</td>

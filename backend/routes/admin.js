@@ -303,7 +303,7 @@ router.get('/quotes', async (req, res) => {
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 200);
   try {
     const r = await db.query(
-      `SELECT q.id, q.created_at, q.origin_city, q.origin_state, q.dest_city, q.dest_state,
+      `SELECT q.id, q.quote_no, q.created_at, q.origin_city, q.origin_state, q.dest_city, q.dest_state,
               q.parcel_weight, q.region, q.rates_json, u.email AS user_email
          FROM quotes q LEFT JOIN users u ON u.id = q.user_id
         ORDER BY q.created_at DESC LIMIT $1`,
@@ -332,6 +332,7 @@ router.get('/quotes', async (req, res) => {
       } catch { /* malformed rates_json: leave empty */ }
       return {
         id: row.id,
+        quote_no: row.quote_no || null,
         created_at: row.created_at,
         user_email: row.user_email,
         origin: [row.origin_city, row.origin_state].filter(Boolean).join(', '),
