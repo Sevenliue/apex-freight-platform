@@ -392,7 +392,6 @@ function beeFarmBandPrice(regularTierPrice, unitW) {
 // = section width = min(length, width, height) — per Seven, the sheet's
 // "height" is the diameter, and its "width" is the height of the tire sitting
 // flat on the ground (i.e. its thickness).
-const FLATLANDER_ID = 'flatlander';
 const FLATLANDER_FIRST = { passenger: 20, semi: 50, implement: 30 };
 const FLATLANDER_ADD = { passenger: 10, semi: 30, implement: 15 };
 const FLATLANDER_PKG_TYPE = {
@@ -408,6 +407,20 @@ function flatlanderTractorPrice(diameterIn, widthIn) {
   if (widthIn <= 23) return 150;
   return 250;
 }
+
+// PA Express (Saskatoon <-> Prince Albert, daily, eff. 2026-10-15 per Seven).
+// General per-shipment weight bands — NOT tire-specific: any package type
+// quotes on these lanes. FSC 5% on the carrier record.
+//   - every line package_type 'Envelope' -> flat $15 for the shipment
+//   - otherwise price by total ACTUAL weight (dimensions ignored per Seven —
+//     revisit when an invoice shows a dimensional adjustment)
+//   - total weight over 1000 lb -> no quote
+// Bands are upper-inclusive (a 10 lb shipment bills at the 1-10 band).
+const PA_ENVELOPE_CAD = 15;
+const PA_WEIGHT_BANDS = [[10, 17], [20, 19], [30, 20], [40, 21], [50, 22],
+  [60, 23], [70, 24], [80, 28], [90, 32], [100, 36], [150, 40], [200, 50],
+  [250, 56], [300, 60], [350, 65], [400, 70], [450, 75], [500, 90],
+  [600, 100], [700, 110], [800, 125], [900, 150], [1000, 165]];
 
 function isGuilbaultPalletLine(p) {
   const L = Number(p.length), W = Number(p.width);
@@ -631,6 +644,46 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
         metro_matched:
           lane.origin_city !== oCity || lane.dest_city !== dCity,
         ...(lane.service_note ? { service_note: lane.service_note } : {}),
+      });
+      continue;
+    }
+
+    // PA Express: flat per-shipment weight bands on actual weight.
+    if (lane.paexpress) {
+      const lines = Array.isArray(packages) ? packages : [];
+      if (lines.length === 0) continue;
+      let base;
+      const allEnvelope = lines.every((p) => norm(p.package_type) === 'ENVELOPE');
+      if (allEnvelope) {
+        base = PA_ENVELOPE_CAD;
+      } else {
+        if (!(w > 0) || w > 1000) continue;
+        const band = PA_WEIGHT_BANDS.find((b) => w <= b[0]);
+        if (!band) continue;
+        base = band[1];
+      }
+      const fscPercent = fscFor(carrier, w);
+      const fsc = base * fscPercent / 100;
+      quotes.push({
+        carrier_id: lane.carrier_id,
+        carrier_label: carrier ? carrier.carrier_label : lane.carrier_id,
+        service: 'LTL',
+        weight_lbs: w,
+        rate_basis: 'paexpress',
+        rate_cwt_used: null,
+        base_cad: r2(base),
+        fsc_percent: fscPercent,
+        fsc_cad: r2(fsc),
+        total_cad: r2(base + fsc),
+        min_charge_applied: false,
+        currency: 'CAD',
+        source: 'matrix',
+        lane_origin_city: lane.origin_city,
+        lane_origin_prov: lane.origin_prov,
+        lane_dest_city: lane.dest_city,
+        lane_dest_prov: lane.dest_prov,
+        metro_matched:
+          lane.origin_city !== oCity || lane.dest_city !== dCity,
       });
       continue;
     }
