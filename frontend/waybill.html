@@ -23,7 +23,11 @@
   .doc h1 { margin: 0; font-size: 22px; letter-spacing: 1px; }
   .doc .sub { color: var(--mut); font-size: 14px; margin-top: 1px; }
   .doc-head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid var(--pine); padding-bottom: 5px; margin-bottom: 7px; gap: 12px; }
-  .meta-grid { display: grid; grid-template-columns: auto 1fr; gap: 2px 6px; font-size: 15px; align-items: center; margin-left: auto; }
+  .meta-grid { display: grid; grid-template-columns: auto 1fr; gap: 2px 6px; font-size: 15px; align-items: center; margin-left: auto; width: 340px; }
+  /* The BOL input is width:100% at 36px bold, so without a definite width
+     the grid's max-content grows to fill the whole header row and
+     margin-left:auto has no free space to absorb — the block sat
+     middle-left instead of top-right. A fixed width keeps it tucked right. */
   /* BOL No. / waybill number: at least 3x the old 12px, bold. */
   #f_bolno { font-size: 36px; font-weight: 800; }
   label[for="f_bolno"] { font-size: 20px; font-weight: 800; }
@@ -68,7 +72,13 @@
   .dg-decl { display: none; }
   body.dg-on .dg-decl { display: block; }
   .sig-ack { font-size: 16px; font-weight: 600; margin: 10px 0 0; line-height: 1.45; }
-  @media (max-width: 640px) { .grid2, .sigs { grid-template-columns: 1fr; } .doc { padding: 18px 14px; } }
+  .pod-note { font-size: 14px; font-weight: 600; margin: 8px 0 0; }
+  .pod-box { border: 2px solid var(--pine); background: #f0f7f2; padding: 10px 12px; margin: 0 0 10px; border-radius: 6px; }
+  .pod-box img { display: block; max-width: 100%; max-height: 420px; object-fit: contain; margin-top: 8px; border: 1px solid var(--line); background: #fff; }
+  .pod-unmatched { border: 1px solid #d97706; background: #fffbeb; padding: 10px 12px; margin-top: 10px; border-radius: 6px; }
+  .pod-unmatched .pu-item { border-top: 1px solid #fde68a; padding: 8px 0; }
+  .pod-unmatched .pu-item img { display: block; max-width: 100%; max-height: 320px; object-fit: contain; margin-top: 6px; border: 1px solid var(--line); background: #fff; }
+  @media (max-width: 640px) { .grid2, .sigs { grid-template-columns: 1fr; } .doc { padding: 18px 14px; } .doc-head { flex-direction: column; } .meta-grid { width: 100%; margin-left: 0; } }
   @media print {
     body { background: #fff; }
     .no-print { display: none !important; }
@@ -77,7 +87,7 @@
     .doc h1 { font-size: 20px; }
     .doc .sub { font-size: 12px; }
     .doc-head { border-bottom-width: 2px; padding-bottom: 4px; margin-bottom: 4px; }
-    .meta-grid { font-size: 12px; gap: 1.5px 6px; }
+    .meta-grid { font-size: 12px; gap: 1.5px 6px; width: 300px; }
     #f_bolno { font-size: 32px; }
     label[for="f_bolno"] { font-size: 18px; }
     .grid2 { gap: 4px; }
@@ -100,6 +110,7 @@
     .dg-row { font-size: 13px; margin-top: 5px; }
     .dg-row input.fld { width: 110px; padding: 1px 0; font-size: 13px; }
     .sig-ack { font-size: 14px; margin-top: 6px; }
+    .pod-note { font-size: 12px; margin-top: 5px; }
     @page { margin: 10mm; size: letter; }
   }
 </style>
@@ -138,6 +149,12 @@
 </div>
 
 <div class="wrap">
+<div class="pod-box no-print" id="podBox" style="display:none">
+  <strong>📷 Proof of delivery</strong>
+  <span id="podMeta"></span>
+  <img id="podImg" alt="POD photo" style="display:none">
+  <div style="margin-top:8px"><button id="btnPodDelete" class="ghost" type="button">Delete POD</button></div>
+</div>
 <div class="doc" id="doc">
   <div class="doc-head">
     <div>
@@ -250,6 +267,8 @@
     <div class="sigbox"><input data-k="sig_consignee_print" placeholder=""><strong>Print name</strong><br><input data-k="sig_consignee" placeholder=""><strong>Consignee signature</strong><br><span>Date: <input data-k="sig_consignee_date" type="date" style="width:150px"></span></div>
   </div>
 
+  <p class="pod-note">POD: After delivery, email a photo of this signed page to pod@shiprate.ca with the BOL No. above in the subject line.</p>
+
   <div class="terms">
     <p>Received in apparent good order and condition, subject to the classifications and tariffs in effect on the date of shipment.</p>
     <p>The shipper certifies that the goods described on this bill of lading are properly described, packaged, marked, and labeled, and that the weight shown is correct.</p>
@@ -258,6 +277,10 @@
     <p>ShipRate's total liability for any shipment is limited to the freight charges paid for that shipment. Carrier liability for loss or damage in transit is governed by the carrier's terms and applicable transportation law.</p>
     <p>Subject to the terms and conditions of the applicable tariff and classification in effect on the date of shipment.</p>
   </div>
+</div>
+<div class="pod-unmatched no-print" id="podUnmatched" style="display:none">
+  <strong>Unmatched PODs</strong> <span style="color:#6b7280;font-size:13px">Photos that arrived without a matching waybill number — file them to the right waybill.</span>
+  <div id="podUnmatchedList"></div>
 </div>
 </div>
 
@@ -343,6 +366,7 @@
       saveDraft();
       setSaveNote('Saved as ' + saved.waybill_no + ' ✓');
       await loadHistory();
+      loadPodForWaybill();
       var wantEmail = emailMode === 'force' || (emailMode === 'auto' && $('#emailOnSave').checked);
       if (wantEmail) {
         var res = await sendWaybillEmail();
@@ -372,6 +396,7 @@
       if (memberSel.value) qs += '&member=' + encodeURIComponent(memberSel.value);
       var d = await api('/api/waybills' + qs);
       var rows = d.rows || [];
+      historyRows = rows;
       if (companyMembers.length > 1) {
         memberSel.style.display = '';
         var cur = memberSel.value;
@@ -395,7 +420,8 @@
           ? ' · by ' + r.created_by_name
           : '';
         var lbl = r.waybill_no + ' · ' + String(r.created_at || '').slice(0, 10) +
-          ' · ' + [b['shipper.name'], b['consignee.name']].filter(Boolean).join(' → ') + partTxt + byTxt;
+          ' · ' + [b['shipper.name'], b['consignee.name']].filter(Boolean).join(' → ') + partTxt + byTxt +
+          (r.has_pod ? ' 📷' : '');
         return '<option value="' + esc(r.id) + '"' + (r.id === currentId ? ' selected' : '') + '>' + esc(lbl) + '</option>';
       }).join('');
     } catch (e) { /* signed out or unavailable */ }
@@ -412,8 +438,100 @@
       var other = !!(currentUserId && r.user_id && String(r.user_id) !== String(currentUserId));
       setViewOnly(other, r.created_by_name);
       setSaveNote('Opened ' + r.waybill_no + (other ? ' (view only)' : ''));
+      loadPodForWaybill();
     } catch (e) { setSaveNote('Could not open: ' + e.message); }
   }
+
+  /* ---------- POD (proof of delivery) ---------- */
+  var historyRows = [];
+  function hidePodBox() {
+    $('#podBox').style.display = 'none';
+    var img = $('#podImg');
+    img.src = '';
+    img.style.display = 'none';
+  }
+  async function loadPodForWaybill() {
+    if (!currentId) { hidePodBox(); return; }
+    try {
+      var p = await api('/api/waybills/' + encodeURIComponent(currentId) + '/pod');
+      $('#podMeta').textContent = 'Received ' + String(p.created_at || '').slice(0, 16).replace('T', ' ') +
+        (p.sender_email ? ' from ' + p.sender_email : '') + ' · ' + (p.waybill_no || '');
+      var img = $('#podImg');
+      img.src = p.image_data || '';
+      img.style.display = p.image_data ? '' : 'none';
+      $('#podBox').style.display = '';
+    } catch (e) { hidePodBox(); }
+  }
+  // Admin-only: PODs that arrived without a matching waybill number.
+  // Non-admins get a 403 and the section stays hidden.
+  async function loadUnmatched() {
+    var box = $('#podUnmatched');
+    try {
+      var d = await api('/api/waybills/pod-unmatched');
+      var rows = d.rows || [];
+      if (!rows.length) { box.style.display = 'none'; return; }
+      box.style.display = '';
+      $('#podUnmatchedList').innerHTML = rows.map(function (r) {
+        return '<div class="pu-item" data-pod="' + esc(r.id) + '">' +
+          '<div><strong>' + esc(r.waybill_no || '(no number)') + '</strong> · from ' + esc(r.sender_email || '?') +
+          ' · ' + esc(String(r.created_at || '').slice(0, 16).replace('T', ' ')) + '</div>' +
+          '<div style="color:#6b7280;font-size:13px">' + esc(r.note || '') + (r.subject ? ' · Subject: ' + esc(r.subject) : '') + '</div>' +
+          '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">' +
+          '<button type="button" data-act="photo">Show photo</button>' +
+          '<select data-act="target"><option value="">File to waybill…</option>' + historyRows.map(function (h) {
+            return '<option value="' + esc(h.id) + '">' + esc(h.waybill_no) + '</option>';
+          }).join('') + '</select>' +
+          '<button type="button" data-act="file">File</button>' +
+          '<button type="button" data-act="del">Delete</button>' +
+          '</div><img data-act="img" alt="POD photo" style="display:none"></div>';
+      }).join('');
+    } catch (e) { box.style.display = 'none'; }
+  }
+  $('#podUnmatchedList').addEventListener('click', async function (ev) {
+    var btn = ev.target.closest('[data-act]');
+    if (!btn) return;
+    var item = ev.target.closest('.pu-item');
+    var podId = item && item.getAttribute('data-pod');
+    var act = btn.getAttribute('data-act');
+    if (!podId) return;
+    try {
+      if (act === 'photo') {
+        var p = await api('/api/waybills/pod/' + encodeURIComponent(podId));
+        var img = item.querySelector('[data-act="img"]');
+        img.src = p.image_data || '';
+        img.style.display = p.image_data ? '' : 'none';
+        btn.textContent = 'Hide photo';
+        btn.setAttribute('data-act', 'hide');
+      } else if (act === 'hide') {
+        item.querySelector('[data-act="img"]').style.display = 'none';
+        btn.textContent = 'Show photo';
+        btn.setAttribute('data-act', 'photo');
+      } else if (act === 'file') {
+        var sel = item.querySelector('[data-act="target"]');
+        if (!sel.value) { alert('Pick a waybill to file this POD to.'); return; }
+        await api('/api/waybills/pod/' + encodeURIComponent(podId) + '/match', { method: 'POST', body: { waybill_id: sel.value } });
+        await loadUnmatched();
+        await loadPodForWaybill();
+        await loadHistory();
+        setSaveNote('POD filed ✓');
+      } else if (act === 'del') {
+        if (!confirm('Delete this unmatched POD?')) return;
+        await api('/api/waybills/pod/' + encodeURIComponent(podId), { method: 'DELETE' });
+        await loadUnmatched();
+      }
+    } catch (e) { setSaveNote('POD action failed: ' + e.message); }
+  });
+  $('#btnPodDelete').addEventListener('click', async function () {
+    if (!currentId) return;
+    try {
+      var p = await api('/api/waybills/' + encodeURIComponent(currentId) + '/pod');
+      if (!confirm('Delete the POD photo on this waybill?')) return;
+      await api('/api/waybills/pod/' + encodeURIComponent(p.id), { method: 'DELETE' });
+      hidePodBox();
+      await loadHistory();
+      setSaveNote('POD deleted.');
+    } catch (e) { setSaveNote('Could not delete POD: ' + e.message); }
+  });
 
   /* ---------- company logo (server-side, per user account) ----------
      Signed-in users: the logo lives on their account and follows them
@@ -768,6 +886,7 @@
     if (!confirm('Clear the waybill and start a new one?')) return;
     try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
     currentId = null;
+    hidePodBox();
     setViewOnly(false);
     syncGenerateBtn();
     setSaveNote('');
@@ -804,7 +923,7 @@
         maybePrimeFill();
       }
     }
-    if (token()) { loadShipments(); loadHistory(); loadAddresses(); }
+    if (token()) { loadShipments(); loadHistory(); loadAddresses(); loadUnmatched(); }
     else { $('#authNote').textContent = 'Sign in on ShipRate to save waybills and pre-fill from your shipments.'; }
   })();
 })();

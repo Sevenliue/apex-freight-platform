@@ -4,13 +4,21 @@
 // atomically on save (no gaps burned by abandoned drafts). Waybill bodies are
 // stored as JSON and listed/loaded as full history.
 //
-// Endpoints (all require sign-in):
+// Endpoints (all require sign-in, except pod-ingest which uses a shared
+// secret — it is called by the Cloudflare Email Worker for pod@shiprate.ca,
+// not by a signed-in user):
 //   GET    /api/waybills        list saved waybills, newest first
 //   POST   /api/waybills        save new {bol_json, shipment_id?} -> assigns waybill_no
 //   GET    /api/waybills/:id    fetch one
 //   PUT    /api/waybills/:id    update {bol_json} (keeps its number)
 //   POST   /api/waybills/:id/email  email the saved waybill to shipper + receiver
 //   DELETE /api/waybills/:id    delete one
+//   POST   /api/waybills/pod-ingest   file a POD photo from an inbound email
+//   GET    /api/waybills/pod-unmatched  admin: PODs that could not be matched
+//   GET    /api/waybills/pod/:podId      admin: one POD, with its photo
+//   POST   /api/waybills/pod/:podId/match  admin: file an unmatched POD to a waybill
+//   DELETE /api/waybills/pod/:podId      admin: discard a POD
+//   GET    /api/waybills/:id/pod        latest filed POD photo for one waybill
 //
 // Tables are created on boot (CREATE TABLE IF NOT EXISTS).
 'use strict';
@@ -18,6 +26,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const db = require('../db');
+const billing = require('../lib/billing');
 
 const router = express.Router();
 
@@ -40,7 +49,25 @@ async function ensureWaybillTables() {
       UNIQUE (user_id, waybill_no)
     )`);
   await db.query(`CREATE INDEX IF NOT EXISTS waybills_user_idx ON waybills (user_id, created_at DESC)`);
-  // Company grouping (added 2026-10-16): company waybills carry the
+  // Proof-of-delivery photos, filed by email (pod@shiprate.ca) or matched
+  // by hand. waybill_id is NULL while a POD is unmatched; image_data is a
+  // data URL (capped ~9MB of base64 ≈ a 6-7MB phone photo).
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS waybill_pods (
+      id UUID PRIMARY KEY,
+      waybill_id UUID REFERENCES waybills(id) ON DELETE CASCADE,
+      waybill_no TEXT NOT NULL DEFAULT '',
+      sender_email TEXT,
+      subject TEXT,
+      filename TEXT,
+      mime_type TEXT,
+      image_data TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'unmatched',
+      note TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`);
+  await db.query(`CREATE INDEX IF NOT EXISTS waybill_pods_waybill_idx ON waybill_pods (waybill_id, created_at DESC)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS waybill_pods_status_idx ON waybill_pods (status, created_at DESC)`);  // Company grouping (added 2026-10-16): company waybills carry the
   // company id so members can see each other's waybills. Plain uuid (no FK)
   // so this stays idempotent regardless of statement order.
   await db.query(`ALTER TABLE waybills ADD COLUMN IF NOT EXISTS company_id UUID`);
@@ -61,6 +88,45 @@ function cleanStr(v, max) {
   return String(v || '').trim().slice(0, max) || null;
 }
 function fmtNo(n) { return 'WB-' + String(n).padStart(6, '0'); }
+
+// ---- POD (proof of delivery) helpers ----
+// A WB number looks like WB-000123. Extract the first one from free text
+// (an email subject line), upper-cased, or null.
+function extractWaybillNo(text) {
+  var m = String(text || '').match(/WB-(\d{6})/i);
+  return m ? 'WB-' + m[1] : null;
+}
+// POD photos arrive as data URLs. Cap ~9MB of base64 (~6-7MB of photo).
+var POD_IMAGE_RE = /^data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+$/;
+function validPodImage(v) {
+  return typeof v === 'string' && v.length > 0 && v.length <= 9000000 && POD_IMAGE_RE.test(v);
+}
+// Constant-time secret comparison (lengths must match first).
+function secretsEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  var ab = Buffer.from(a), bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
+// The pod-ingest endpoint is called by the Cloudflare Email Worker, not a
+// signed-in user, so it authenticates with a shared secret instead.
+function needPodSecret(req, res) {
+  var secret = process.env.POD_INGEST_SECRET;
+  if (!secret) { res.status(503).json({ error: 'POD ingest is not configured.' }); return false; }
+  if (!secretsEqual(req.headers['x-pod-secret'] || '', secret)) { res.status(401).json({ error: 'Invalid POD secret.' }); return false; }
+  return true;
+}
+// Admin-only POD endpoints (unmatched queue, manual matching) reuse the
+// same ADMIN_EMAILS check as /api/admin.
+async function requirePodAdmin(req, res) {
+  if (!req.user) { res.status(401).json({ error: 'Sign in required.' }); return false; }
+  try {
+    var state = await billing.getBillingState(req.user.id);
+    if (state && state.isAdmin) return true;
+  } catch (e) { /* fall through */ }
+  res.status(403).json({ error: 'Admin access required.' });
+  return false;
+}
 
 // Mint the next sequence number for this user, atomically.
 async function nextWaybillNo(userId) {
@@ -91,7 +157,7 @@ async function callerCompanyId(userId) {
   } catch { return null; }
 }
 
-const LIST_COLS = 'w.id, w.waybill_no, w.shipment_id, w.bol_json, w.created_at, w.updated_at, w.user_id, w.company_id, u.full_name AS created_by_name, u.email AS created_by_email';
+const LIST_COLS = 'w.id, w.waybill_no, w.shipment_id, w.bol_json, w.created_at, w.updated_at, w.user_id, w.company_id, u.full_name AS created_by_name, u.email AS created_by_email, EXISTS (SELECT 1 FROM waybill_pods p WHERE p.waybill_id = w.id AND p.status IN (\'filed\', \'matched\')) AS has_pod';
 const LIST_FROM = 'FROM waybills w JOIN users u ON u.id = w.user_id';
 
 // Company members see all waybills of their company; everyone sees their
@@ -155,6 +221,173 @@ router.post('/', async (req, res) => {
   } catch (e) {
     console.error('[waybills] save failed:', e.message);
     res.status(500).json({ error: 'Could not save the waybill.' });
+  }
+});
+
+// ---- POD (proof of delivery) routes ----
+// These come before /:id so "pod-ingest" / "pod-unmatched" / "pod/:podId"
+// are not swallowed by the :id parameter.
+
+// POST /api/waybills/pod-ingest — called by the Cloudflare Email Worker
+// when a photo arrives at pod@shiprate.ca. Shared-secret auth (no user
+// session). Matches the WB number in the subject to a saved waybill; on a
+// miss the photo lands in the unmatched queue and the sender gets an
+// auto-reply asking for the number. Body:
+//   { waybill_no?, from, subject, filename, mime_type, image_data }
+// image_data is a data URL (data:image/...;base64,...).
+router.post('/pod-ingest', async (req, res) => {
+  if (!needPodSecret(req, res) || !needDb(res)) return;
+  try {
+    var body = req.body || {};
+    var subject = cleanStr(body.subject, 500) || '';
+    var sender = cleanStr(body.from || body.sender, 320) || '';
+    var filename = cleanStr(body.filename, 200) || 'pod-photo';
+    var mime = cleanStr(body.mime_type || body.mime, 100) || '';
+    var image = body.image_data || body.image;
+    if (!validPodImage(image)) {
+      return res.status(400).json({ error: 'Missing or invalid POD photo (image data URL required).' });
+    }
+    var no = extractWaybillNo(subject) || extractWaybillNo(body.waybill_no || '');
+    var waybillId = null;
+    var status = 'unmatched';
+    var note = null;
+    var autoReply = false;
+    if (!no) {
+      note = 'No WB number found in the subject line.';
+      autoReply = true;
+    } else {
+      var r = await db.query('SELECT id FROM waybills WHERE waybill_no = $1', [no]);
+      if (r.rows.length === 1) {
+        waybillId = r.rows[0].id;
+        status = 'filed';
+      } else if (r.rows.length === 0) {
+        note = 'No waybill found with number ' + no + '.';
+        autoReply = true;
+      } else {
+        note = 'Multiple waybills share ' + no + ' — needs manual matching.';
+      }
+    }
+    var id = crypto.randomUUID();
+    await db.query(
+      `INSERT INTO waybill_pods (id, waybill_id, waybill_no, sender_email, subject, filename, mime_type, image_data, status, note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+      [id, waybillId, no || '', sender, subject, filename, mime, image, status, note]);
+    // Unmatched because the number was missing or unknown: tell the sender
+    // how to resend. Ambiguous numbers stay quiet — the admin matches them.
+    if (status === 'unmatched' && autoReply && isEmail(sender)) {
+      var why = no
+        ? 'The subject line showed "' + no + '", but no waybill with that number was found.'
+        : 'The email subject line had no waybill number in it.';
+      var replyText = [
+        'Hi — we received your proof-of-delivery photo, but we could not match it to a waybill.',
+        '',
+        why,
+        '',
+        'Please resend the photo to pod@shiprate.ca with the BOL No. from the signed page in the subject line (for example: WB-000123).',
+        '',
+        '— ShipRate',
+      ].join('\n');
+      try {
+        await sendEmail({
+          to: sender,
+          subject: 'POD could not be filed — waybill number needed',
+          text: replyText,
+          html: '<p>Hi — we received your proof-of-delivery photo, but we could not match it to a waybill.</p><p>' + escHtml(why) + '</p><p>Please resend the photo to pod@shiprate.ca with the BOL No. from the signed page in the subject line (for example: WB-000123).</p><p>— ShipRate</p>',
+          event: 'pod_unmatched',
+        });
+      } catch (e) { /* best effort — the POD is already stored */ }
+    }
+    res.json({ ok: true, matched: status === 'filed', pod_id: id, waybill_id: waybillId, waybill_no: no || null });
+  } catch (e) {
+    console.error('[waybills] pod ingest failed:', e.message);
+    res.status(500).json({ error: 'Could not file the POD.' });
+  }
+});
+
+// GET /api/waybills/pod-unmatched — admin: PODs waiting to be matched.
+// Photos are NOT included here (too heavy); fetch one POD to see its photo.
+router.get('/pod-unmatched', async (req, res) => {
+  if (!needUser(req, res) || !needDb(res)) return;
+  if (!(await requirePodAdmin(req, res))) return;
+  try {
+    var r = await db.query(
+      `SELECT id, waybill_no, sender_email, subject, filename, mime_type, status, note, created_at
+       FROM waybill_pods WHERE status = 'unmatched' ORDER BY created_at DESC LIMIT 100`);
+    res.json({ rows: r.rows });
+  } catch (e) {
+    res.status(500).json({ error: 'Could not load unmatched PODs.' });
+  }
+});
+
+// GET /api/waybills/pod/:podId — admin: one POD, with its photo.
+router.get('/pod/:podId', async (req, res) => {
+  if (!needUser(req, res) || !needDb(res)) return;
+  if (!(await requirePodAdmin(req, res))) return;
+  try {
+    var r = await db.query('SELECT * FROM waybill_pods WHERE id = $1', [req.params.podId]);
+    if (!r.rows.length) return res.status(404).json({ error: 'POD not found.' });
+    res.json(r.rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: 'Could not load the POD.' });
+  }
+});
+
+// POST /api/waybills/pod/:podId/match — admin: file an unmatched POD to a
+// waybill. Body: { waybill_id }.
+router.post('/pod/:podId/match', async (req, res) => {
+  if (!needUser(req, res) || !needDb(res)) return;
+  if (!(await requirePodAdmin(req, res))) return;
+  try {
+    var waybillId = cleanStr(req.body && req.body.waybill_id, 64);
+    if (!waybillId) return res.status(400).json({ error: 'waybill_id is required.' });
+    var w = await db.query('SELECT waybill_no FROM waybills WHERE id = $1', [waybillId]);
+    if (!w.rows.length) return res.status(404).json({ error: 'Waybill not found.' });
+    var r = await db.query(
+      `UPDATE waybill_pods SET waybill_id = $1, waybill_no = $2, status = 'matched', note = NULL
+       WHERE id = $3 AND status = 'unmatched' RETURNING id`,
+      [waybillId, w.rows[0].waybill_no, req.params.podId]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Unmatched POD not found.' });
+    res.json({ ok: true, pod_id: r.rows[0].id, waybill_id: waybillId });
+  } catch (e) {
+    res.status(500).json({ error: 'Could not match the POD.' });
+  }
+});
+
+// DELETE /api/waybills/pod/:podId — admin: discard a POD (wrong photo, spam).
+router.delete('/pod/:podId', async (req, res) => {
+  if (!needUser(req, res) || !needDb(res)) return;
+  if (!(await requirePodAdmin(req, res))) return;
+  try {
+    var r = await db.query('DELETE FROM waybill_pods WHERE id = $1 RETURNING id', [req.params.podId]);
+    if (!r.rows.length) return res.status(404).json({ error: 'POD not found.' });
+    res.json({ deleted: r.rows[0].id });
+  } catch (e) {
+    res.status(500).json({ error: 'Could not delete the POD.' });
+  }
+});
+
+// GET /api/waybills/:id/pod — latest filed POD photo for one waybill.
+// Owner, or a company member when the waybill belongs to their company.
+router.get('/:id/pod', async (req, res) => {
+  if (!needUser(req, res) || !needDb(res)) return;
+  try {
+    var companyId = await callerCompanyId(req.user.id);
+    var params = [req.params.id, req.user.id];
+    var vis = 'w.user_id = $2';
+    if (companyId) {
+      params.push(companyId);
+      vis = '(w.user_id = $2 OR (w.company_id IS NOT NULL AND w.company_id = $3))';
+    }
+    var r = await db.query(
+      `SELECT p.id, p.waybill_id, p.waybill_no, p.sender_email, p.subject, p.filename, p.mime_type, p.image_data, p.status, p.created_at
+       FROM waybill_pods p JOIN waybills w ON w.id = p.waybill_id
+       WHERE p.waybill_id = $1 AND ${vis} AND p.status IN ('filed', 'matched')
+       ORDER BY p.created_at DESC LIMIT 1`,
+      params);
+    if (!r.rows.length) return res.status(404).json({ error: 'No POD on file for this waybill.' });
+    res.json(r.rows[0]);
+  } catch (e) {
+    res.status(500).json({ error: 'Could not load the POD.' });
   }
 });
 

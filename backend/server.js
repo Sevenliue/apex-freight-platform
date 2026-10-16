@@ -36,7 +36,7 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), requ
 // verification, so this is mounted BEFORE express.json() too.
 app.post('/api/webhooks/easypost', express.raw({ type: 'application/json' }), require('./routes/webhooks').easypostWebhook);
 
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '12mb' })); // POD photos arrive as ~9MB base64 data URLs; everything else is far smaller
 
 // Minimal morgan-style request log.
 app.use((req, res, next) => {
