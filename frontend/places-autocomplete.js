@@ -11,6 +11,11 @@
  *   consignee d_street / d_city / d_state / d_zip / d_country (+ c_name, d_phone, d_email)
  *   3rd party b_street / b_city / b_state / b_zip / b_country (+ b_name)
  *
+ * Also attaches to the Company/Name inputs (address-book only, no
+ * Google): typing a saved company name shows book matches; picking one
+ * fills the whole block. The Company field previously had no lookup, so
+ * typing a saved company name filled nothing.
+ *
  * Behavior:
  * - 300ms debounce; keyboard navigation (up/down/enter/escape); click-to-select.
  * - On select of a Google suggestion, GET /api/places/details fills
@@ -61,7 +66,7 @@
     box.style.width = Math.max(r.width, 280) + 'px';
   }
 
-  function renderDropdown(input, group, items) {
+  function renderDropdown(input, group, items, isNameInput) {
     closeDropdown();
     if (!items.length) return;
     var box = document.createElement('div');
@@ -81,7 +86,7 @@
       }
       opt.addEventListener('mousedown', function (e) {
         e.preventDefault(); // beat input blur
-        selectSuggestion(input, group, it);
+        selectSuggestion(input, group, it, isNameInput);
       });
       box.appendChild(opt);
     });
@@ -128,7 +133,7 @@
     }
   }
 
-  async function fetchSuggestions(input, group) {
+  async function fetchSuggestions(input, group, isNameInput) {
     var q = input.value.trim();
     if (q.length < 3) {
       closeDropdown();
@@ -138,7 +143,8 @@
     var bookItems = await fetchBookSuggestions(q);
     var country = (el(group.country) && el(group.country).value.trim().toUpperCase()) || 'CA';
     var googleItems = [];
-    if (placesOn !== false) {
+    // Name inputs are book-only: a company name is not a Google query.
+    if (!isNameInput && placesOn !== false) {
       try {
         var r = await fetch(
           '/api/places/autocomplete?input=' + encodeURIComponent(q) + '&country=' + encodeURIComponent(country)
@@ -153,7 +159,7 @@
         /* network hiccup: book results still render */
       }
     }
-    renderDropdown(input, group, bookItems.concat(googleItems));
+    renderDropdown(input, group, bookItems.concat(googleItems), isNameInput);
   }
 
   // Fill the whole address block (and contact fields) from an address-book
@@ -185,10 +191,12 @@
     }
   }
 
-  async function selectSuggestion(input, group, item) {
+  async function selectSuggestion(input, group, item, isNameInput) {
     closeDropdown();
     if (item.source === 'address_book' && item.address) {
-      input.value = item.address.street || input.value;
+      input.value = isNameInput
+        ? (item.address.name || input.value)
+        : (item.address.street || input.value);
       applyBookAddress(group, item.address);
       return;
     }
@@ -225,14 +233,14 @@
     }
   }
 
-  function attach(input, group) {
+  function attach(input, group, isNameInput) {
     var timer = null;
     input.setAttribute('autocomplete', 'off');
     input.addEventListener('input', function () {
-      if (placesOn === false) return;
+      if (!isNameInput && placesOn === false) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(function () {
-        fetchSuggestions(input, group);
+        fetchSuggestions(input, group, isNameInput);
       }, 300);
     });
     input.addEventListener('keydown', function (e) {
@@ -246,10 +254,10 @@
       } else if (e.key === 'Enter') {
         if (openDd.active >= 0) {
           e.preventDefault();
-          selectSuggestion(input, group, openDd.items[openDd.active]);
+          selectSuggestion(input, group, openDd.items[openDd.active], isNameInput);
         } else if (openDd.items.length) {
           e.preventDefault();
-          selectSuggestion(input, group, openDd.items[0]);
+          selectSuggestion(input, group, openDd.items[0], isNameInput);
         }
       } else if (e.key === 'Escape') {
         closeDropdown();
@@ -266,7 +274,14 @@
     GROUPS.forEach(function (g) {
       var input = el(g.street);
       if (input) {
-        attach(input, g);
+        attach(input, g, false);
+        any = true;
+      }
+      // Company/Name field: address-book-only lookup, so typing a saved
+      // company name fills the whole block without touching Google.
+      var nameInput = g.name && el(g.name);
+      if (nameInput) {
+        attach(nameInput, g, true);
         any = true;
       }
     });
