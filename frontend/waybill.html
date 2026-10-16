@@ -772,7 +772,13 @@
     setViewOnly(false);
     syncGenerateBtn();
     setSaveNote('');
-    applyState({ date: new Date().toISOString().slice(0, 10), pkgs: [{}] });
+    // Clear EVERY field: applyState only sets the keys it is given, so the
+    // old { date, pkgs } state left the previous waybill's data (including
+    // its WB- number) on screen, and the Generate guard then refused to
+    // mint a new one — the form looked stuck on the old waybill.
+    var blank = { date: new Date().toISOString().slice(0, 10), pkgs: [{}], fterms: 'prepaid', dg: false };
+    $$('[data-k]').forEach(function (el) { blank[el.getAttribute('data-k')] = ''; });
+    applyState(blank);
     if (token()) maybePrimeFill();
   });
   $$('[data-k]').forEach(function (el) { el.addEventListener('input', saveDraft); });
