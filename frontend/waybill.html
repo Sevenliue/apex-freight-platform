@@ -16,15 +16,14 @@
   .toolbar button.ghost { background: transparent; color: #fff; border: 1px solid #2c5c46; }
   /* Same orange CTA as the main page (.btn.primary): #ff6a00 / #d95700 / #0c2b20. */
   .toolbar button.cta { background: #ff6a00; border: 1px solid #d95700; color: #0c2b20; }
-  .gen-no { background: #ff6a00; border: 1px solid #d95700; color: #0c2b20; font-weight: 700; font-size: 13px; padding: 8px 14px; border-radius: 6px; cursor: pointer; }
-  .gen-no:disabled { opacity: .45; cursor: default; }
+  .toolbar button:disabled { opacity: .45; cursor: default; }
   .toolbar .note { font-size: 12px; color: #d1d5db; }
   .wrap { max-width: 900px; margin: 18px auto 60px; padding: 0 14px; }
   .doc { background: #fff; border: 1px solid #d1d5db; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 14px 18px; }
   .doc h1 { margin: 0; font-size: 22px; letter-spacing: 1px; }
   .doc .sub { color: var(--mut); font-size: 14px; margin-top: 1px; }
   .doc-head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid var(--pine); padding-bottom: 5px; margin-bottom: 7px; gap: 12px; }
-  .meta-grid { display: grid; grid-template-columns: auto 1fr; gap: 2px 6px; font-size: 15px; align-items: center; }
+  .meta-grid { display: grid; grid-template-columns: auto 1fr; gap: 2px 6px; font-size: 15px; align-items: center; margin-left: auto; }
   /* BOL No. / waybill number: at least 3x the old 12px, bold. */
   #f_bolno { font-size: 36px; font-weight: 800; }
   label[for="f_bolno"] { font-size: 20px; font-weight: 800; }
@@ -120,6 +119,7 @@
     <option value="user_asc">Creator A–Z</option>
   </select>
   <button id="btnSave" type="button">💾 Save</button>
+  <button id="btnGenerateNo" class="cta" type="button">Generate waybill No.</button>
   <label class="logo-ctl no-print" title="Upload your company logo — it prints on the waybill">
     <img id="logoThumb" class="logo-thumb" alt="" style="display:none">
     <span id="logoCtlLabel">Upload logo</span>
@@ -145,7 +145,6 @@
       <h1>BILL OF LADING</h1>
       <div class="sub">Straight bill of lading — not negotiable</div>
     </div>
-    <div class="no-print" style="align-self:center"><button type="button" id="btnGenerateNo" class="gen-no">Generate waybill No.</button></div>
     <div class="meta-grid">
       <label for="f_bolno">BOL No.</label><input class="fld" id="f_bolno" data-k="bol_no">
       <label for="f_date">Date</label><input class="fld" id="f_date" data-k="date" type="date">
