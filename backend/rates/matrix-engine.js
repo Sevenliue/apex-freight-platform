@@ -619,6 +619,10 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
             base += (counts[t] - (t === firstType ? 1 : 0)) * FLATLANDER_ADD[t];
           }
         }
+        // Off-route service point: flat charge "added to the rate" (per
+        // Flatlander, Stacey Ashurst 2026-10-16) — joins the base, so FSC
+        // applies to the combined rate.
+        if (lane.off_route_cad) base += lane.off_route_cad;
       }
       if (!rated) continue;
       const fscPercent = fscFor(carrier, w);
@@ -643,6 +647,7 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
         lane_dest_prov: lane.dest_prov,
         metro_matched:
           lane.origin_city !== oCity || lane.dest_city !== dCity,
+        ...(lane.off_route_cad ? { off_route_cad: lane.off_route_cad } : {}),
         ...(lane.service_note ? { service_note: lane.service_note } : {}),
       });
       continue;
