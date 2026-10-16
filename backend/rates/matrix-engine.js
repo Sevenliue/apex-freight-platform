@@ -380,6 +380,35 @@ function beeFarmBandPrice(regularTierPrice, unitW) {
   return band ? band[1] : 0;
 }
 
+// Flatlander Express tire rates (prepaid ex Regina/Saskatoon, eff. 2026-10-15
+// per Seven; FSC 46% on the carrier record — update via Admin when it moves).
+// Each package line selects its tire family via package_type:
+//   'Passenger Tire' | 'Semi Tire' | 'Implement Tire' | 'Tractor Tire'
+// First/additional families (passenger, semi, implement) share ONE first-tire
+// slot per shipment at the highest first-tire price among the types present;
+// every other tire of those families bills at its additional rate. Tractor
+// tires bill flat each (no first/additional) and are added separately.
+// Tractor height = tire diameter = max(length, width, height); tractor width
+// = section width = min(length, width, height) — per Seven, the sheet's
+// "height" is the diameter, and its "width" is the height of the tire sitting
+// flat on the ground (i.e. its thickness).
+const FLATLANDER_ID = 'flatlander';
+const FLATLANDER_FIRST = { passenger: 20, semi: 50, implement: 30 };
+const FLATLANDER_ADD = { passenger: 10, semi: 30, implement: 15 };
+const FLATLANDER_PKG_TYPE = {
+  'PASSENGER TIRE': 'passenger',
+  'SEMI TIRE': 'semi',
+  'IMPLEMENT TIRE': 'implement',
+  'TRACTOR TIRE': 'tractor',
+};
+function flatlanderTractorPrice(diameterIn, widthIn) {
+  if (diameterIn <= 48) return 50;
+  if (diameterIn <= 60) return 75;
+  if (widthIn <= 18) return 100;
+  if (widthIn <= 23) return 150;
+  return 250;
+}
+
 function isGuilbaultPalletLine(p) {
   const L = Number(p.length), W = Number(p.width);
   return (L === 48 && W === 40) || (L === 40 && W === 48);
@@ -543,6 +572,65 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
         lane_dest_prov: lane.dest_prov,
         metro_matched:
           lane.origin_city !== oCity || lane.dest_city !== dCity,
+      });
+      continue;
+    }
+
+    // Flatlander Express: first/additional tire pricing + tractor flats.
+    // Lines select their tire family via package_type. A line with any other
+    // package_type (including generic 'Tire') gets no Flatlander quote.
+    if (lane.flatlander) {
+      const lines = Array.isArray(packages) ? packages : [];
+      let rated = lines.length > 0;
+      let base = 0;
+      const counts = { passenger: 0, semi: 0, implement: 0 };
+      for (const p of lines) {
+        const q = Math.max(1, Math.floor(Number(p.qty) || 1));
+        const fam = FLATLANDER_PKG_TYPE[norm(p.package_type)];
+        if (!fam) { rated = false; break; }
+        if (fam === 'tractor') {
+          const dims = [Number(p.length), Number(p.width), Number(p.height)];
+          if (dims.some((d) => !(d > 0))) { rated = false; break; }
+          base += flatlanderTractorPrice(Math.max(...dims), Math.min(...dims)) * q;
+        } else {
+          counts[fam] += q;
+        }
+      }
+      if (rated) {
+        const present = Object.keys(counts).filter((t) => counts[t] > 0);
+        if (present.length > 0) {
+          // One shared first-tire slot at the highest first price present.
+          const firstType = present.reduce((a, b) => (FLATLANDER_FIRST[a] >= FLATLANDER_FIRST[b] ? a : b));
+          base += FLATLANDER_FIRST[firstType];
+          for (const t of present) {
+            base += (counts[t] - (t === firstType ? 1 : 0)) * FLATLANDER_ADD[t];
+          }
+        }
+      }
+      if (!rated) continue;
+      const fscPercent = fscFor(carrier, w);
+      const fsc = base * fscPercent / 100;
+      quotes.push({
+        carrier_id: lane.carrier_id,
+        carrier_label: carrier ? carrier.carrier_label : lane.carrier_id,
+        service: 'LTL',
+        weight_lbs: w,
+        rate_basis: 'flatlander',
+        rate_cwt_used: null,
+        base_cad: r2(base),
+        fsc_percent: fscPercent,
+        fsc_cad: r2(fsc),
+        total_cad: r2(base + fsc),
+        min_charge_applied: false,
+        currency: 'CAD',
+        source: 'matrix',
+        lane_origin_city: lane.origin_city,
+        lane_origin_prov: lane.origin_prov,
+        lane_dest_city: lane.dest_city,
+        lane_dest_prov: lane.dest_prov,
+        metro_matched:
+          lane.origin_city !== oCity || lane.dest_city !== dCity,
+        ...(lane.service_note ? { service_note: lane.service_note } : {}),
       });
       continue;
     }
