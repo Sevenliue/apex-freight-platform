@@ -144,6 +144,7 @@
     <div class="sec">
       <div class="sec-title">SHIPPER (FROM)</div>
       <div class="sec-body">
+        <div class="frow no-print" style="gap:6px"><label>Saved</label><select class="fld" data-ab-sel="shipper" style="flex:1"><option value="">Saved addresses…</option></select><button type="button" data-ab-save="shipper" style="white-space:nowrap;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;background:#f1f5f9;cursor:pointer">💾 Save address</button></div>
         <div class="frow"><label>Name</label><input class="fld" data-k="shipper.name"></div>
         <div class="frow"><label>Street</label><input class="fld" data-k="shipper.street"></div>
         <div class="frow"><label>City / Prov</label><input class="fld" data-k="shipper.cityprov" placeholder="City, PR"></div>
@@ -156,6 +157,7 @@
     <div class="sec">
       <div class="sec-title">CONSIGNEE (TO)</div>
       <div class="sec-body">
+        <div class="frow no-print" style="gap:6px"><label>Saved</label><select class="fld" data-ab-sel="consignee" style="flex:1"><option value="">Saved addresses…</option></select><button type="button" data-ab-save="consignee" style="white-space:nowrap;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;background:#f1f5f9;cursor:pointer">💾 Save address</button></div>
         <div class="frow"><label>Name</label><input class="fld" data-k="consignee.name"></div>
         <div class="frow"><label>Street</label><input class="fld" data-k="consignee.street"></div>
         <div class="frow"><label>City / Prov</label><input class="fld" data-k="consignee.cityprov" placeholder="City, PR"></div>
@@ -290,6 +292,7 @@
     }
     $('#btnSave').disabled = !!on;
     $('#btnEmailNow').disabled = !!on;
+    $$('[data-ab-sel],[data-ab-save]').forEach(function (el) { el.disabled = !!on; });
   }
   async function sendWaybillEmail() {
     // Emails the saved waybill to shipper + receiver. Never blocks saving:
@@ -615,7 +618,96 @@
     } catch (e) { /* signed out or no DB — blank template still works */ }
   }
 
+  /* ---------- address book: save a party address, auto-fill from saved ones ----------
+     Uses the same /api/address-book as the quote form. The waybill's
+     "City / Prov" field is one string ("City, PR") — split on the comma
+     when saving, joined back when filling. */
+  var AB = []; // saved addresses for the signed-in account
+  function fillPartyFromAddress(kind, a) {
+    setVal(kind + '.name', a.company || a.contact_name || a.label || '');
+    setVal(kind + '.street', a.street || '');
+    setVal(kind + '.cityprov', [a.city, a.province].filter(Boolean).join(', '));
+    setVal(kind + '.postal', a.postal || '');
+    setVal(kind + '.contact', a.contact_name || '');
+    setVal(kind + '.phone', a.phone || '');
+    setVal(kind + '.email', a.email || '');
+  }
+  function renderAbSelects() {
+    $$('[data-ab-sel]').forEach(function (sel) {
+      var cur = sel.value;
+      sel.disabled = !token();
+      sel.innerHTML = '<option value="">' + (token() ? 'Saved addresses…' : 'Sign in for saved addresses') + '</option>' +
+        AB.map(function (a) {
+          return '<option value="' + esc(a.id) + '">' +
+            esc((a.label || a.company || a.contact_name || 'Address') + ' — ' +
+              [a.city, a.province].filter(Boolean).join(', ')) + (a.is_primary ? ' ★' : '') + '</option>';
+        }).join('');
+      if (cur && AB.some(function (a) { return String(a.id) === String(cur); })) sel.value = cur;
+    });
+  }
+  async function loadAddresses() {
+    try { var d = await api('/api/address-book'); AB = d.addresses || []; }
+    catch (e) { AB = []; }
+    renderAbSelects();
+  }
+  function applyAbToParty(kind, id) {
+    var a = AB.filter(function (x) { return String(x.id) === String(id); })[0];
+    if (!a) return;
+    fillPartyFromAddress(kind, a);
+    saveDraft();
+  }
+  async function savePartyAddress(kind) {
+    if (!token()) { alert('Sign in on ShipRate to save addresses.'); return; }
+    if (viewOnly) { setSaveNote('View only — only the creator can edit this waybill.'); return; }
+    var name = getVal(kind + '.name').trim();
+    var street = getVal(kind + '.street').trim();
+    var cityprov = getVal(kind + '.cityprov').trim();
+    var missing = [];
+    if (!name) missing.push('Name');
+    if (!street) missing.push('Street');
+    if (!cityprov) missing.push('City / Prov');
+    if (missing.length) { setSaveNote('Fill in these first to save the address: ' + missing.join(', ') + '.'); return; }
+    var ci = cityprov.indexOf(',');
+    var city = (ci >= 0 ? cityprov.slice(0, ci) : cityprov).trim();
+    var province = (ci >= 0 ? cityprov.slice(ci + 1) : '').trim();
+    var kindLabel = kind === 'shipper' ? 'Shipper' : 'Consignee';
+    setSaveNote('Saving ' + kindLabel.toLowerCase() + ' address…');
+    try {
+      var saved = await api('/api/address-book', { method: 'POST', body: {
+        label: (kindLabel + ' — ' + name).slice(0, 120),
+        company: name.slice(0, 160),
+        contact_name: getVal(kind + '.contact').trim().slice(0, 120),
+        street: street.slice(0, 160),
+        city: city.slice(0, 80),
+        province: province.slice(0, 40),
+        postal: getVal(kind + '.postal').trim().slice(0, 20),
+        country: 'CA',
+        phone: getVal(kind + '.phone').trim().slice(0, 40),
+        email: getVal(kind + '.email').trim().slice(0, 160)
+      }});
+      await loadAddresses();
+      var addr = saved && saved.address;
+      if (addr) { var sel = $('[data-ab-sel="' + kind + '"]'); if (sel) sel.value = String(addr.id); }
+      setSaveNote(kindLabel + ' address saved to address book ✓' + (saved && saved.duplicate ? ' (already saved)' : ''));
+    } catch (e) { setSaveNote('Could not save address: ' + e.message); }
+  }
+  async function maybePrimeFill() {
+    // Fresh blank waybill only: fill an EMPTY shipper block from the
+    // ★ Primary address — the same prime-location rule as the quote form.
+    if (getVal('shipper.name') || getVal('shipper.street') || getVal('shipper.cityprov')) return;
+    try {
+      var d = await api('/api/address-book/primary');
+      if (d && d.address) { fillPartyFromAddress('shipper', d.address); saveDraft(); }
+    } catch (e) { /* no primary — leave blank */ }
+  }
+
   /* ---------- wire up ---------- */
+  $$('[data-ab-sel]').forEach(function (sel) {
+    sel.addEventListener('change', function () { if (sel.value) applyAbToParty(sel.getAttribute('data-ab-sel'), sel.value); });
+  });
+  $$('[data-ab-save]').forEach(function (btn) {
+    btn.addEventListener('click', function () { savePartyAddress(btn.getAttribute('data-ab-save')); });
+  });
   $('#logoFile').addEventListener('change', onLogoFile);
   $('#btnLogoRemove').addEventListener('click', removeLogo);
   $('#histMember').addEventListener('change', loadHistory);
@@ -638,6 +730,7 @@
     setViewOnly(false);
     setSaveNote('');
     applyState({ date: new Date().toISOString().slice(0, 10), pkgs: [{}] });
+    if (token()) maybePrimeFill();
   });
   $$('[data-k]').forEach(function (el) { el.addEventListener('input', saveDraft); });
   $$('input[name="fterms"]').forEach(function (el) { el.addEventListener('change', saveDraft); });
@@ -659,9 +752,11 @@
         api('/api/shipments/order/' + encodeURIComponent(orderId)).then(fillFromOrder).catch(function () {});
       } else if (wbId && token()) {
         openWaybill(wbId);
+      } else if (token()) {
+        maybePrimeFill();
       }
     }
-    if (token()) { loadShipments(); loadHistory(); }
+    if (token()) { loadShipments(); loadHistory(); loadAddresses(); }
     else { $('#authNote').textContent = 'Sign in on ShipRate to save waybills and pre-fill from your shipments.'; }
   })();
 })();
