@@ -14,6 +14,8 @@
   .toolbar select, .toolbar button { font-size: 14px; padding: 7px 10px; border-radius: 6px; border: 1px solid #2c5c46; }
   .toolbar button { background: var(--gold); color: #1c1c1c; font-weight: 600; cursor: pointer; border: none; }
   .toolbar button.ghost { background: transparent; color: #fff; border: 1px solid #2c5c46; }
+  /* Same orange CTA as the main page (.btn.primary): #ff6a00 / #d95700 / #0c2b20. */
+  .toolbar button.cta { background: #ff6a00; border: 1px solid #d95700; color: #0c2b20; }
   .toolbar .note { font-size: 12px; color: #d1d5db; }
   .wrap { max-width: 900px; margin: 18px auto 60px; padding: 0 14px; }
   .doc { background: #fff; border: 1px solid #d1d5db; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 14px 18px; }
@@ -118,7 +120,7 @@
   <label class="no-print" style="display:inline-flex;gap:6px;align-items:center;font-size:13px;color:#fff;font-weight:600;cursor:pointer" title="When saving, email this waybill to the shipper and receiver addresses above">
     <input type="checkbox" id="emailOnSave" checked> Email waybill to shipper &amp; receiver on save
   </label>
-  <button id="btnEmailNow" class="ghost" type="button">✉️ Send email now</button>
+  <button id="btnEmailNow" class="cta" type="button">✉️ Send email now</button>
   <span class="note" id="authNote"></span>
   <span class="note" id="saveNote"></span>
   <span class="note" id="viewNote" style="color:#fde68a;display:none"></span>
