@@ -21,81 +21,86 @@
   .toolbar .note { font-size: 12px; color: #d1d5db; }
   .wrap { max-width: 900px; margin: 18px auto 60px; padding: 0 14px; }
   .doc { background: #fff; border: 1px solid #d1d5db; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 14px 18px; }
-  .doc h1 { margin: 0; font-size: 17px; letter-spacing: 1px; }
-  .doc .sub { color: var(--mut); font-size: 11px; margin-top: 1px; }
+  .doc h1 { margin: 0; font-size: 22px; letter-spacing: 1px; }
+  .doc .sub { color: var(--mut); font-size: 14px; margin-top: 1px; }
   .doc-head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid var(--pine); padding-bottom: 5px; margin-bottom: 7px; gap: 12px; }
-  .meta-grid { display: grid; grid-template-columns: auto 1fr; gap: 2px 6px; font-size: 12px; align-items: center; }
+  .meta-grid { display: grid; grid-template-columns: auto 1fr; gap: 2px 6px; font-size: 15px; align-items: center; }
+  /* BOL No. / waybill number: at least 3x the old 12px, bold. */
+  #f_bolno { font-size: 36px; font-weight: 800; }
+  label[for="f_bolno"] { font-size: 20px; font-weight: 800; }
   .meta-grid label { font-weight: 600; white-space: nowrap; }
   .sec { border: 1px solid var(--line); margin-bottom: 5px; }
-  .sec > .sec-title { background: #eef2f0; font-weight: 700; font-size: 12px; padding: 3px 8px; border-bottom: 1px solid var(--line); letter-spacing: .4px; }
+  .sec > .sec-title { background: #eef2f0; font-weight: 700; font-size: 15px; padding: 3px 8px; border-bottom: 1px solid var(--line); letter-spacing: .4px; }
   .sec-body { padding: 5px 8px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .frow { display: grid; grid-template-columns: 92px 1fr; gap: 6px; align-items: center; margin-bottom: 2px; font-size: 12px; }
+  .frow { display: grid; grid-template-columns: 92px 1fr; gap: 6px; align-items: center; margin-bottom: 2px; font-size: 15px; }
   .frow label { font-weight: 600; color: #374151; }
   /* Saved-address row: label + dropdown + button get their own columns so
      the button is never squeezed or clipped. */
   .frow.ab-row { grid-template-columns: 92px 1fr auto; }
-  .ab-save { white-space: nowrap; padding: 6px 12px; border: 1px solid #d95700; border-radius: 6px; background: #ff6a00; color: #0c2b20; font-weight: 700; font-size: 12px; cursor: pointer; }
-  input.fld, textarea.fld, select.fld { width: 100%; font: inherit; font-size: 12px; padding: 2.5px 5px; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; color: var(--ink); }
+  .ab-save { white-space: nowrap; padding: 6px 12px; border: 1px solid #d95700; border-radius: 6px; background: #ff6a00; color: #0c2b20; font-weight: 700; font-size: 14px; cursor: pointer; }
+  input.fld, textarea.fld, select.fld { width: 100%; font: inherit; font-size: 15px; padding: 2.5px 5px; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; color: var(--ink); }
   textarea.fld { resize: vertical; min-height: 56px; }
   input.fld:focus, textarea.fld:focus, select.fld:focus { outline: 2px solid var(--gold); border-color: var(--gold); }
-  table.pkgs { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  table.pkgs th { background: #eef2f0; border: 1px solid var(--line); padding: 4px 4px; font-size: 11.5px; }
+  table.pkgs { width: 100%; border-collapse: collapse; font-size: 15px; }
+  table.pkgs th { background: #eef2f0; border: 1px solid var(--line); padding: 4px 4px; font-size: 14px; }
   table.pkgs td { border: 1px solid var(--line); padding: 2px; }
-  table.pkgs input { width: 100%; border: none; font: inherit; font-size: 12.5px; padding: 3.5px 4px; background: transparent; }
+  table.pkgs input { width: 100%; border: none; font: inherit; font-size: 15px; padding: 3.5px 4px; background: transparent; }
   table.pkgs input:focus { outline: 2px solid var(--gold); }
   table.pkgs td.num input { text-align: right; }
   .rowbtn { border: none; background: #fee2e2; color: #991b1b; border-radius: 4px; cursor: pointer; padding: 4px 8px; font-size: 12px; }
-  .totals { display: flex; gap: 18px; justify-content: flex-end; font-size: 13px; font-weight: 700; padding: 5px 10px 0; }
+  .totals { display: flex; gap: 18px; justify-content: flex-end; font-size: 16px; font-weight: 700; padding: 5px 10px 0; }
   .sigs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-  .sigbox { border-top: 1px solid var(--ink); margin-top: 26px; padding-top: 6px; font-size: 12px; color: var(--mut); }
-  .sigbox input { border: none; border-bottom: 1px solid var(--line); width: 100%; font: inherit; font-size: 13px; padding: 4px 2px; margin-bottom: 2px; }
-  .terms { font-size: 10.5px; color: var(--mut); line-height: 1.5; border-top: 1px solid var(--line); margin-top: 10px; padding-top: 7px; }
+  .sigbox { border-top: 1px solid var(--ink); margin-top: 26px; padding-top: 6px; font-size: 14px; color: var(--mut); }
+  .sigbox input { border: none; border-bottom: 1px solid var(--line); width: 100%; font: inherit; font-size: 15px; padding: 4px 2px; margin-bottom: 2px; }
+  .terms { font-size: 13px; color: var(--mut); line-height: 1.5; border-top: 1px solid var(--line); margin-top: 10px; padding-top: 7px; }
   .terms p { margin: 0 0 4px; }
-  .chk { display: flex; gap: 14px; font-size: 13px; align-items: center; flex-wrap: wrap; }
+  .chk { display: flex; gap: 14px; font-size: 15px; align-items: center; flex-wrap: wrap; }
   .chk label { display: flex; gap: 6px; align-items: center; font-weight: 600; }
   .toolbar .logo-ctl { display: inline-flex; align-items: center; gap: 6px; background: transparent; color: #fff; border: 1px solid #2c5c46; border-radius: 6px; padding: 7px 10px; font-size: 14px; font-weight: 600; cursor: pointer; }
   .toolbar .logo-ctl:hover { border-color: var(--gold); }
   .logo-thumb { height: 22px; width: auto; max-width: 90px; object-fit: contain; background: #fff; border-radius: 3px; padding: 1px; }
   .doc-logo img { max-height: 56px; max-width: 240px; object-fit: contain; display: block; margin-bottom: 6px; }
-  .dg-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; margin-top: 10px; }
+  .dg-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 15px; margin-top: 10px; }
   .dg-row label { font-weight: 600; display: flex; gap: 6px; align-items: center; }
   .dg-row input.fld { width: 150px; }
   .dg-fields { display: none; gap: 10px; align-items: center; flex-wrap: wrap; }
   body.dg-on .dg-fields { display: flex; }
   .dg-decl { display: none; }
   body.dg-on .dg-decl { display: block; }
-  .sig-ack { font-size: 14px; font-weight: 600; margin: 10px 0 0; line-height: 1.45; }
+  .sig-ack { font-size: 16px; font-weight: 600; margin: 10px 0 0; line-height: 1.45; }
   @media (max-width: 640px) { .grid2, .sigs { grid-template-columns: 1fr; } .doc { padding: 18px 14px; } }
   @media print {
     body { background: #fff; }
     .no-print { display: none !important; }
     .wrap { max-width: none; margin: 0; padding: 0; }
     .doc { border: none; box-shadow: none; padding: 0; }
-    .doc h1 { font-size: 16px; }
-    .doc .sub { font-size: 10px; }
+    .doc h1 { font-size: 20px; }
+    .doc .sub { font-size: 12px; }
     .doc-head { border-bottom-width: 2px; padding-bottom: 4px; margin-bottom: 4px; }
-    .meta-grid { font-size: 10.5px; gap: 1.5px 6px; }
+    .meta-grid { font-size: 12px; gap: 1.5px 6px; }
+    #f_bolno { font-size: 32px; }
+    label[for="f_bolno"] { font-size: 18px; }
     .grid2 { gap: 4px; }
     .sec { margin-bottom: 3px; }
-    .sec > .sec-title { font-size: 10.5px; padding: 2px 6px; }
+    .sec > .sec-title { font-size: 12px; padding: 2px 6px; }
     .sec-body { padding: 3px 6px; }
-    .frow { font-size: 10.5px; margin-bottom: 1px; grid-template-columns: 84px 1fr; }
-    input.fld, textarea.fld, select.fld { border: none; padding: 0.5px 0; font-size: 10.5px; }
+    .frow { font-size: 12px; margin-bottom: 1px; grid-template-columns: 84px 1fr; }
+    input.fld, textarea.fld, select.fld { border: none; padding: 0.5px 0; font-size: 12px; }
     textarea.fld { min-height: 30px; }
-    table.pkgs { font-size: 10.5px; }
-    table.pkgs th { padding: 2.5px 2px; font-size: 10px; }
-    table.pkgs input { padding: 1.5px 2px; font-size: 10.5px; }
-    .totals { font-size: 11px; padding: 3px 8px 0; }
+    table.pkgs { font-size: 12px; }
+    table.pkgs th { padding: 2.5px 2px; font-size: 12px; }
+    table.pkgs input { padding: 1.5px 2px; font-size: 12px; }
+    .totals { font-size: 13px; padding: 3px 8px 0; }
     .sigs { gap: 8px; }
-    .sigbox { margin-top: 14px; font-size: 10px; }
-    .sigbox input { font-size: 11px; padding: 2px; margin-bottom: 0; }
-    .terms { font-size: 9px; margin-top: 6px; padding-top: 4px; line-height: 1.4; }
+    .sigbox { margin-top: 14px; font-size: 12px; }
+    .sigbox input { font-size: 13px; padding: 2px; margin-bottom: 0; }
+    .terms { font-size: 11px; margin-top: 6px; padding-top: 4px; line-height: 1.4; }
     .terms p { margin: 0 0 2px; }
     .doc-logo img { max-height: 36px; margin-bottom: 2px; }
-    .dg-row { font-size: 11px; margin-top: 5px; }
-    .dg-row input.fld { width: 110px; padding: 1px 0; font-size: 11px; }
-    .sig-ack { font-size: 12px; margin-top: 6px; }
+    .dg-row { font-size: 13px; margin-top: 5px; }
+    .dg-row input.fld { width: 110px; padding: 1px 0; font-size: 13px; }
+    .sig-ack { font-size: 14px; margin-top: 6px; }
     @page { margin: 10mm; size: letter; }
   }
 </style>
