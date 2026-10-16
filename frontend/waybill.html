@@ -43,8 +43,21 @@
   .sigbox { border-top: 1px solid var(--ink); margin-top: 34px; padding-top: 6px; font-size: 12px; color: var(--mut); }
   .sigbox input { border: none; border-bottom: 1px solid var(--line); width: 100%; font: inherit; font-size: 13px; padding: 4px 2px; margin-bottom: 2px; }
   .terms { font-size: 10.5px; color: var(--mut); line-height: 1.5; border-top: 1px solid var(--line); margin-top: 14px; padding-top: 10px; }
+  .terms p { margin: 0 0 4px; }
   .chk { display: flex; gap: 14px; font-size: 13px; align-items: center; flex-wrap: wrap; }
   .chk label { display: flex; gap: 6px; align-items: center; font-weight: 600; }
+  .toolbar .logo-ctl { display: inline-flex; align-items: center; gap: 6px; background: transparent; color: #fff; border: 1px solid #2c5c46; border-radius: 6px; padding: 7px 10px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .toolbar .logo-ctl:hover { border-color: var(--gold); }
+  .logo-thumb { height: 22px; width: auto; max-width: 90px; object-fit: contain; background: #fff; border-radius: 3px; padding: 1px; }
+  .doc-logo img { max-height: 56px; max-width: 240px; object-fit: contain; display: block; margin-bottom: 6px; }
+  .dg-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; margin-top: 10px; }
+  .dg-row label { font-weight: 600; display: flex; gap: 6px; align-items: center; }
+  .dg-row input.fld { width: 150px; }
+  .dg-fields { display: none; gap: 10px; align-items: center; flex-wrap: wrap; }
+  body.dg-on .dg-fields { display: flex; }
+  .dg-decl { display: none; }
+  body.dg-on .dg-decl { display: block; }
+  .sig-ack { font-size: 12px; font-weight: 600; margin: 14px 0 0; line-height: 1.45; }
   @media (max-width: 640px) { .grid2, .sigs { grid-template-columns: 1fr; } .doc { padding: 18px 14px; } }
   @media print {
     body { background: #fff; }
@@ -70,6 +83,11 @@
     .sigbox { margin-top: 18px; font-size: 10px; }
     .sigbox input { font-size: 11px; padding: 2px; margin-bottom: 0; }
     .terms { font-size: 9px; margin-top: 8px; padding-top: 6px; line-height: 1.4; }
+    .terms p { margin: 0 0 2px; }
+    .doc-logo img { max-height: 44px; margin-bottom: 4px; }
+    .dg-row { font-size: 11px; margin-top: 6px; }
+    .dg-row input.fld { width: 110px; padding: 2px 0; font-size: 11px; }
+    .sig-ack { font-size: 10.5px; margin-top: 8px; }
     @page { margin: 10mm; size: letter; }
   }
 </style>
@@ -81,6 +99,12 @@
   <select id="shipSel" title="Pre-fill from one of your shipments" style="max-width:280px;display:none"></select>
   <select id="histSel" title="Open a saved waybill" style="max-width:280px;display:none"></select>
   <button id="btnSave" type="button">💾 Save</button>
+  <label class="logo-ctl no-print" title="Upload your company logo — it prints on the waybill">
+    <img id="logoThumb" class="logo-thumb" alt="" style="display:none">
+    <span id="logoCtlLabel">Upload logo</span>
+    <input type="file" id="logoFile" accept="image/*" hidden>
+  </label>
+  <button id="btnLogoRemove" class="ghost no-print" type="button" style="display:none">Remove logo</button>
   <button id="btnBlank" class="ghost" type="button">New</button>
   <button id="btnPrint" type="button">🖨 Print / PDF</button>
   <span class="note" id="authNote"></span>
@@ -91,6 +115,7 @@
 <div class="doc" id="doc">
   <div class="doc-head">
     <div>
+      <div class="doc-logo"><img id="docLogo" alt="Company logo" style="display:none"></div>
       <h1>BILL OF LADING</h1>
       <div class="sub">Straight bill of lading — not negotiable</div>
     </div>
@@ -163,6 +188,13 @@
       </table>
       <div class="no-print" style="margin-top:8px"><button type="button" class="rowbtn" id="btnAddRow" style="background:#dcfce7;color:#166534">+ Add line</button></div>
       <div class="totals"><span>Total pieces: <span id="totQty">0</span></span><span>Total weight: <span id="totWt">0</span> lb</span></div>
+      <div class="dg-row">
+        <label><input type="checkbox" id="dgChk"> Dangerous goods</label>
+        <span class="dg-fields">
+          <label>UN No. <input class="fld" id="dgUn" data-k="dg_un" inputmode="text"></label>
+          <label>Class <input class="fld" id="dgClass" data-k="dg_class" inputmode="text"></label>
+        </span>
+      </div>
     </div>
   </div>
 
@@ -181,16 +213,20 @@
     </div>
   </div>
 
+  <p class="sig-ack">By signing below, the pickup driver acknowledges receipt of the goods described above in apparent good order and condition, with no visible damage.</p>
   <div class="sigs">
     <div class="sigbox"><input data-k="sig_shipper" placeholder=""><strong>Shipper signature</strong><br><span>Date: <input data-k="sig_shipper_date" type="date" style="width:150px"></span></div>
-    <div class="sigbox"><input data-k="sig_driver" placeholder=""><strong>Driver signature</strong><br><span>Date: <input data-k="sig_driver_date" type="date" style="width:150px"></span></div>
+    <div class="sigbox"><input data-k="sig_driver" placeholder=""><strong>Pickup Driver signature</strong><br><span>Date: <input data-k="sig_driver_date" type="date" style="width:150px"></span></div>
     <div class="sigbox"><input data-k="sig_consignee" placeholder=""><strong>Consignee signature</strong><br><span>Date: <input data-k="sig_consignee_date" type="date" style="width:150px"></span></div>
   </div>
 
   <div class="terms">
-    Received, subject to the classifications and tariffs in effect on the date of shipment. The carrier's liability is limited as set out in the applicable tariff and
-    terms of carriage. The shipper certifies the goods are properly described, packaged, and marked, and declares the weight shown is correct. Dangerous goods, if any,
-    are declared in accordance with the Transportation of Dangerous Goods Regulations.
+    <p>Received in apparent good order and condition, subject to the classifications and tariffs in effect on the date of shipment.</p>
+    <p>The shipper certifies that the goods described on this bill of lading are properly described, packaged, marked, and labeled, and that the weight shown is correct.</p>
+    <p>Freight charges are prepaid or collect as marked above. Where a declared value / released value is shown, it applies as noted.</p>
+    <p class="dg-decl">Dangerous goods declaration: the goods described above include dangerous goods declared in accordance with the Transportation of Dangerous Goods Regulations. UN No.: <span id="dgUnOut">—</span> · Class: <span id="dgClassOut">—</span></p>
+    <p>ShipRate's total liability for any shipment is limited to the freight charges paid for that shipment. Carrier liability for loss or damage in transit is governed by the carrier's terms and applicable transportation law.</p>
+    <p>Subject to the terms and conditions of the applicable tariff and classification in effect on the date of shipment.</p>
   </div>
 </div>
 </div>
@@ -266,6 +302,58 @@
     } catch (e) { setSaveNote('Could not open: ' + e.message); }
   }
 
+  /* ---------- company logo (per-browser, localStorage) ---------- */
+  var LOGO_KEY = 'shiprate_waybill_logo';
+  function applyLogo(dataUrl) {
+    var img = $('#docLogo'), thumb = $('#logoThumb'), rm = $('#btnLogoRemove'), lbl = $('#logoCtlLabel');
+    if (dataUrl) {
+      img.src = dataUrl; img.style.display = '';
+      thumb.src = dataUrl; thumb.style.display = '';
+      rm.style.display = '';
+      lbl.textContent = 'Change logo';
+    } else {
+      img.removeAttribute('src'); img.style.display = 'none';
+      thumb.removeAttribute('src'); thumb.style.display = 'none';
+      rm.style.display = 'none';
+      lbl.textContent = 'Upload logo';
+    }
+  }
+  function loadLogo() { try { applyLogo(localStorage.getItem(LOGO_KEY)); } catch (e) {} }
+  function onLogoFile(e) {
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    if (!/^image\//.test(f.type)) { alert('Please choose an image file.'); return; }
+    var rd = new FileReader();
+    rd.onload = function () {
+      var im = new Image();
+      im.onload = function () {
+        try {
+          var maxW = 480, scale = Math.min(1, maxW / im.naturalWidth);
+          var cv = document.createElement('canvas');
+          cv.width = Math.max(1, Math.round(im.naturalWidth * scale));
+          cv.height = Math.max(1, Math.round(im.naturalHeight * scale));
+          cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
+          var out = cv.toDataURL('image/png');
+          if (out.length > 1500000) { alert('That logo is too large to store in this browser. Please use a smaller image (under ~1 MB).'); return; }
+          try { localStorage.setItem(LOGO_KEY, out); } catch (err) { alert('Could not save the logo in this browser (storage full).'); return; }
+          applyLogo(out);
+        } catch (err) { alert('Could not process that image.'); }
+      };
+      im.onerror = function () { alert('Could not read that image file.'); };
+      im.src = rd.result;
+    };
+    rd.readAsDataURL(f);
+    e.target.value = '';
+  }
+
+  /* ---------- dangerous goods ---------- */
+  function syncDg() {
+    var on = $('#dgChk').checked;
+    document.body.classList.toggle('dg-on', on);
+    $('#dgUnOut').textContent = $('#dgUn').value || '—';
+    $('#dgClassOut').textContent = $('#dgClass').value || '—';
+  }
+
   /* ---------- package rows ---------- */
   function addRow(d) {
     d = d || {};
@@ -312,6 +400,7 @@
     var o = { pkgs: [] };
     $$('[data-k]').forEach(function (el) { o[el.getAttribute('data-k')] = el.value; });
     o.fterms = getVal('fterms');
+    o.dg = $('#dgChk').checked;
     $$('#pkgBody tr').forEach(function (tr) {
       var g = function (c) { return $('input[data-c="' + c + '"]', tr).value; };
       o.pkgs.push({ qty: g('qty'), units: g('units'), desc: g('desc'), wt: g('wt'), l: g('l'), w: g('w'), h: g('h'), cls: g('cls') });
@@ -319,11 +408,13 @@
     return o;
   }
   function applyState(o) {
-    Object.keys(o).forEach(function (k) { if (k !== 'pkgs' && k !== 'fterms') setVal(k, o[k]); });
+    Object.keys(o).forEach(function (k) { if (k !== 'pkgs' && k !== 'fterms' && k !== 'dg') setVal(k, o[k]); });
     if (o.fterms) setVal('fterms', o.fterms);
+    $('#dgChk').checked = !!(o.dg === true || o.dg === 'true' || o.dg === 'on');
     $('#pkgBody').innerHTML = '';
     (o.pkgs && o.pkgs.length ? o.pkgs : [{}]).forEach(addRow);
     recalc();
+    syncDg();
   }
   function saveDraft() { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(collect())); } catch (e) {} }
   function loadDraft() { try { var s = localStorage.getItem(DRAFT_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
@@ -386,6 +477,11 @@
   }
 
   /* ---------- wire up ---------- */
+  $('#logoFile').addEventListener('change', onLogoFile);
+  $('#btnLogoRemove').addEventListener('click', function () { try { localStorage.removeItem(LOGO_KEY); } catch (e) {} applyLogo(null); });
+  $('#dgChk').addEventListener('change', function () { syncDg(); saveDraft(); });
+  $('#dgUn').addEventListener('input', function () { syncDg(); saveDraft(); });
+  $('#dgClass').addEventListener('input', function () { syncDg(); saveDraft(); });
   $('#btnAddRow').addEventListener('click', function () { addRow({}); saveDraft(); });
   $('#btnPrint').addEventListener('click', function () { window.print(); });
   $('#btnSave').addEventListener('click', saveWaybill);
@@ -404,6 +500,7 @@
   $$('input[name="fterms"]').forEach(function (el) { el.addEventListener('change', saveDraft); });
 
   (function init() {
+    loadLogo();
     var draft = loadDraft();
     var qs = new URLSearchParams(location.search);
     var orderId = qs.get('order');
