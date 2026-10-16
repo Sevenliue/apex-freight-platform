@@ -34,6 +34,19 @@ const { rateLimit } = require('../lib/rate-limit');
 
 const router = express.Router();
 
+// Per-user logo + company columns (added 2026-10-16). Idempotent; the
+// companies route also ensures them.
+async function ensureUserColumns() {
+  if (!db.isEnabled()) return;
+  try {
+    await db.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS company_id UUID');
+    await db.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS logo TEXT');
+  } catch (e) {
+    console.error('[auth] user columns setup failed:', e.message);
+  }
+}
+ensureUserColumns();
+
 const BCRYPT_ROUNDS = 10;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -438,6 +451,58 @@ router.patch('/me', async (req, res) => {
     if (err && err.code === '23505') return bad(res, 409, 'That email is already used by another account.');
     console.error('[auth/me] patch failed:', err.message);
     return bad(res, 502, 'Could not update the profile: ' + err.message);
+  }
+});
+
+// GET /api/auth/me/logo — the signed-in user's own logo only (never
+// another user's). The logo is NOT part of the session payload: it can be a
+// large base64 blob and the session lookup runs on every API request.
+router.get('/me/logo', async (req, res) => {
+  if (needDb(res)) return;
+  const user = await authedUser(req, res);
+  if (!user) return;
+  try {
+    const r = await db.query('SELECT logo FROM users WHERE id = $1 LIMIT 1', [user.id]);
+    return res.json({ logo: (r.rows[0] && r.rows[0].logo) || null });
+  } catch (err) {
+    console.error('[auth/me/logo] get failed:', err.message);
+    return bad(res, 502, 'Could not load the logo.');
+  }
+});
+
+// POST /api/auth/me/logo — {logo} set the signed-in user's logo. Must be a
+// data:image/... base64 URL, at most 900,000 chars (kept under the 1 MB
+// JSON body limit; the waybill page downscales uploads to 480px wide first).
+const MAX_LOGO_CHARS = 900000;
+const LOGO_RE = /^data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+$/;
+router.post('/me/logo', async (req, res) => {
+  if (needDb(res)) return;
+  const user = await authedUser(req, res);
+  if (!user) return;
+  const logo = (req.body || {}).logo;
+  if (typeof logo !== 'string' || logo.length > MAX_LOGO_CHARS || !LOGO_RE.test(logo)) {
+    return bad(res, 400, 'Logo must be an image under ~900 KB (upload a smaller image).');
+  }
+  try {
+    await db.query('UPDATE users SET logo = $1 WHERE id = $2', [logo, user.id]);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[auth/me/logo] set failed:', err.message);
+    return bad(res, 502, 'Could not save the logo.');
+  }
+});
+
+// DELETE /api/auth/me/logo — remove the signed-in user's logo.
+router.delete('/me/logo', async (req, res) => {
+  if (needDb(res)) return;
+  const user = await authedUser(req, res);
+  if (!user) return;
+  try {
+    await db.query('UPDATE users SET logo = NULL WHERE id = $1', [user.id]);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('[auth/me/logo] delete failed:', err.message);
+    return bad(res, 502, 'Could not remove the logo.');
   }
 });
 

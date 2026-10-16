@@ -98,6 +98,14 @@
   <strong>Waybill / Bill of Lading</strong>
   <select id="shipSel" title="Pre-fill from one of your shipments" style="max-width:280px;display:none"></select>
   <select id="histSel" title="Open a saved waybill" style="max-width:280px;display:none"></select>
+  <select id="histMember" title="Show waybills from one member (company)" style="max-width:180px;display:none"></select>
+  <select id="histSort" title="Sort saved waybills" style="max-width:150px;display:none">
+    <option value="date_desc">Newest first</option>
+    <option value="date_asc">Oldest first</option>
+    <option value="number_asc">BOL number ↑</option>
+    <option value="number_desc">BOL number ↓</option>
+    <option value="user_asc">Creator A–Z</option>
+  </select>
   <button id="btnSave" type="button">💾 Save</button>
   <label class="logo-ctl no-print" title="Upload your company logo — it prints on the waybill">
     <img id="logoThumb" class="logo-thumb" alt="" style="display:none">
@@ -113,6 +121,7 @@
   <button id="btnEmailNow" class="ghost" type="button">✉️ Send email now</button>
   <span class="note" id="authNote"></span>
   <span class="note" id="saveNote"></span>
+  <span class="note" id="viewNote" style="color:#fde68a;display:none"></span>
 </div>
 
 <div class="wrap">
@@ -265,7 +274,23 @@
 
   /* ---------- saved waybills: sequenced numbers + history ---------- */
   var currentId = null;
+  var currentUserId = null; // signed-in user id (for view-only detection)
+  var viewOnly = false; // true when viewing another company member's waybill
+  var companyMembers = []; // [{id, name, email}] for the member filter
   function setSaveNote(t) { $('#saveNote').textContent = t || ''; }
+  function setViewOnly(on, creatorName) {
+    viewOnly = !!on;
+    var note = $('#viewNote');
+    if (on) {
+      note.textContent = 'Viewing ' + (creatorName || 'a teammate') + '\u2019s waybill — view only. Only the creator can edit it.';
+      note.style.display = '';
+    } else {
+      note.textContent = '';
+      note.style.display = 'none';
+    }
+    $('#btnSave').disabled = !!on;
+    $('#btnEmailNow').disabled = !!on;
+  }
   async function sendWaybillEmail() {
     // Emails the saved waybill to shipper + receiver. Never blocks saving:
     // callers run this AFTER a successful save and show per-address results.
@@ -288,6 +313,7 @@
   // 'force' = send regardless (Send email now button); null = never send.
   async function saveWaybill(emailMode) {
     if (!token()) { alert('Sign in on ShipRate to save waybills.'); return; }
+    if (viewOnly) { setSaveNote('View only — only the creator can edit this waybill.'); return; }
     setSaveNote('Saving…');
     try {
       var payload = { bol_json: collect() };
@@ -314,9 +340,30 @@
   }
   async function loadHistory() {
     var sel = $('#histSel');
+    var memberSel = $('#histMember');
+    var sortSel = $('#histSort');
     try {
-      var d = await api('/api/waybills');
+      // Company members for the filter (empty for solo users).
+      try {
+        var co = await api('/api/company');
+        companyMembers = (co && co.members) || [];
+      } catch (e) { companyMembers = []; }
+      var sortVal = sortSel.value || 'date_desc';
+      var sortParts = sortVal.split('_');
+      var qs = '?sort=' + encodeURIComponent(sortParts[0]) + '&dir=' + encodeURIComponent(sortParts[1] || 'desc');
+      if (memberSel.value) qs += '&member=' + encodeURIComponent(memberSel.value);
+      var d = await api('/api/waybills' + qs);
       var rows = d.rows || [];
+      if (companyMembers.length > 1) {
+        memberSel.style.display = '';
+        var cur = memberSel.value;
+        memberSel.innerHTML = '<option value="">All users</option>' + companyMembers.map(function (m) {
+          return '<option value="' + esc(m.id) + '"' + (m.id === cur ? ' selected' : '') + '>' + esc(m.name || m.email || 'Member') + '</option>';
+        }).join('');
+      } else {
+        memberSel.style.display = 'none';
+      }
+      sortSel.style.display = rows.length ? '' : 'none';
       if (!rows.length) { sel.style.display = 'none'; return; }
       sel.style.display = '';
       sel.innerHTML = '<option value="">Saved waybills…</option>' + rows.map(function (r) {
@@ -325,8 +372,12 @@
         var partTxt = parts.length
           ? ' · Parts: ' + parts.slice(0, 2).join(', ') + (parts.length > 2 ? '…' : '')
           : '';
+        // Company waybills show who created them; own rows stay clean.
+        var byTxt = (currentUserId && r.user_id && String(r.user_id) !== String(currentUserId) && r.created_by_name)
+          ? ' · by ' + r.created_by_name
+          : '';
         var lbl = r.waybill_no + ' · ' + String(r.created_at || '').slice(0, 10) +
-          ' · ' + [b['shipper.name'], b['consignee.name']].filter(Boolean).join(' → ') + partTxt;
+          ' · ' + [b['shipper.name'], b['consignee.name']].filter(Boolean).join(' → ') + partTxt + byTxt;
         return '<option value="' + esc(r.id) + '"' + (r.id === currentId ? ' selected' : '') + '>' + esc(lbl) + '</option>';
       }).join('');
     } catch (e) { /* signed out or unavailable */ }
@@ -339,12 +390,20 @@
       st.bol_no = r.waybill_no;
       applyState(st);
       saveDraft();
-      setSaveNote('Opened ' + r.waybill_no);
+      // Another member's waybill opens read-only: only the creator can edit.
+      var other = !!(currentUserId && r.user_id && String(r.user_id) !== String(currentUserId));
+      setViewOnly(other, r.created_by_name);
+      setSaveNote('Opened ' + r.waybill_no + (other ? ' (view only)' : ''));
     } catch (e) { setSaveNote('Could not open: ' + e.message); }
   }
 
-  /* ---------- company logo (per-browser, localStorage) ---------- */
+  /* ---------- company logo (server-side, per user account) ----------
+     Signed-in users: the logo lives on their account and follows them
+     across devices. One-time migration: a logo already in this browser's
+     localStorage is uploaded to the server once, then the server copy wins.
+     Guests keep the old localStorage-only behavior. */
   var LOGO_KEY = 'shiprate_waybill_logo';
+  var MAX_LOGO_CHARS = 900000; // server cap (kept under the 1 MB JSON limit)
   function applyLogo(dataUrl) {
     var img = $('#docLogo'), thumb = $('#logoThumb'), rm = $('#btnLogoRemove'), lbl = $('#logoCtlLabel');
     if (dataUrl) {
@@ -359,7 +418,45 @@
       lbl.textContent = 'Upload logo';
     }
   }
-  function loadLogo() { try { applyLogo(localStorage.getItem(LOGO_KEY)); } catch (e) {} }
+  function loadLogoLocal() { try { applyLogo(localStorage.getItem(LOGO_KEY)); } catch (e) {} }
+  async function loadLogo() {
+    if (!token()) { loadLogoLocal(); return; }
+    try {
+      var r = await api('/api/auth/me/logo');
+      if (r && r.logo) { applyLogo(r.logo); return; }
+      // No server logo yet — migrate a browser-stored one, once.
+      var local = null;
+      try { local = localStorage.getItem(LOGO_KEY); } catch (e) {}
+      if (local) {
+        try {
+          await api('/api/auth/me/logo', { method: 'POST', body: { logo: local } });
+          try { localStorage.removeItem(LOGO_KEY); } catch (e) {}
+          applyLogo(local);
+        } catch (e) { applyLogo(local); }
+      }
+    } catch (e) { loadLogoLocal(); }
+  }
+  async function saveLogoToServer(dataUrl) {
+    if (!token()) {
+      try { localStorage.setItem(LOGO_KEY, dataUrl); } catch (err) { alert('Could not save the logo in this browser (storage full).'); return false; }
+      return true;
+    }
+    try {
+      await api('/api/auth/me/logo', { method: 'POST', body: { logo: dataUrl } });
+      try { localStorage.removeItem(LOGO_KEY); } catch (e) {}
+      return true;
+    } catch (e) {
+      alert('Could not save the logo to your account: ' + e.message);
+      return false;
+    }
+  }
+  async function removeLogo() {
+    if (token()) {
+      try { await api('/api/auth/me/logo', { method: 'DELETE' }); } catch (e) { setSaveNote('Could not remove the logo: ' + e.message); return; }
+    }
+    try { localStorage.removeItem(LOGO_KEY); } catch (e) {}
+    applyLogo(null);
+  }
   function onLogoFile(e) {
     var f = e.target.files && e.target.files[0];
     if (!f) return;
@@ -367,7 +464,7 @@
     var rd = new FileReader();
     rd.onload = function () {
       var im = new Image();
-      im.onload = function () {
+      im.onload = async function () {
         try {
           var maxW = 480, scale = Math.min(1, maxW / im.naturalWidth);
           var cv = document.createElement('canvas');
@@ -375,9 +472,8 @@
           cv.height = Math.max(1, Math.round(im.naturalHeight * scale));
           cv.getContext('2d').drawImage(im, 0, 0, cv.width, cv.height);
           var out = cv.toDataURL('image/png');
-          if (out.length > 1500000) { alert('That logo is too large to store in this browser. Please use a smaller image (under ~1 MB).'); return; }
-          try { localStorage.setItem(LOGO_KEY, out); } catch (err) { alert('Could not save the logo in this browser (storage full).'); return; }
-          applyLogo(out);
+          if (out.length > MAX_LOGO_CHARS) { alert('That logo is too large. Please use a smaller image (under ~900 KB).'); return; }
+          if (await saveLogoToServer(out)) applyLogo(out);
         } catch (err) { alert('Could not process that image.'); }
       };
       im.onerror = function () { alert('Could not read that image file.'); };
@@ -521,7 +617,9 @@
 
   /* ---------- wire up ---------- */
   $('#logoFile').addEventListener('change', onLogoFile);
-  $('#btnLogoRemove').addEventListener('click', function () { try { localStorage.removeItem(LOGO_KEY); } catch (e) {} applyLogo(null); });
+  $('#btnLogoRemove').addEventListener('click', removeLogo);
+  $('#histMember').addEventListener('change', loadHistory);
+  $('#histSort').addEventListener('change', loadHistory);
   $('#dgChk').addEventListener('change', function () { syncDg(); saveDraft(); });
   $('#dgUn').addEventListener('input', function () { syncDg(); saveDraft(); });
   $('#dgClass').addEventListener('input', function () { syncDg(); saveDraft(); });
@@ -537,6 +635,7 @@
     if (!confirm('Clear the waybill and start a new one?')) return;
     try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
     currentId = null;
+    setViewOnly(false);
     setSaveNote('');
     applyState({ date: new Date().toISOString().slice(0, 10), pkgs: [{}] });
   });
@@ -545,6 +644,10 @@
 
   (function init() {
     loadLogo();
+    if (token()) {
+      // Current user id drives view-only detection for company waybills.
+      api('/api/auth/me').then(function (me) { currentUserId = (me && me.user && me.user.id) || null; }).catch(function () {});
+    }
     var draft = loadDraft();
     var qs = new URLSearchParams(location.search);
     var orderId = qs.get('order');

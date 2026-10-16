@@ -40,6 +40,12 @@ async function ensureWaybillTables() {
       UNIQUE (user_id, waybill_no)
     )`);
   await db.query(`CREATE INDEX IF NOT EXISTS waybills_user_idx ON waybills (user_id, created_at DESC)`);
+  // Company grouping (added 2026-10-16): company waybills carry the
+  // company id so members can see each other's waybills. Plain uuid (no FK)
+  // so this stays idempotent regardless of statement order.
+  await db.query(`ALTER TABLE waybills ADD COLUMN IF NOT EXISTS company_id UUID`);
+  await db.query(`CREATE INDEX IF NOT EXISTS waybills_company_idx ON waybills (company_id, created_at DESC)`);
+  await db.query(`CREATE UNIQUE INDEX IF NOT EXISTS waybills_company_no_uidx ON waybills (company_id, waybill_no) WHERE company_id IS NOT NULL`);
 }
 ensureWaybillTables().catch((e) => console.error('[waybills] table setup failed:', e.message));
 
@@ -65,14 +71,61 @@ async function nextWaybillNo(userId) {
   return fmtNo(r.rows[0].last_no);
 }
 
-const LIST_COLS = 'id, waybill_no, shipment_id, bol_json, created_at, updated_at';
+// Mint the next sequence number for a company, atomically. Company members
+// share ONE sequence; the counter is seeded above all members' pre-join
+// numbers when the company is created / joined (see routes/company.js).
+async function nextCompanyWaybillNo(companyId) {
+  const r = await db.query(`
+    INSERT INTO company_waybill_counters (company_id, last_no) VALUES ($1, 1)
+    ON CONFLICT (company_id) DO UPDATE SET last_no = company_waybill_counters.last_no + 1
+    RETURNING last_no`, [companyId]);
+  return fmtNo(r.rows[0].last_no);
+}
+
+// The caller's company id (null when solo). Read fresh per request so a
+// join/leave takes effect immediately.
+async function callerCompanyId(userId) {
+  try {
+    const r = await db.query('SELECT company_id FROM users WHERE id = $1 LIMIT 1', [userId]);
+    return (r.rows[0] && r.rows[0].company_id) || null;
+  } catch { return null; }
+}
+
+const LIST_COLS = 'w.id, w.waybill_no, w.shipment_id, w.bol_json, w.created_at, w.updated_at, w.user_id, w.company_id, u.full_name AS created_by_name, u.email AS created_by_email';
+const LIST_FROM = 'FROM waybills w JOIN users u ON u.id = w.user_id';
+
+// Company members see all waybills of their company; everyone sees their
+// own. Solo users (company_id null) see only their own.
+function visibilitySql(userId, companyId, params) {
+  params.push(userId);
+  if (companyId) {
+    params.push(companyId);
+    return `(w.user_id = $${params.length - 1} OR (w.company_id IS NOT NULL AND w.company_id = $${params.length}))`;
+  }
+  return `(w.user_id = $${params.length})`;
+}
 
 router.get('/', async (req, res) => {
   if (!needUser(req, res) || !needDb(res)) return;
   try {
+    const companyId = await callerCompanyId(req.user.id);
+    const params = [];
+    const vis = visibilitySql(req.user.id, companyId, params);
+    let where = vis;
+    // ?member=<user_id> — filter to one member's waybills (company only).
+    if (req.query.member) {
+      params.push(String(req.query.member));
+      where += ` AND w.user_id = $${params.length}`;
+    }
+    // ?sort=date|number|user & ?dir=asc|desc. Defaults: newest first.
+    const sortKey = String(req.query.sort || 'date');
+    const dir = String(req.query.dir || 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+    const orderBy = sortKey === 'number' ? `w.waybill_no ${dir}`
+      : sortKey === 'user' ? `u.full_name ${dir}, w.created_at DESC`
+      : `w.created_at ${dir}`;
     const r = await db.query(
-      `SELECT ${LIST_COLS} FROM waybills WHERE user_id = $1 ORDER BY created_at DESC LIMIT 500`,
-      [req.user.id]);
+      `SELECT ${LIST_COLS} ${LIST_FROM} WHERE ${where} ORDER BY ${orderBy} LIMIT 500`,
+      params);
     res.json({ rows: r.rows });
   } catch (e) {
     res.status(500).json({ error: 'Could not load waybill history.' });
@@ -85,13 +138,19 @@ router.post('/', async (req, res) => {
     const bolJson = req.body && typeof req.body.bol_json === 'object' && req.body.bol_json
       ? req.body.bol_json : {};
     const shipmentId = cleanStr(req.body && req.body.shipment_id, 64);
-    const waybillNo = await nextWaybillNo(req.user.id);
+    // Company members draw from the ONE shared company sequence and the
+    // waybill is tagged with the company; solo users keep their own counter.
+    const companyId = await callerCompanyId(req.user.id);
+    const waybillNo = companyId
+      ? await nextCompanyWaybillNo(companyId)
+      : await nextWaybillNo(req.user.id);
     const id = crypto.randomUUID();
+    await db.query(
+      `INSERT INTO waybills (id, user_id, company_id, waybill_no, shipment_id, bol_json)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, req.user.id, companyId, waybillNo, shipmentId, JSON.stringify(bolJson)]);
     const r = await db.query(
-      `INSERT INTO waybills (id, user_id, waybill_no, shipment_id, bol_json)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING ${LIST_COLS}`,
-      [id, req.user.id, waybillNo, shipmentId, JSON.stringify(bolJson)]);
+      `SELECT ${LIST_COLS} ${LIST_FROM} WHERE w.id = $1`, [id]);
     res.status(201).json(r.rows[0]);
   } catch (e) {
     console.error('[waybills] save failed:', e.message);
@@ -102,9 +161,18 @@ router.post('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   if (!needUser(req, res) || !needDb(res)) return;
   try {
+    // Owner, or a company member when the waybill belongs to their company.
+    // Editing/deleting stays owner-only (PUT/DELETE below).
+    const companyId = await callerCompanyId(req.user.id);
+    const params = [req.params.id, req.user.id];
+    let vis = `w.user_id = $2`;
+    if (companyId) {
+      params.push(companyId);
+      vis = `(w.user_id = $2 OR (w.company_id IS NOT NULL AND w.company_id = $3))`;
+    }
     const r = await db.query(
-      `SELECT ${LIST_COLS} FROM waybills WHERE id = $1 AND user_id = $2`,
-      [req.params.id, req.user.id]);
+      `SELECT ${LIST_COLS} ${LIST_FROM} WHERE w.id = $1 AND ${vis}`,
+      params);
     if (!r.rows.length) return res.status(404).json({ error: 'Waybill not found.' });
     res.json(r.rows[0]);
   } catch (e) {
@@ -120,10 +188,12 @@ router.put('/:id', async (req, res) => {
     const r = await db.query(
       `UPDATE waybills SET bol_json = $1, updated_at = now()
        WHERE id = $2 AND user_id = $3
-       RETURNING ${LIST_COLS}`,
+       RETURNING id`,
       [JSON.stringify(bolJson), req.params.id, req.user.id]);
     if (!r.rows.length) return res.status(404).json({ error: 'Waybill not found.' });
-    res.json(r.rows[0]);
+    const full = await db.query(
+      `SELECT ${LIST_COLS} ${LIST_FROM} WHERE w.id = $1`, [r.rows[0].id]);
+    res.json(full.rows[0]);
   } catch (e) {
     res.status(500).json({ error: 'Could not update the waybill.' });
   }
@@ -139,6 +209,10 @@ const { sendEmail } = require('../lib/notify');
 function escHtml(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+const LOGO_RE = /^data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+$/;
+function validLogo(v) {
+  return typeof v === 'string' && v.length <= 900000 && LOGO_RE.test(v);
+}
 function isEmail(v) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());
 }
@@ -148,7 +222,7 @@ function bolField(bol, flatKey, nestedObj) {
   if (nestedObj && nestedObj.email) return String(nestedObj.email);
   return '';
 }
-function buildWaybillEmail(bol, waybillNo) {
+function buildWaybillEmail(bol, waybillNo, logo) {
   const ship = {
     name: bol['shipper.name'] || '', street: bol['shipper.street'] || '',
     cityprov: bol['shipper.cityprov'] || '', postal: bol['shipper.postal'] || '',
@@ -201,6 +275,7 @@ function buildWaybillEmail(bol, waybillNo) {
   }).join('');
   const html = [
     `<div style="font-family:Arial,sans-serif;font-size:14px;color:#1c1c1c;max-width:640px">`,
+    ...(validLogo(logo) ? [`<img src="${logo}" alt="" style="max-height:48px;max-width:200px;object-fit:contain;margin-bottom:8px">`] : []),
     `<h2 style="margin:0 0 4px">Bill of Lading — ${escHtml(waybillNo)}</h2>`,
     `<table cellpadding="4" cellspacing="0" style="border-collapse:collapse;margin:10px 0">`,
     ...meta.map(([k, v]) => `<tr><td style="font-weight:bold;padding-right:10px">${escHtml(k)}</td><td>${escHtml(v || '—')}</td></tr>`),
@@ -221,13 +296,20 @@ router.post('/:id/email', async (req, res) => {
   if (!needUser(req, res) || !needDb(res)) return;
   try {
     const r = await db.query(
-      `SELECT waybill_no, bol_json FROM waybills WHERE id = $1 AND user_id = $2`,
+      `SELECT waybill_no, bol_json, user_id FROM waybills WHERE id = $1 AND user_id = $2`,
       [req.params.id, req.user.id]);
     if (!r.rows.length) return res.status(404).json({ error: 'Waybill not found.' });
     const row = r.rows[0];
+    // Creator's logo for the emailed waybill (best effort; email sends
+    // without it when none is set).
+    let creatorLogo = null;
+    try {
+      const lr = await db.query('SELECT logo FROM users WHERE id = $1 LIMIT 1', [row.user_id]);
+      if (lr.rows[0] && validLogo(lr.rows[0].logo)) creatorLogo = lr.rows[0].logo;
+    } catch { /* logo stays null */ }
     let bol = {};
     try { bol = typeof row.bol_json === 'object' ? row.bol_json || {} : JSON.parse(row.bol_json || '{}'); } catch { /* ignore */ }
-    const { subject, text, html, shipEmail, consEmail } = buildWaybillEmail(bol, row.waybill_no);
+    const { subject, text, html, shipEmail, consEmail } = buildWaybillEmail(bol, row.waybill_no, creatorLogo);
     const targets = [
       { role: 'Shipper', to: shipEmail },
       { role: 'Receiver', to: consEmail },

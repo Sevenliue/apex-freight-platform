@@ -31,6 +31,7 @@ function sanitizeUser(row) {
     id: row.id,
     name: row.full_name || null,
     company: row.company_name || null,
+    company_id: row.company_id || null,
     email: row.email,
     role: row.role,
     is_verified: row.is_verified === undefined ? null : !!row.is_verified,
@@ -50,7 +51,7 @@ async function lookupSession(authHeader) {
   if (!token || !db.isEnabled()) return null;
   try {
     const r = await db.query(
-      `SELECT u.id, u.email, u.full_name, u.company_name, u.role,
+      `SELECT u.id, u.email, u.full_name, u.company_name, u.company_id, u.role,
               u.is_verified, u.shipping_approved
          FROM sessions s
          JOIN users u ON u.id = s.user_id

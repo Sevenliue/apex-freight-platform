@@ -1234,6 +1234,27 @@
         <label>Email <input name="email" type="email" required autocomplete="email"></label>
         <div class="actions"><button class="btn primary" type="submit" id="profile-submit">Save profile</button></div>
       </form>
+      <h3>Company</h3>
+      <p class="note">Group accounts under one company to share a single waybill sequence (WB-000001…) and see each other's waybills. Only the company admin can remove members; anyone can leave.</p>
+      <div id="company-section">
+        <p class="note" id="company-loading">Loading company…</p>
+        <div id="company-none" class="hidden">
+          <form id="company-create-form" autocomplete="off">
+            <label>Company name <input name="company_name" type="text" maxlength="255" placeholder="e.g. Apex Freight Ltd."></label>
+            <div class="actions"><button class="btn primary" type="submit" id="company-create-submit">Create company</button></div>
+          </form>
+          <form id="company-join-form" autocomplete="off" style="margin-top:10px">
+            <label>Join code <input name="join_code" type="text" maxlength="16" placeholder="8-character code from your admin" style="text-transform:uppercase"></label>
+            <div class="actions"><button class="btn" type="submit" id="company-join-submit">Join company</button></div>
+          </form>
+        </div>
+        <div id="company-member" class="hidden">
+          <p><strong id="company-name"></strong></p>
+          <p class="note">Join code: <strong id="company-code"></strong> <button class="btn small" type="button" id="company-copy-code">Copy</button> — share it with teammates so they can join.</p>
+          <ul id="company-members" class="lists-ul"></ul>
+          <div class="actions"><button class="btn danger" type="button" id="company-leave">Leave company</button></div>
+        </div>
+      </div>
       <h3>Change password</h3>
       <form id="settings-password-form" autocomplete="on">
         <label>Current password <input name="current_password" type="password" required autocomplete="current-password"></label>
@@ -6349,6 +6370,7 @@
       pf.email.value = currentUser.email || '';
       $('#verify-note').classList.toggle('hidden', currentUser.is_verified !== false);
       $('#settings-modal').classList.remove('hidden');
+      loadCompany();
     }
     function closeSettingsModal() {
       $('#settings-modal').classList.add('hidden');
@@ -6403,6 +6425,117 @@
         settingsFail(err);
       } finally {
         btn.disabled = false;
+      }
+    });
+    // Company grouping (shared waybill sequence + shared waybill list).
+    let companyState = null; // {company, members} from GET /api/company
+    function renderCompany() {
+      const loading = $('#company-loading');
+      const none = $('#company-none');
+      const member = $('#company-member');
+      loading.classList.add('hidden');
+      if (!companyState || !companyState.company) {
+        none.classList.remove('hidden');
+        member.classList.add('hidden');
+        return;
+      }
+      none.classList.add('hidden');
+      member.classList.remove('hidden');
+      $('#company-name').textContent = companyState.company.name || '';
+      $('#company-code').textContent = companyState.company.join_code || '';
+      const ul = $('#company-members');
+      const isAdmin = !!companyState.company.is_admin;
+      ul.innerHTML = (companyState.members || []).map((m) => {
+        const you = currentUser && m.id === currentUser.id;
+        const adminBadge = companyState.company.created_by === m.id ? ' · admin' : '';
+        const rm = (isAdmin && !you)
+          ? ` <button class="btn small danger" type="button" data-remove-member="${m.id}">Remove</button>`
+          : '';
+        return `<li>${esc(m.name || m.email || 'Member')}${you ? ' (you)' : ''}${adminBadge} <span class="muted">${esc(m.email || '')}</span>${rm}</li>`;
+      }).join('') || '<li>No members yet.</li>';
+    }
+    async function loadCompany() {
+      $('#company-loading').classList.remove('hidden');
+      $('#company-none').classList.add('hidden');
+      $('#company-member').classList.add('hidden');
+      try {
+        companyState = await api.getCompany();
+      } catch (err) {
+        companyState = null;
+        settingsFail(err);
+        return;
+      }
+      renderCompany();
+    }
+    $('#company-create-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = $('#company-create-submit');
+      btn.disabled = true;
+      try {
+        const f = new FormData(e.target);
+        const name = String(f.get('company_name') || '').trim();
+        if (!name) { settingsFail(new Error('Enter a company name.')); return; }
+        companyState = await api.createCompany(name);
+        renderCompany();
+        settingsOk('Company created. Share the join code with your teammates.');
+        e.target.reset();
+      } catch (err) {
+        settingsFail(err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    $('#company-join-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = $('#company-join-submit');
+      btn.disabled = true;
+      try {
+        const f = new FormData(e.target);
+        const code = String(f.get('join_code') || '').trim();
+        if (!code) { settingsFail(new Error('Enter the join code.')); return; }
+        companyState = await api.joinCompany(code);
+        renderCompany();
+        settingsOk('Joined the company. You now share its waybill sequence.');
+        e.target.reset();
+      } catch (err) {
+        settingsFail(err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    $('#company-copy-code').addEventListener('click', async () => {
+      const code = (companyState && companyState.company && companyState.company.join_code) || '';
+      if (!code) return;
+      try {
+        await navigator.clipboard.writeText(code);
+        settingsOk('Join code copied.');
+      } catch {
+        window.prompt('Copy the join code:', code);
+      }
+    });
+    $('#company-members').addEventListener('click', async (e) => {
+      const btn = e.target.closest('[data-remove-member]');
+      if (!btn) return;
+      const id = btn.getAttribute('data-remove-member');
+      if (!window.confirm('Remove this member from the company? Their waybills stay with the company.')) return;
+      try {
+        await api.removeCompanyMember(id);
+        companyState = await api.getCompany();
+        renderCompany();
+        settingsOk('Member removed.');
+      } catch (err) {
+        settingsFail(err);
+      }
+    });
+    $('#company-leave').addEventListener('click', async () => {
+      if (!window.confirm('Leave this company? Your own waybills stay with the company; you go back to your personal sequence.')) return;
+      try {
+        await api.leaveCompany();
+        companyState = await api.getCompany();
+        renderCompany();
+        settingsOk('You left the company.');
+      } catch (err) {
+        settingsFail(err);
       }
     });
     $('#settings-password-form').addEventListener('submit', async (e) => {

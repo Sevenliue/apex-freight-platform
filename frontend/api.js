@@ -164,6 +164,27 @@ export function deleteAccount(password) {
   return request('DELETE', '/api/auth/me', { password });
 }
 
+/* Company grouping (shared waybill sequence + shared waybill list). */
+export function getCompany() {
+  return get('/api/company');
+}
+
+export function createCompany(name) {
+  return post('/api/company', { name });
+}
+
+export function joinCompany(code) {
+  return post('/api/company/join', { code });
+}
+
+export function leaveCompany() {
+  return post('/api/company/leave', {});
+}
+
+export function removeCompanyMember(id) {
+  return post(`/api/company/members/${encodeURIComponent(id)}/remove`, {});
+}
+
 /* Contact form. */
 export function sendContact({ name, email, message }) {
   return post('/api/contact', { name, email, message });

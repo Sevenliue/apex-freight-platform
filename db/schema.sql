@@ -607,3 +607,27 @@ CREATE TABLE IF NOT EXISTS auth_tokens (
     created_at  timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_auth_tokens_user_purpose ON auth_tokens(user_id, purpose);
+
+-- ---------------------------------------------------------------------------
+-- Companies + per-user logos (added 2026-10-16).
+-- Companies group accounts so members share one waybill sequence and can
+-- see each other's waybills. users.company_id is intentionally a plain
+-- uuid (no FK) so this section stays idempotent regardless of statement
+-- order; membership is enforced by the application. Waybill company
+-- columns live in routes/waybills.js (that file owns the waybills table).
+-- Idempotent: CREATE TABLE / ALTER ... IF NOT EXISTS.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS companies (
+    id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+    name        varchar(255) NOT NULL,
+    join_code   varchar(16)  NOT NULL UNIQUE,
+    created_by  uuid        REFERENCES users(id) ON DELETE SET NULL,
+    created_at  timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS company_id uuid;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS logo text;
+CREATE INDEX IF NOT EXISTS idx_users_company_id ON users(company_id);
+CREATE TABLE IF NOT EXISTS company_waybill_counters (
+    company_id  uuid        PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
+    last_no     integer     NOT NULL DEFAULT 0
+);
