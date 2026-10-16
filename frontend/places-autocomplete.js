@@ -125,7 +125,14 @@
   async function fetchBookSuggestions(q) {
     if (!signedIn()) return [];
     try {
-      var r = await fetch('/api/address-book/search?q=' + encodeURIComponent(q));
+      // The address-book API requires sign-in: send the same Bearer token
+      // the rest of the app uses. Without it the server 401s and the book
+      // suggestions silently come back empty (only Google ever showed).
+      var tok = '';
+      try { tok = localStorage.getItem('shiprate_auth_token') || ''; } catch (e) {}
+      var r = await fetch('/api/address-book/search?q=' + encodeURIComponent(q), {
+        headers: tok ? { Authorization: 'Bearer ' + tok } : {},
+      });
       var data = await r.json();
       return (data && data.suggestions) || [];
     } catch (e) {
