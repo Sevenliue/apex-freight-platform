@@ -9,6 +9,7 @@
 //   POST   /api/waybills        save new {bol_json, shipment_id?} -> assigns waybill_no
 //   GET    /api/waybills/:id    fetch one
 //   PUT    /api/waybills/:id    update {bol_json} (keeps its number)
+//   POST   /api/waybills/:id/email  email the saved waybill to shipper + receiver
 //   DELETE /api/waybills/:id    delete one
 //
 // Tables are created on boot (CREATE TABLE IF NOT EXISTS).
@@ -125,6 +126,126 @@ router.put('/:id', async (req, res) => {
     res.json(r.rows[0]);
   } catch (e) {
     res.status(500).json({ error: 'Could not update the waybill.' });
+  }
+});
+
+// POST /api/waybills/:id/email — email the saved waybill to the shipper and
+// receiver addresses on file. Best-effort: per-recipient results are returned
+// and email failure never affects the saved waybill (the frontend saves
+// first, then calls this). No PDF attachment — the email carries the full
+// waybill as HTML + plain text.
+const { sendEmail } = require('../lib/notify');
+
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function isEmail(v) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());
+}
+function bolField(bol, flatKey, nestedObj) {
+  const v = bol[flatKey];
+  if (v != null && String(v).trim() !== '') return String(v);
+  if (nestedObj && nestedObj.email) return String(nestedObj.email);
+  return '';
+}
+function buildWaybillEmail(bol, waybillNo) {
+  const ship = {
+    name: bol['shipper.name'] || '', street: bol['shipper.street'] || '',
+    cityprov: bol['shipper.cityprov'] || '', postal: bol['shipper.postal'] || '',
+    contact: bol['shipper.contact'] || '', phone: bol['shipper.phone'] || '',
+    email: bolField(bol, 'shipper.email', bol.shipper),
+  };
+  const cons = {
+    name: bol['consignee.name'] || '', street: bol['consignee.street'] || '',
+    cityprov: bol['consignee.cityprov'] || '', postal: bol['consignee.postal'] || '',
+    contact: bol['consignee.contact'] || '', phone: bol['consignee.phone'] || '',
+    email: bolField(bol, 'consignee.email', bol.consignee),
+  };
+  const pkgs = Array.isArray(bol.pkgs) ? bol.pkgs : [];
+  const totQty = pkgs.reduce((a, p) => a + (parseFloat(p.qty) || 0), 0);
+  const totWt = pkgs.reduce((a, p) => a + (parseFloat(p.wt) || 0), 0);
+  const meta = [
+    ['BOL No.', waybillNo],
+    ['Date', bol.date || ''],
+    ['PO No.', bol.po_no || ''],
+    ['Shipper ref', bol.shipper_ref || ''],
+    ['Carrier', bol['carrier.name'] || ''],
+    ['Trailer No.', bol['carrier.trailer'] || ''],
+    ['Seal No.', bol['carrier.seal'] || ''],
+    ['PRO No.', bol['carrier.pro'] || ''],
+    ['Freight charges', bol.fterms || 'prepaid'],
+    ['Bill to', bol.bill_to || ''],
+  ];
+  const subject = `Bill of Lading ${waybillNo} — ${ship.name || '?'} → ${cons.name || '?'}`;
+  const partyText = (label, p) =>
+    `${label}\n${p.name}\n${p.street}\n${p.cityprov} ${p.postal}\nContact: ${p.contact} · Phone: ${p.phone} · Email: ${p.email}`.replace(/\n+/g, '\n').trim();
+  const itemLines = pkgs.map((p) =>
+    `- Part: ${p.part || '—'} | ${p.desc || '—'} | Qty: ${p.qty || ''} ${p.units || ''} | Wt: ${p.wt || ''} lb | Dims: ${[p.l, p.w, p.h].filter((x) => x !== '' && x != null).join('×') || '—'} | Class: ${p.cls || '—'}`).join('\n');
+  const dgLine = (bol.dg === true || bol.dg === 'true' || bol.dg === 'on')
+    ? `\nDangerous goods: YES — UN No. ${bol.dg_un || '—'} · Class ${bol.dg_class || '—'}`
+    : '';
+  const text = [
+    `Bill of Lading ${waybillNo}`,
+    '', ...meta.map(([k, v]) => `${k}: ${v || '—'}`),
+    '', partyText('SHIPPER (FROM)', ship),
+    '', partyText('CONSIGNEE (TO)', cons),
+    '', 'DESCRIPTION OF ARTICLES',
+    itemLines || '(no items listed)',
+    `Total pieces: ${totQty} · Total weight: ${totWt} lb`,
+    dgLine,
+    '', 'Please confirm receipt of this bill of lading. — ShipRate',
+  ].join('\n');
+  const itemRows = pkgs.map((p) => {
+    const dims = [p.l, p.w, p.h].filter((x) => x !== '' && x != null).join(' × ') || '—';
+    return `<tr><td>${escHtml(p.part || '—')}</td><td>${escHtml(p.desc || '—')}</td><td style="text-align:right">${escHtml(p.qty || '')}</td><td>${escHtml(p.units || '')}</td><td style="text-align:right">${escHtml(p.wt || '')}</td><td>${escHtml(dims)}</td><td>${escHtml(p.cls || '—')}</td></tr>`;
+  }).join('');
+  const html = [
+    `<div style="font-family:Arial,sans-serif;font-size:14px;color:#1c1c1c;max-width:640px">`,
+    `<h2 style="margin:0 0 4px">Bill of Lading — ${escHtml(waybillNo)}</h2>`,
+    `<table cellpadding="4" cellspacing="0" style="border-collapse:collapse;margin:10px 0">`,
+    ...meta.map(([k, v]) => `<tr><td style="font-weight:bold;padding-right:10px">${escHtml(k)}</td><td>${escHtml(v || '—')}</td></tr>`),
+    `</table>`,
+    `<h3 style="margin:12px 0 4px">Shipper (from)</h3><p style="margin:0">${escHtml(ship.name)}<br>${escHtml(ship.street)}<br>${escHtml([ship.cityprov, ship.postal].filter(Boolean).join(' '))}<br>Contact: ${escHtml(ship.contact)} · Phone: ${escHtml(ship.phone)} · Email: ${escHtml(ship.email)}</p>`,
+    `<h3 style="margin:12px 0 4px">Consignee (to)</h3><p style="margin:0">${escHtml(cons.name)}<br>${escHtml(cons.street)}<br>${escHtml([cons.cityprov, cons.postal].filter(Boolean).join(' '))}<br>Contact: ${escHtml(cons.contact)} · Phone: ${escHtml(cons.phone)} · Email: ${escHtml(cons.email)}</p>`,
+    `<h3 style="margin:12px 0 4px">Description of articles</h3>`,
+    `<table cellpadding="5" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:13px"><thead><tr style="background:#eef2f0"><th align="left">Part No.</th><th align="left">Description</th><th align="right">Qty</th><th align="left">Units</th><th align="right">Wt (lb)</th><th align="left">Dims</th><th align="left">Class</th></tr></thead><tbody>${itemRows || '<tr><td colspan="7">(no items listed)</td></tr>'}</tbody></table>`,
+    `<p><strong>Total pieces:</strong> ${totQty} &nbsp;·&nbsp; <strong>Total weight:</strong> ${totWt} lb</p>`,
+    dgLine ? `<p><strong>Dangerous goods:</strong> YES — UN No. ${escHtml(bol.dg_un || '—')} · Class ${escHtml(bol.dg_class || '—')}</p>` : '',
+    `<p style="color:#6b7280;font-size:12px">Please confirm receipt of this bill of lading. — ShipRate</p>`,
+    `</div>`,
+  ].join('');
+  return { subject, text, html, shipEmail: ship.email, consEmail: cons.email };
+}
+
+router.post('/:id/email', async (req, res) => {
+  if (!needUser(req, res) || !needDb(res)) return;
+  try {
+    const r = await db.query(
+      `SELECT waybill_no, bol_json FROM waybills WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.user.id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Waybill not found.' });
+    const row = r.rows[0];
+    let bol = {};
+    try { bol = typeof row.bol_json === 'object' ? row.bol_json || {} : JSON.parse(row.bol_json || '{}'); } catch { /* ignore */ }
+    const { subject, text, html, shipEmail, consEmail } = buildWaybillEmail(bol, row.waybill_no);
+    const targets = [
+      { role: 'Shipper', to: shipEmail },
+      { role: 'Receiver', to: consEmail },
+    ];
+    const results = [];
+    for (const t of targets) {
+      const to = String(t.to || '').trim();
+      if (!to) { results.push({ role: t.role, to: t.role, skipped: true, reason: 'no email on file' }); continue; }
+      if (!isEmail(to)) { results.push({ role: t.role, to, skipped: true, reason: 'invalid email address' }); continue; }
+      const out = await sendEmail({ to, subject, text, html, event: 'waybill_email' });
+      if (out.sent || out.logged) results.push({ role: t.role, to, sent: true });
+      else if (out.skipped) results.push({ role: t.role, to, skipped: true, reason: out.skipped });
+      else results.push({ role: t.role, to, failed: true, reason: out.failed || 'send failed' });
+    }
+    res.json({ results });
+  } catch (e) {
+    console.error('[waybills] email failed:', e.message);
+    res.status(500).json({ error: 'Could not send the waybill email.' });
   }
 });
 

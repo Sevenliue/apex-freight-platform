@@ -19,7 +19,7 @@ function adminEmail() {
   return list[0] || null;
 }
 
-async function sendEmail({ to, subject, text, event, attachments }) {
+async function sendEmail({ to, subject, text, html, event, attachments }) {
   if (!to) return { skipped: 'no recipient' };
   const p = provider();
   const attachList = Array.isArray(attachments) ? attachments.filter((a) => a && a.filename && a.content) : [];
@@ -29,6 +29,7 @@ async function sendEmail({ to, subject, text, event, attachments }) {
       const from = process.env.NOTIFY_FROM;
       if (!key || !from) return { skipped: 'resend not configured' };
       const body = { from, to, subject, text };
+      if (html) body.html = html;
       if (attachList.length) {
         // Resend attachments: [{filename, content (base64 string), content_type?}]
         body.attachments = attachList.map((a) => ({
@@ -51,7 +52,7 @@ async function sendEmail({ to, subject, text, event, attachments }) {
       const r = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to, subject, text, event }),
+        body: JSON.stringify({ to, subject, text, html: html || undefined, event }),
       });
       if (!r.ok) throw new Error(`webhook ${r.status}`);
       return { sent: true, provider: 'webhook' };
