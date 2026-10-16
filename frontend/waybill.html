@@ -16,6 +16,8 @@
   .toolbar button.ghost { background: transparent; color: #fff; border: 1px solid #2c5c46; }
   /* Same orange CTA as the main page (.btn.primary): #ff6a00 / #d95700 / #0c2b20. */
   .toolbar button.cta { background: #ff6a00; border: 1px solid #d95700; color: #0c2b20; }
+  .gen-no { background: #ff6a00; border: 1px solid #d95700; color: #0c2b20; font-weight: 700; font-size: 13px; padding: 8px 14px; border-radius: 6px; cursor: pointer; }
+  .gen-no:disabled { opacity: .45; cursor: default; }
   .toolbar .note { font-size: 12px; color: #d1d5db; }
   .wrap { max-width: 900px; margin: 18px auto 60px; padding: 0 14px; }
   .doc { background: #fff; border: 1px solid #d1d5db; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 14px 18px; }
@@ -138,6 +140,7 @@
       <h1>BILL OF LADING</h1>
       <div class="sub">Straight bill of lading — not negotiable</div>
     </div>
+    <div class="no-print" style="align-self:center"><button type="button" id="btnGenerateNo" class="gen-no">Generate waybill No.</button></div>
     <div class="meta-grid">
       <label for="f_bolno">BOL No.</label><input class="fld" id="f_bolno" data-k="bol_no">
       <label for="f_date">Date</label><input class="fld" id="f_date" data-k="date" type="date">
@@ -299,6 +302,7 @@
     $('#btnSave').disabled = !!on;
     $('#btnEmailNow').disabled = !!on;
     $$('[data-ab-sel],[data-ab-save]').forEach(function (el) { el.disabled = !!on; });
+    syncGenerateBtn();
   }
   async function sendWaybillEmail() {
     // Emails the saved waybill to shipper + receiver. Never blocks saving:
@@ -330,6 +334,7 @@
         ? await api('/api/waybills/' + encodeURIComponent(currentId), { method: 'PUT', body: payload })
         : await api('/api/waybills', { method: 'POST', body: payload });
       currentId = saved.id;
+      syncGenerateBtn();
       setVal('bol_no', saved.waybill_no);
       saveDraft();
       setSaveNote('Saved as ' + saved.waybill_no + ' ✓');
@@ -707,7 +712,33 @@
     } catch (e) { /* no primary — leave blank */ }
   }
 
+  /* ---------- Generate waybill number ----------
+     Mints the next WB- number on demand (same atomic server counter as
+     Save) and fills BOL No. — without sending the on-save email. The
+     button disables once the waybill has a number. A BOL No. that already
+     looks minted (WB-000000) is never re-minted: a draft reloaded after a
+     save keeps its number; a tracking/PRO code in BOL No. is replaced. */
+  function syncGenerateBtn() {
+    var btn = $('#btnGenerateNo');
+    if (btn) btn.disabled = !!(currentId || viewOnly);
+  }
+  async function generateWaybillNo() {
+    if (!token()) { alert('Sign in on ShipRate to generate a waybill number.'); return; }
+    if (viewOnly) { setSaveNote('View only — only the creator can edit this waybill.'); return; }
+    if (currentId) { setSaveNote('This waybill already has number ' + (getVal('bol_no') || '') + '.'); return; }
+    if (/^WB-\d{6}$/.test(getVal('bol_no').trim())) {
+      setSaveNote('This waybill already shows ' + getVal('bol_no').trim() + '. Use Save to keep it.');
+      return;
+    }
+    await saveWaybill(null);
+    if (currentId) {
+      setSaveNote('Waybill number ' + getVal('bol_no') + ' generated ✓');
+      syncGenerateBtn();
+    }
+  }
+
   /* ---------- wire up ---------- */
+  $('#btnGenerateNo').addEventListener('click', generateWaybillNo);
   $$('[data-ab-sel]').forEach(function (sel) {
     sel.addEventListener('change', function () { if (sel.value) applyAbToParty(sel.getAttribute('data-ab-sel'), sel.value); });
   });
@@ -734,6 +765,7 @@
     try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
     currentId = null;
     setViewOnly(false);
+    syncGenerateBtn();
     setSaveNote('');
     applyState({ date: new Date().toISOString().slice(0, 10), pkgs: [{}] });
     if (token()) maybePrimeFill();
