@@ -30,6 +30,10 @@
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .frow { display: grid; grid-template-columns: 92px 1fr; gap: 6px; align-items: center; margin-bottom: 2px; font-size: 12px; }
   .frow label { font-weight: 600; color: #374151; }
+  /* Saved-address row: label + dropdown + button get their own columns so
+     the button is never squeezed or clipped. */
+  .frow.ab-row { grid-template-columns: 92px 1fr auto; }
+  .ab-save { white-space: nowrap; padding: 6px 12px; border: 1px solid #d95700; border-radius: 6px; background: #ff6a00; color: #0c2b20; font-weight: 700; font-size: 12px; cursor: pointer; }
   input.fld, textarea.fld, select.fld { width: 100%; font: inherit; font-size: 12px; padding: 2.5px 5px; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; color: var(--ink); }
   textarea.fld { resize: vertical; min-height: 56px; }
   input.fld:focus, textarea.fld:focus, select.fld:focus { outline: 2px solid var(--gold); border-color: var(--gold); }
@@ -146,7 +150,7 @@
     <div class="sec">
       <div class="sec-title">SHIPPER (FROM)</div>
       <div class="sec-body">
-        <div class="frow no-print" style="gap:6px"><label>Saved</label><select class="fld" data-ab-sel="shipper" style="flex:1"><option value="">Saved addresses…</option></select><button type="button" data-ab-save="shipper" style="white-space:nowrap;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;background:#f1f5f9;cursor:pointer">💾 Save address</button></div>
+        <div class="frow no-print ab-row"><label>Saved</label><select class="fld" data-ab-sel="shipper"><option value="">Saved addresses…</option></select><button type="button" class="ab-save" data-ab-save="shipper">💾 Save address</button></div>
         <div class="frow"><label>Name</label><input class="fld" data-k="shipper.name"></div>
         <div class="frow"><label>Street</label><input class="fld" data-k="shipper.street"></div>
         <div class="frow"><label>City / Prov</label><input class="fld" data-k="shipper.cityprov" placeholder="City, PR"></div>
@@ -159,7 +163,7 @@
     <div class="sec">
       <div class="sec-title">CONSIGNEE (TO)</div>
       <div class="sec-body">
-        <div class="frow no-print" style="gap:6px"><label>Saved</label><select class="fld" data-ab-sel="consignee" style="flex:1"><option value="">Saved addresses…</option></select><button type="button" data-ab-save="consignee" style="white-space:nowrap;padding:6px 10px;border:1px solid #cbd5e1;border-radius:6px;background:#f1f5f9;cursor:pointer">💾 Save address</button></div>
+        <div class="frow no-print ab-row"><label>Saved</label><select class="fld" data-ab-sel="consignee"><option value="">Saved addresses…</option></select><button type="button" class="ab-save" data-ab-save="consignee">💾 Save address</button></div>
         <div class="frow"><label>Name</label><input class="fld" data-k="consignee.name"></div>
         <div class="frow"><label>Street</label><input class="fld" data-k="consignee.street"></div>
         <div class="frow"><label>City / Prov</label><input class="fld" data-k="consignee.cityprov" placeholder="City, PR"></div>
