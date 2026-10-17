@@ -182,6 +182,12 @@ function toBase64(bytes) {
 }
 
 export default {
+  // A fetch handler is included so the Worker also deploys/previews from
+  // the Cloudflare dashboard editor (Email Routing ignores it).
+  async fetch() {
+    return new Response('pod-email worker running');
+  },
+
   async email(message, env, ctx) {
     try {
       const subject = message.headers.get('subject') || '';
