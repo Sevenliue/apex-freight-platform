@@ -430,6 +430,7 @@ router.post('/', async (req, res) => {
       lane_dest_city: q.lane_dest_city || null,
       lane_dest_prov: q.lane_dest_prov || null,
       metro_matched: !!q.metro_matched,
+      notes: q.notes || [],
     };
   });
 

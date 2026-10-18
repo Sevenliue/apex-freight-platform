@@ -422,6 +422,514 @@ const PA_WEIGHT_BANDS = [[10, 17], [20, 19], [30, 20], [40, 21], [50, 22],
   [250, 56], [300, 60], [350, 65], [400, 70], [450, 75], [500, 90],
   [600, 100], [700, 110], [800, 125], [900, 150], [1000, 165]];
 
+// Prime Time Courier (Edmonton courier + hot shot; sheets received
+// 2026-10-18, analysis in prime-time-rate-analysis.md). Seven confirmed:
+// CAD, rates current as printed, NO fuel surcharge, GST added on top,
+// public rates apply to all (no separate account rate), St. Albert
+// after-hours PT-2-PT $50 as printed, Edmonton origin for hot-shot km.
+// Dedicated rating path — NO matrix lanes (the hot-shot chart alone is
+// 165 towns; it lives here as data, not lanes). Origin must be Edmonton,
+// AB; destination cities match EXACTLY (no metro collapsing — the metro
+// map would merge the delivery zones into Edmonton and destroy the grid).
+// FSC is always 0 (no surcharge as of now — never via fscFor, so an admin
+// FSC override can never silently attach one). Quotes are pre-GST, like
+// every other carrier in this engine; GST is a billing matter, never
+// added here.
+// Not reachable via the quote flow yet (no input exists — open follow-ups):
+// pickup time (after-hours pricing, +$0.20/km on km driven outside
+// business hours), residential/school flags (add-ons), airport flag,
+// wait/2nd-driver hours, returns. The helpers below implement those rules
+// and are tested; they activate when the flow carries the inputs.
+const PRIMETIME_ID = 'primetime';
+const PRIMETIME_LABEL = 'Prime Time Courier';
+// Delivery zones. Towns are stored normalized (see primeTimeNormCity).
+// Acheson shares the St. Albert group's allowed times; Leduc / Morinville /
+// Devon share the Spruce Grove group's times — but the zones stay separate
+// rows (Q7: same times, do not merge). Prices: [Regular, Rush, Direct,
+// Point-2-Point]. Times: allowed time per service level.
+const PRIMETIME_ZONES = [
+  { zone: 'Edmonton', towns: ['EDMONTON'], prices: [13, 19, 27, 40], afterHoursPt2Pt: 60, times: ['4.0 hrs', '2.0 hrs', '1.0 hr', '30 min'] },
+  { zone: 'St. Albert / Sherwood Park / South or West of Anthony Henday', towns: ['ST ALBERT', 'SHERWOOD PARK'], prices: [19, 27, 33, 45], afterHoursPt2Pt: 50, times: ['5.0 hrs', '2.5 hrs', '1.5 hrs', 'PT-2-PT'] },
+  { zone: 'Acheson / Namao', towns: ['ACHESON', 'NAMAO'], prices: [23, 30, 36, 55], afterHoursPt2Pt: 60, times: ['5.0 hrs', '2.5 hrs', '1.5 hrs', 'PT-2-PT'] },
+  { zone: 'Spruce Grove / Nisku / International Airport', towns: ['SPRUCE GROVE', 'NISKU', 'INTERNATIONAL AIRPORT'], prices: [32, 36, 52, 65], afterHoursPt2Pt: 65, times: ['AM/PM', '3.0 hrs', '1.5 hrs', 'PT-2-PT'] },
+  { zone: 'Leduc / Stony Plain / Beaumont', towns: ['LEDUC', 'STONY PLAIN', 'BEAUMONT'], prices: [36, 42, 55, 72], afterHoursPt2Pt: 80, times: ['AM/PM', '3.0 hrs', '1.5 hrs', 'PT-2-PT'] },
+  { zone: 'Morinville / Fort Saskatchewan / Villeneuve', towns: ['MORINVILLE', 'FORT SASKATCHEWAN', 'VILLENEUVE'], prices: [50, 55, 70, 90], afterHoursPt2Pt: 120, times: ['AM/PM', '3.0 hrs', '1.5 hrs', 'PT-2-PT'] },
+  { zone: 'Devon / Legal / Gibbons', towns: ['DEVON', 'LEGAL', 'GIBBONS'], prices: [70, 90, 115, 135], afterHoursPt2Pt: 140, times: ['AM/PM', '3.0 hrs', '1.5 hrs', 'PT-2-PT'] },
+];
+const PRIMETIME_LEVELS = [
+  { key: 'regular', label: 'Regular' },
+  { key: 'rush', label: 'Rush' },
+  { key: 'direct', label: 'Direct' },
+  { key: 'pt2pt', label: 'Point-2-Point' },
+];
+// Add-ons per service level [Regular, Rush, Direct, PT-2-PT]. When both
+// apply, the HIGHER one only (Q15).
+const PRIMETIME_ADDON_RESIDENTIAL = [5, 5, 7, 10];
+const PRIMETIME_ADDON_SCHOOL = [5, 5, 7, 10];
+// Hot-shot vehicles. Waiting is billed at waitRate in 15-minute increments,
+// no grace. Ferry is the Vancouver Island charge (on top of Victoria).
+const PRIMETIME_VEHICLES = [
+  { key: 'minivan', label: 'Mini-Van', base: 25, perKm: 1.95, includedLb: 200, waitRate: 55, ferry: 400 },
+  { key: 'cargo', label: 'Cargo Van', base: 30, perKm: 2.05, includedLb: 400, waitRate: 55, ferry: 500 },
+  { key: 'ton1', label: '1 Ton', base: 50, perKm: 2.75, includedLb: 800, waitRate: 60, ferry: 600 },
+  { key: 'ton35', label: '3 & 5 Ton', base: 100, perKm: 3.75, includedLb: 1000, waitRate: 75, ferry: 750 },
+];
+// Hot-shot chart: [town, prov, km] — transcribed verbatim from the sheet
+// (see prime-time-rate-analysis.md §5d). Verified at build time: base +
+// perKm x km (+$100 outside Alberta) reproduces all 165 x 4 chart prices.
+const PRIMETIME_HOTSHOT = [
+  ['ASHMONT', 'AB', 187],
+  ['ATHABASCA', 'AB', 167],
+  ['ATKIMEG', 'AB', 369],
+  ['ATMORE', 'AB', 199],
+  ['AIRDRIE', 'AB', 294],
+  ['BANFF', 'AB', 421],
+  ['BARRHEAD', 'AB', 117],
+  ['BASHAW', 'AB', 177],
+  ['BITTERN LAKE', 'AB', 101],
+  ['BLACK FALDS', 'AB', 151],
+  ['BONNYVILLE', 'AB', 243],
+  ['BRAGG CREEK', 'AB', 347],
+  ['BRETTON', 'AB', 103],
+  ['BROOKS', 'AB', 418],
+  ['BUCK LAKE', 'AB', 183],
+  ['CALGARY', 'AB', 314],
+  ['CAMROSE', 'AB', 97],
+  ['CARDSTON', 'AB', 541],
+  ['CLARESHOLM', 'AB', 439],
+  ['CLYDE', 'AB', 75],
+  ['COCHRANE', 'AB', 333],
+  ['COLD LAKE', 'AB', 314],
+  ['CORONATION', 'AB', 289],
+  ['COUTTS', 'AB', 627],
+  ['CYNTHIA', 'AB', 168],
+  ['DERWENT', 'AB', 197],
+  ['DRAYTON VALLEY', 'AB', 159],
+  ['DRUMHELLER', 'AB', 294],
+  ['EDGERTON', 'AB', 257],
+  ['EDSON', 'AB', 219],
+  ['ENTWHISTLE', 'AB', 109],
+  ['ERSKINE', 'AB', 195],
+  ['FAIRVIEW', 'AB', 578],
+  ['FERINTOSH', 'AB', 129],
+  ['FORK LAKE', 'AB', 233],
+  ['FORT MCLEOD', 'AB', 479],
+  ['FOX CREEK', 'AB', 284],
+  ['FROG LAKE', 'AB', 257],
+  ['FT MCMURRAY', 'AB', 459],
+  ['FT VERMILLION', 'AB', 861],
+  ['FULUN', 'AB', 92],
+  ['GIBBONS', 'AB', 51],
+  ['GOOD FISH LAKE', 'AB', 193],
+  ['GRANDE CACHE', 'AB', 459],
+  ['GRANDE PRAIRIE', 'AB', 476],
+  ['GRIMSHAW', 'AB', 510],
+  ['GUNN', 'AB', 69],
+  ['HANNA', 'AB', 314],
+  ['HAIRY HILL', 'AB', 127],
+  ['HAY LAKES', 'AB', 81],
+  ['HIGH LEVEL', 'AB', 826],
+  ['HIGH PRAIRIE', 'AB', 385],
+  ['HIGH RIVER', 'AB', 372],
+  ['HILLARD', 'AB', 91],
+  ['HINTON', 'AB', 294],
+  ['HOLDEN', 'AB', 115],
+  ['INNISFREE', 'AB', 163],
+  ['INNISVAILE', 'AB', 203],
+  ['IRMA', 'AB', 192],
+  ['JASPER', 'AB', 385],
+  ['KANANASKIS', 'AB', 393],
+  ['LA CRETE', 'AB', 925],
+  ['LAC LA BICHE', 'AB', 243],
+  ['LACOMBE', 'AB', 136],
+  ['LAKE ISLE', 'AB', 87],
+  ['LAKE LOUISE', 'AB', 475],
+  ['LAMONT', 'AB', 83],
+  ['LETHBRIDGE', 'AB', 519],
+  ['LINDALE', 'AB', 106],
+  ['LLOYDMINSTER', 'AB', 271],
+  ['LODGE POLE', 'AB', 177],
+  ['LOON LAKE', 'AB', 411],
+  ['MANNING', 'AB', 586],
+  ['MAYERTHORPE', 'AB', 127],
+  ['MEDICINE HAT', 'AB', 541],
+  ['MILLARVILLE', 'AB', 366],
+  ['MULHURST', 'AB', 86],
+  ['MUNDARE', 'AB', 93],
+  ['MYRNAM', 'AB', 189],
+  ['NEW NORWAY', 'AB', 119],
+  ['NEW SAREPTA', 'AB', 66],
+  ['NORDEGG', 'AB', 313],
+  ['OHATON', 'AB', 129],
+  ['OLDS', 'AB', 228],
+  ['ONOWAY', 'AB', 68],
+  ['OYEN', 'AB', 418],
+  ['PADDLE PRAIRIE', 'AB', 701],
+  ['PEACE RIVER', 'AB', 504],
+  ['PIGEON LAKE', 'AB', 109],
+  ['PINCHER CREEK', 'AB', 519],
+  ['PLAMONDON', 'AB', 212],
+  ['PONOKA', 'AB', 117],
+  ['PROVOST', 'AB', 314],
+  ['RED DEER', 'AB', 168],
+  ['RED WATER', 'AB', 83],
+  ['RED WILLOW', 'AB', 192],
+  ['RIMBEY', 'AB', 157],
+  ['ROCK FORT BRIDGE', 'AB', 120],
+  ['ROCKY MOUNTAIN HOUSE', 'AB', 243],
+  ['ROCKY RAPIDS', 'AB', 133],
+  ['ROCKY VIEW', 'AB', 297],
+  ['RYCROFT', 'AB', 494],
+  ['SADDLE LAKE', 'AB', 169],
+  ['SANGUDO', 'AB', 119],
+  ['SEBA BEACH', 'AB', 91],
+  ['SILVER SANDS', 'AB', 82],
+  ['SLAVE LAKE', 'AB', 271],
+  ['SMITH', 'AB', 214],
+  ['SMOKY LAKE', 'AB', 135],
+  ['SPIRIT RIVER', 'AB', 512],
+  ['ST PAUL', 'AB', 219],
+  ['STETTLER', 'AB', 202],
+  ['SUNDRE', 'AB', 269],
+  ['SWAN HILLS', 'AB', 219],
+  ['SYLVAN LAKE', 'AB', 182],
+  ['TABER', 'AB', 519],
+  ['TEES', 'AB', 158],
+  ['THORSBY', 'AB', 90],
+  ['THREE HILLS', 'AB', 269],
+  ['TOFIELD', 'AB', 92],
+  ['TOMAHAWK', 'AB', 101],
+  ['TWO HILLS', 'AB', 162],
+  ['VALLEY VIEW', 'AB', 365],
+  ['VEGERVILLE', 'AB', 117],
+  ['VERMILLION', 'AB', 203],
+  ['VIKING', 'AB', 159],
+  ['WAINWRIGHT', 'AB', 219],
+  ['WARBURG', 'AB', 98],
+  ['WESTLOCK', 'AB', 105],
+  ['WESTROSE', 'AB', 103],
+  ['WETASKIWIN', 'AB', 83],
+  ['WHITECOURT', 'AB', 197],
+  ['WHITEFISH LAKE', 'AB', 193],
+  ['WINFIELD', 'AB', 126],
+  ['KINDERSLEY', 'SK', 461],
+  ['NORTH BATTLEFORD', 'SK', 408],
+  ['MOOSE JAW', 'SK', 769],
+  ['PRINCE ALBERT', 'SK', 615],
+  ['REGINA', 'SK', 807],
+  ['SASKATOON', 'SK', 545],
+  ['YORKTON', 'SK', 876],
+  ['ABBOTSFORD', 'BC', 1125],
+  ['DAWSON CREEK', 'BC', 646],
+  ['FORT NELSON', 'BC', 1060],
+  ['FORT ST JOHN', 'BC', 743],
+  ['KAMLOOPS', 'BC', 847],
+  ['KELOWNA', 'BC', 933],
+  ['REVELSTOKE', 'BC', 735],
+  ['SURREY', 'BC', 1187],
+  ['VANCOUVER', 'BC', 1201],
+  ['VICTORIA', 'BC', 1275],
+  ['BRANDON', 'MB', 1189],
+  ['WINNIPEG', 'MB', 1395],
+  ['SAULT STE MARIE', 'ON', 2825],
+  ['TORONTO', 'ON', 3522],
+  ['INUVIK', 'YT', 3273],
+  ['WHITEHOURSE', 'YT', 2038],
+  ['YELLOWKNIFE', 'NU', 1552],
+  ['LAS VEGAS', 'US', 2455],
+  ['SALT LAKE CITY', 'US', 1777],
+  ['CHEYANNE', 'WY', 1610],
+  ['WINSTON', 'ND', 1561],
+  ['CORPUS CHRISTIE', 'US', 3861],
+  ['SWEETGRASS', 'MT', 652],
+  ['LINCOLN', 'NB', 2394],
+];
+const PRIMETIME_CITY_ALIASES = {
+  'FORT VERMILION': 'FORT VERMILLION', // sheet spells it VERMILLION
+  VERMILION: 'VERMILLION',
+  NAMAIO: 'NAMAO', // sheet misspelling of Namao (Q38: code as Namao)
+};
+const PRIMETIME_PROV_ALIASES = {
+  // Sheet provinces that differ from the correct ones users will enter:
+  // Yellowknife is NT (sheet: NU), Inuvik is NT (sheet: YT).
+  YELLOWKNIFE: ['NU', 'NT'],
+  INUVIK: ['YT', 'NT'],
+  // US rows: the sheet's province column says "US" but the town cell names
+  // the state (WINSTON, ND / CHEYANNE, WY / SWEETGRASS, MT). The chart
+  // stores the state; a user entering "US" still resolves via these.
+  WINSTON: ['ND'],
+  CHEYANNE: ['WY'],
+  SWEETGRASS: ['MT'],
+};
+const PRIMETIME_HOTSHOT_BY_TOWN = new Map();
+for (const [town, prov, km] of PRIMETIME_HOTSHOT) {
+  const key = primeTimeNormCity(town);
+  if (!PRIMETIME_HOTSHOT_BY_TOWN.has(key)) PRIMETIME_HOTSHOT_BY_TOWN.set(key, []);
+  PRIMETIME_HOTSHOT_BY_TOWN.get(key).push({ town, prov, km });
+}
+
+function primeTimeNormCity(city) {
+  let c = norm(city).replace(/\./g, '');
+  c = c.replace(/\bSAINT\b/g, 'ST');
+  c = c.replace(/^FT\b/, 'FORT');
+  return c.replace(/\s+/g, ' ').trim();
+}
+
+function primeTimeZoneFor(destCity, destProv) {
+  if (norm(destProv) !== 'AB') return null;
+  const c = primeTimeNormCity(destCity);
+  const keys = [c];
+  const al = PRIMETIME_CITY_ALIASES[c];
+  if (al) keys.push(al);
+  for (const z of PRIMETIME_ZONES) {
+    if (z.towns.some((t) => keys.includes(t))) return z;
+  }
+  return null;
+}
+
+function primeTimeHotShotRow(destCity, destProv) {
+  const c = primeTimeNormCity(destCity);
+  const key = PRIMETIME_CITY_ALIASES[c] || c;
+  const rows = PRIMETIME_HOTSHOT_BY_TOWN.get(key) || [];
+  const p = norm(destProv);
+  let row = rows.find((r) => r.prov === p);
+  if (!row && PRIMETIME_PROV_ALIASES[key]) {
+    for (const ap of PRIMETIME_PROV_ALIASES[key]) {
+      row = rows.find((r) => r.prov === ap);
+      if (row) break;
+    }
+  }
+  return row || null;
+}
+
+function primeTimeTotalVolume(packages) {
+  let vol = 0;
+  for (const p of Array.isArray(packages) ? packages : []) {
+    const q = Math.max(1, Math.floor(Number(p.qty) || 1));
+    const L = Number(p.length), W = Number(p.width), H = Number(p.height);
+    if (L > 0 && W > 0 && H > 0) vol += (q * L * W * H) / 1728;
+  }
+  return vol;
+}
+
+// Per-item charges (Edmonton zone deliveries): first item included if under
+// 20 lb; additional items $2 each, $4 for a large box (any side over 24 in
+// OR volume over 2 cu ft — the average-size threshold Seven approved).
+// A first item at/over 20 lb is not included, so it bills like any item.
+function primeTimePerItem(packages) {
+  const units = [];
+  for (const p of Array.isArray(packages) ? packages : []) {
+    const q = Math.max(1, Math.floor(Number(p.qty) || 1));
+    const lineW = Number(p.weight_lb);
+    const unitW = Number.isFinite(lineW) && lineW > 0 ? lineW / q : 0;
+    const L = Number(p.length), W = Number(p.width), H = Number(p.height);
+    const vol = (L > 0 && W > 0 && H > 0) ? (L * W * H) / 1728 : 0;
+    const large = L > 24 || W > 24 || H > 24 || vol > 2;
+    for (let i = 0; i < q; i++) units.push({ weight: unitW, large });
+  }
+  let total = 0;
+  units.forEach((u, i) => {
+    if (i === 0 && u.weight < 20) return; // first item included if under 20 lb
+    total += u.large ? 4 : 2;
+  });
+  return total;
+}
+
+// Edmonton zone delivery quotes: one row per service level.
+function primeTimeDeliveryQuotes({ destCity, destProv, weightLbs, packages, flags }) {
+  const zone = primeTimeZoneFor(destCity, destProv);
+  if (!zone) return [];
+  const w = Number(weightLbs);
+  if (!Number.isFinite(w) || w <= 0) return [];
+  const perItem = primeTimePerItem(packages);
+  const over = Math.max(0, w - 20) * 0.05;
+  const overSize = Math.max(0, primeTimeTotalVolume(packages) - 8) * 0.50;
+  const extra = Math.max(over, overSize); // higher one only (Q13)
+  const f = flags || {};
+  return PRIMETIME_LEVELS.map((lv, i) => {
+    const addon = Math.max(
+      f.residential ? PRIMETIME_ADDON_RESIDENTIAL[i] : 0,
+      f.school ? PRIMETIME_ADDON_SCHOOL[i] : 0
+    );
+    const base = zone.prices[i] + perItem + extra + addon;
+    return {
+      carrier_id: PRIMETIME_ID,
+      carrier_label: PRIMETIME_LABEL,
+      service: `${lv.label} · ${zone.times[i]}`,
+      service_level: lv.key,
+      zone: zone.zone,
+      weight_lbs: w,
+      rate_basis: 'primetime_delivery',
+      rate_cwt_used: null,
+      base_cad: r2(base),
+      fsc_percent: 0,
+      fsc_cad: 0,
+      total_cad: r2(base),
+      min_charge_applied: false,
+      currency: 'CAD',
+      source: 'matrix',
+      lane_origin_city: 'EDMONTON',
+      lane_origin_prov: 'AB',
+      lane_dest_city: primeTimeNormCity(destCity),
+      lane_dest_prov: 'AB',
+      metro_matched: false,
+      notes: [],
+    };
+  });
+}
+
+// After-hours pickup window for a pickup datetime. Returns null during
+// business hours (weekdays 7:30am–5pm) — regular rates apply then.
+// The 6:00–7:30am weekday window applies in full to 7:30am (Q27) even
+// though business hours start at 7:00am.
+function primeTimeAfterHoursWindow(d) {
+  const day = d.getDay(); // 0 Sun, 6 Sat
+  const mins = d.getHours() * 60 + d.getMinutes();
+  const weekend = day === 0 || day === 6;
+  if (weekend) {
+    if (mins < 9 * 60) return { addon: 65, label: 'Weekends Midnight–9am' };
+    if (mins < 19 * 60) return { addon: 50, label: 'Weekends 9am–7pm' };
+    return { addon: 55, label: 'Weekends 7pm–Midnight' };
+  }
+  if (mins < 6 * 60) return { addon: 60, label: 'Weekdays Midnight–6am' };
+  if (mins < 7 * 60 + 30) return { addon: 30, label: 'Weekdays 6am–7:30am' };
+  if (mins < 17 * 60) return null; // business hours
+  if (mins < 21 * 60) return { addon: 35, label: 'Weekdays 5pm–9pm' };
+  return { addon: 40, label: 'Weekdays 9pm–Midnight' };
+}
+
+// After-hours delivery quote (PT-2-PT only): zone PT-2-PT price + window
+// add-on, overweight at $0.04/lb on the excess over 20 lb, oversize at
+// $0.50/ft³ on the excess over 8 ft³ (higher one only, same rule as
+// regular). holidayKind: null | 'stat' (+$30) | 'named' (Double Charge).
+// Per-item charges are not on the after-hours sheet, so they do not apply.
+// DG for after-hours is $40 (replaces $25) — the route's dgFee($25) does
+// not know the pickup time; when after-hours is wired, dgFee needs
+// time-awareness.
+function primeTimeAfterHoursQuote({ destCity, destProv, weightLbs, packages, pickupDateTime, holidayKind }) {
+  const zone = primeTimeZoneFor(destCity, destProv);
+  if (!zone) return null;
+  if (!(pickupDateTime instanceof Date) || Number.isNaN(pickupDateTime.getTime())) return null;
+  const win = primeTimeAfterHoursWindow(pickupDateTime);
+  if (!win) return null;
+  const w = Number(weightLbs);
+  if (!Number.isFinite(w) || w <= 0) return null;
+  const over = Math.max(0, w - 20) * 0.04;
+  const overSize = Math.max(0, primeTimeTotalVolume(packages) - 8) * 0.50;
+  const extra = Math.max(over, overSize);
+  const notes = [];
+  let base;
+  if (holidayKind === 'named') {
+    // Double Charge = 2x (zone PT-2-PT + window add-on); weight/size extras
+    // are added after doubling (Q21's own definition of the total).
+    base = 2 * (zone.afterHoursPt2Pt + win.addon) + extra;
+    notes.push('Double Charge holiday rate applied (2x zone + window add-on)');
+  } else {
+    base = zone.afterHoursPt2Pt + win.addon + extra;
+    if (holidayKind === 'stat') {
+      base += 30;
+      notes.push('Stat holiday +$30 applied');
+    }
+  }
+  return {
+    carrier_id: PRIMETIME_ID,
+    carrier_label: PRIMETIME_LABEL,
+    service: `After Hours PT-2-PT · ${win.label}`,
+    service_level: 'after_hours',
+    zone: zone.zone,
+    weight_lbs: w,
+    rate_basis: 'primetime_after_hours',
+    rate_cwt_used: null,
+    base_cad: r2(base),
+    fsc_percent: 0,
+    fsc_cad: 0,
+    total_cad: r2(base),
+    min_charge_applied: false,
+    currency: 'CAD',
+    source: 'matrix',
+    lane_origin_city: 'EDMONTON',
+    lane_origin_prov: 'AB',
+    lane_dest_city: primeTimeNormCity(destCity),
+    lane_dest_prov: 'AB',
+    metro_matched: false,
+    notes,
+  };
+}
+
+// Truck hourly: 1–3 ton and 5-ton at one rate each; full-hours billing
+// after the minimum (billed = max(min, ceil(hours))).
+function primeTimeTruckQuote({ vehicleClass, hours, afterHours }) {
+  const cls = String(vehicleClass || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const is5 = cls === 'ton5' || cls === '5ton' || cls === '5';
+  const rate = afterHours ? (is5 ? 85 : 75) : (is5 ? 90 : 80);
+  const min = afterHours ? 3 : 2;
+  const h = Number(hours);
+  if (!Number.isFinite(h) || h <= 0) return null;
+  const billed = Math.max(min, Math.ceil(h));
+  return {
+    vehicle_class: is5 ? '5 Ton' : '1-3 Ton',
+    rate_per_hr: rate,
+    min_hours: min,
+    billed_hours: billed,
+    base_cad: r2(billed * rate),
+    after_hours: !!afterHours,
+  };
+}
+
+// Hot-shot quote: vehicle auto-selected (smallest whose included weight
+// covers the load). Over 1000 lb: 3 & 5 Ton + $0.05/lb over 1000.
+// +$100 on ALL outside-Alberta destinations. Airport $70 max per shipment
+// (flags.airport — no input in the flow yet). Ferry on top of Victoria.
+// Waiting and 2nd-driver hours have no input in the flow, so they are
+// noted, not priced. Edmonton-sheet extras do NOT apply on hot-shot trips.
+function primeTimeHotShotQuote({ destCity, destProv, weightLbs, packages, flags }) {
+  const row = primeTimeHotShotRow(destCity, destProv);
+  if (!row) return null;
+  const w = Number(weightLbs);
+  if (!Number.isFinite(w) || w <= 0) return null;
+  const f = flags || {};
+  let vehicle = PRIMETIME_VEHICLES.find((v) => w <= v.includedLb);
+  let overage = 0;
+  if (!vehicle) {
+    vehicle = PRIMETIME_VEHICLES[PRIMETIME_VEHICLES.length - 1];
+    overage = (w - 1000) * 0.05;
+  }
+  let base = vehicle.base + vehicle.perKm * row.km + overage;
+  const notes = [];
+  if (row.prov !== 'AB') base += 100;
+  if (f.airport) base += 70;
+  if (row.town === 'VICTORIA' && row.prov === 'BC') {
+    base += vehicle.ferry;
+    notes.push('Ferry waiting time may apply (not billed)');
+  }
+  if (row.km > 1300) notes.push('2nd driver $50/hr applies on this trip — duration needed to price');
+  notes.push('After-hours km surcharge (+$0.20/km on km driven outside business hours) not included — pickup time needed');
+  return {
+    carrier_id: PRIMETIME_ID,
+    carrier_label: PRIMETIME_LABEL,
+    service: `Hot Shot · ${vehicle.label}`,
+    service_level: 'hotshot',
+    vehicle_class: vehicle.key,
+    zone: row.town,
+    weight_lbs: w,
+    rate_basis: 'primetime_hotshot',
+    rate_cwt_used: null,
+    base_cad: r2(base),
+    fsc_percent: 0,
+    fsc_cad: 0,
+    total_cad: r2(base),
+    min_charge_applied: false,
+    currency: 'CAD',
+    source: 'matrix',
+    lane_origin_city: 'EDMONTON',
+    lane_origin_prov: 'AB',
+    lane_dest_city: row.town,
+    lane_dest_prov: row.prov,
+    metro_matched: false,
+    notes,
+  };
+}
+
 function isGuilbaultPalletLine(p) {
   const L = Number(p.length), W = Number(p.width);
   return (L === 48 && W === 40) || (L === 40 && W === 48);
@@ -493,7 +1001,7 @@ function guilbaultBillableWeight(actualLbs, packages, floorLbPerCuFt) {
 // regular (OD <= 35"), MT (OD <= 41.5"), Semi (OD above). A line with no dims
 // falls back to the first (regular) tier.
 // Dimensional weight never applies to any of these.
-function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, skidCount, packages }) {
+function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, skidCount, packages, pickupDateTime }) {
   const st = ensureLoaded();
   const oCity = norm(originCity);
   const oProv = norm(originProv);
@@ -840,6 +1348,24 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
         lane.origin_city !== oCity || lane.dest_city !== dCity,
     });
   }
+  // Prime Time Courier: dedicated rating path (no matrix lanes).
+  // Edmonton origin only; destination cities match exactly. When a pickup
+  // datetime is supplied and it falls in an after-hours window, the
+  // after-hours quote replaces the regular delivery rows. The quote flow
+  // carries no pickup time yet, so it quotes regular-hours rates.
+  if (oCity === 'EDMONTON' && oProv === 'AB') {
+    const ptFlags = { residential: false, school: false, airport: false };
+    const ptAfter = pickupDateTime instanceof Date && !Number.isNaN(pickupDateTime.getTime())
+      ? primeTimeAfterHoursQuote({ destCity: dCity, destProv: dProv, weightLbs: w, packages, pickupDateTime })
+      : null;
+    if (ptAfter) {
+      quotes.push(ptAfter);
+    } else {
+      for (const q of primeTimeDeliveryQuotes({ destCity: dCity, destProv: dProv, weightLbs: w, packages, flags: ptFlags })) quotes.push(q);
+    }
+    const ptHot = primeTimeHotShotQuote({ destCity: dCity, destProv: dProv, weightLbs: w, packages, flags: ptFlags });
+    if (ptHot) quotes.push(ptHot);
+  }
   quotes.sort((a, b) => a.total_cad - b.total_cad || a.carrier_id.localeCompare(b.carrier_id));
   return quotes;
 }
@@ -1060,4 +1586,4 @@ function upsertCarrierRows(carrierId, rows) {  const st = ensureLoaded();
   return count;
 }
 
-module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, guilbaultBillableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides };
+module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, guilbaultBillableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides, primeTimeDeliveryQuotes, primeTimeAfterHoursQuote, primeTimeTruckQuote, primeTimeHotShotQuote };

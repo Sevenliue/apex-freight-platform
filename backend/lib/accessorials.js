@@ -97,6 +97,16 @@ const CARRIER_OVERRIDES = {
     notify_consignee: { fee_cad: 17.29 }, // Tariff Item 560, call prior
     freeze_protect: { pct_of_freight: 13.83, min_cad: 17.29 }, // Tariff Item 725, heated
   },
+  // Prime Time Courier — sheet add-ons are $5/$5/$7/$10 by service level
+  // (modeled in the engine's Prime Time helper, pending UI flags). The
+  // catalog's $94.50 LTL residential/limited-access fees would misprice a
+  // courier delivery, so they are zeroed here for Prime Time.
+  primetime: {
+    residential_pickup: { fee_cad: 0 },
+    residential_delivery: { fee_cad: 0 },
+    limited_access_pickup: { fee_cad: 0 },
+    limited_access_delivery: { fee_cad: 0 },
+  },
 };
 
 function overrideFor(carrierId, code) {
@@ -152,6 +162,9 @@ function applyAccessorials(codes, freightCost, carrierId) {
 function dgFee(weightLbs, carrierId) {
   if (String(carrierId || '').toLowerCase() === 'jrhall') return 100;
   if (String(carrierId || '').toLowerCase() === 'gardewine') return 46.08;
+  // Prime Time: $25 per shipment (regular hours). After-hours DG is $40
+  // (replaces $25) — needs pickup-time awareness when after-hours is wired.
+  if (String(carrierId || '').toLowerCase() === 'primetime') return 25;
   return Number(weightLbs) > 20000 ? 128.6 : 80.2;
 }
 
