@@ -116,6 +116,9 @@ app.get('/api/site-config', (req, res) => {
     // Account-approval lock (see lib/shipping-approval.js): when true,
     // unapproved accounts see only the "waiting for approval" page.
     accountLock: require('./lib/shipping-approval').ACCOUNT_LOCK_ENABLED,
+    // Free-tool mode (see config.js): when true, the UI hides all plan
+    // pricing and quote quotas never block.
+    freeToolMode: config.freeToolMode,
   });
 });
 
@@ -147,6 +150,7 @@ app.get('/api/diesel-prices', async (req, res) => {
 
 app.use('/api/rates', requireVerified, requireApprovedAccount, require('./routes/rates'));
 app.use('/api/contact', require('./routes/contact'));
+app.use('/api/request-carrier', require('./routes/request-carrier'));
 app.use('/api/billing', requireApprovedAccount, require('./routes/billing'));
 app.use('/api/quotes', requireApprovedAccount, require('./routes/quotes'));
 app.use('/api/shipments', requireApprovedAccount, require('./routes/shipments'));

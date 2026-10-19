@@ -39,6 +39,13 @@ module.exports = {
   // Public origin of the frontend (used for Stripe redirect/callback URLs).
   frontendOrigin: process.env.FRONTEND_ORIGIN || '',
 
+  // FREE-TOOL MODE (testing phase, Oct 2026): the site runs as a free tool
+  // for shippers and carriers — no plan prices in the UI, no quote quotas,
+  // no upgrade prompts. Pricing definitions stay in code; this one flag
+  // gates all of it. Set FREE_TOOL_MODE=false to flip monetization back on.
+  // Default true: the testing phase is the current state.
+  freeToolMode: process.env.FREE_TOOL_MODE !== 'false',
+
   // Optional auth stub. Unset = auth disabled (see middleware/auth.js).
   authToken: process.env.AUTH_TOKEN || '',
 

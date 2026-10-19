@@ -32,6 +32,7 @@ const { round2, applyMarkup } = require('../lib/money');
 const markupLib = require('../lib/markup');
 const acc = require('../lib/accessorials');
 const billingLib = require('../lib/billing');
+const { rateCheckedFor } = require('../lib/sheet-dates');
 const holidays = require('../lib/holidays');
 
 const router = express.Router();
@@ -136,23 +137,28 @@ router.post('/', async (req, res) => {
   // per calendar month. At the cap the 402 carries an upgrade offer (next
   // tier + price) so the frontend can prompt instead of silently blocking;
   // pro at the cap gets no offer — over-500 is contact shiprate.ca.
+  //
+  // FREE-TOOL MODE (config.freeToolMode): quotas never block — the check
+  // is skipped entirely, so no 402 / upgrade prompt can fire.
   let quotaState = null;
-  try {
-    const quota = await billingLib.checkQuota(req.user.id);
-    quotaState = quota.state;
-    if (!quota.allowed) {
-      return res.status(402).json({
-        error: quota.reason || 'Monthly quote limit reached.',
-        upgrade_required: true,
-        tier: quota.state && quota.state.tier,
-        quotes_used: quota.state && quota.state.quotesUsed,
-        quotes_limit: quota.state && quota.state.quotesLimit,
-        upgrade: billingLib.upgradeOfferFor(quota.state),
-      });
+  if (!config.freeToolMode) {
+    try {
+      const quota = await billingLib.checkQuota(req.user.id);
+      quotaState = quota.state;
+      if (!quota.allowed) {
+        return res.status(402).json({
+          error: quota.reason || 'Monthly quote limit reached.',
+          upgrade_required: true,
+          tier: quota.state && quota.state.tier,
+          quotes_used: quota.state && quota.state.quotesUsed,
+          quotes_limit: quota.state && quota.state.quotesLimit,
+          upgrade: billingLib.upgradeOfferFor(quota.state),
+        });
+      }
+    } catch (err) {
+      console.error('[rates] quota check failed:', err.message);
+      return bad(res, 503, 'Billing is unavailable right now — please try again.');
     }
-  } catch (err) {
-    console.error('[rates] quota check failed:', err.message);
-    return bad(res, 503, 'Billing is unavailable right now — please try again.');
   }
 
   const {
@@ -522,6 +528,20 @@ router.post('/', async (req, res) => {
     }
   }
 
+  // Rate-checked freshness on every matrix quote row: sheet effective date
+  // + FSC-as-of date, plus staleness flags (expired sheet / stale FSC).
+  // EasyPost parcel rates carry no sheet data — they get no block.
+  try {
+    const metaById = new Map(
+      (matrix.listCarriers() || []).map((c) => [c.carrier_id, c])
+    );
+    for (const r of rates) {
+      if (r.source === 'matrix') r.rate_checked = rateCheckedFor(r.carrier_id, metaById.get(r.carrier_id));
+    }
+  } catch (err) {
+    console.error('[rates] rate-checked attach failed (non-fatal):', err.message);
+  }
+
   // One ranked board: cheapest sell price first.
   rates.sort((a, b) => a.retail_cad - b.retail_cad);
 
@@ -606,7 +626,8 @@ router.post('/', async (req, res) => {
   // Admins (owner/staff bypass) are never counted. The increment is atomic:
   // if a concurrent request took the last available quote, this one is not
   // served — hard caps are never exceeded, even under double-clicks.
-  if (rates.length && !(quotaState && quotaState.isAdmin)) {
+  // FREE-TOOL MODE: no counting at all (quotas don't exist right now).
+  if (!config.freeToolMode && rates.length && !(quotaState && quotaState.isAdmin)) {
     let counted = false;
     try {
       counted = await billingLib.tryIncrementQuota(

@@ -110,6 +110,10 @@ router.get('/status', async (req, res) => {
 router.post('/checkout', async (req, res) => {
   if (needAuth(req, res)) return;
   if (needDb(res)) return;
+  // FREE-TOOL MODE: no checkouts — ShipRate is a free tool right now.
+  if (config.freeToolMode) {
+    return bad(res, 501, 'Plans are not available right now — ShipRate is currently a free tool.');
+  }
   const stripe = stripeClient();
   if (!stripe) {
     return bad(res, 501, 'Stripe is not configured: set STRIPE_SECRET_KEY on the server.');
@@ -163,6 +167,11 @@ router.post('/checkout', async (req, res) => {
 router.post('/upgrade', async (req, res) => {
   if (needAuth(req, res)) return;
   if (needDb(res)) return;
+  // FREE-TOOL MODE: no upgrades — quotas don't block, so there is
+  // nothing to upgrade from.
+  if (config.freeToolMode) {
+    return bad(res, 501, 'Upgrades are not available right now — ShipRate is currently a free tool with unlimited quotes.');
+  }
   const stripe = stripeClient();
   if (!stripe) {
     return bad(res, 501, 'Stripe is not configured: set STRIPE_SECRET_KEY on the server.');

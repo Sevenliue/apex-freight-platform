@@ -64,6 +64,8 @@
           </button>
           <div class="nav-sub">
             <button class="tab sub" data-tab="dashboard" data-region="canada_usa" data-loadtype="ltl" role="tab" aria-selected="false"><span>Quick Quote</span></button>
+            <button class="tab sub" data-tab="demo" role="tab" aria-selected="false"><span>Sample Quote</span></button>
+            <button class="tab sub" data-tab="request-carrier" role="tab" aria-selected="false"><span>Request a Carrier</span></button>
             <button class="tab sub" data-tab="dashboard" data-scroll="quote-form" role="tab" aria-selected="false"><span>Create Shipment</span></button>
             <button class="tab sub" data-tab="comingsoon" data-comingsoon="Specialty Request" role="tab" aria-selected="false"><span>Specialty Request</span></button>
             <button class="tab sub" data-tab="comingsoon" data-comingsoon="Request List" role="tab" aria-selected="false"><span>Request List</span></button>
@@ -191,8 +193,8 @@
     <section id="pending-approval" aria-label="Account pending approval">
       <div class="card" style="max-width:560px;margin:48px auto;text-align:center">
         <h2>⏳ Your account is pending approval</h2>
-        <p>Thanks for signing up<span id="pending-approval-who"></span>. A ShipRate admin reviews every new account before it can access quotes, shipments, and the rest of the site.</p>
-        <p>We'll notify you as soon as your account is approved — nothing else to do.</p>
+        <p>Thanks for signing up<span id="pending-approval-who"></span>. A ShipRate admin reviews every new account before it can access quotes, shipments, and the rest of the site — approval usually comes within hours.</p>
+        <p>We'll notify you as soon as your account is approved — nothing else to do. Meanwhile, you can <a href="/demo" data-page="demo">see a sample quote</a> to preview how the quote board works.</p>
         <button class="btn" id="pending-logout" type="button">Log out</button>
       </div>
     </section>
@@ -207,12 +209,14 @@
           <p class="land-sub">ShipRate compares live carrier rates in seconds — built on real carrier rate sheets, priced in Canadian dollars, tuned lane by lane.</p>
           <div class="land-ctas">
             <button type="button" class="tab btn primary land-cta" data-tab="dashboard" data-scroll="quote-form">Get an instant quote</button>
+            <a href="/carriers/join" data-page="carrier-join" class="btn primary">Are you a carrier? Join free →</a>
             <button type="button" class="btn land-ghost" id="land-how-btn">See how it works</button>
+            <a href="/demo" data-page="demo" class="btn land-ghost">See a sample quote</a>
           </div>
           <div class="land-stats-row">
             <div class="land-stats">
-              <div><strong>6,900+</strong><span>carrier lanes priced</span></div>
-              <div><strong>13</strong><span>Canadian carriers live</span></div>
+              <div><strong>7,300+</strong><span>carrier lanes priced</span></div>
+              <div><strong>19</strong><span>Canadian carriers live</span></div>
               <div><strong>CAD</strong><span>every quote in Canadian dollars</span></div>
             </div>
             <div class="land-diesel" id="diesel-prices" style="display:none">
@@ -261,6 +265,8 @@
           <a href="/privacy" data-page="privacy">Privacy</a> ·
           <a href="/contact" data-page="contact">Contact</a> ·
           <a href="/faq" data-page="faq">FAQ</a> ·
+          <a href="/demo" data-page="demo">Sample quote</a> ·
+          <a href="/request-carrier" data-page="request-carrier">Request a carrier</a> ·
           <a href="/carriers/join" data-page="carrier-join">For Carriers</a>
         </footer>
         </div><!-- /land-main -->
@@ -325,8 +331,15 @@
         </button>
         <button type="button" class="dash-card" data-dash-goto="pricing">
           <span class="dash-ico">🧾</span>
-          <span class="dash-txt"><strong>Billing Center</strong><small>Manage invoices, payment methods, and account credits</small></span>
+          <span class="dash-txt"><strong>Billing Center</strong><small>Manage invoices and account credits</small></span>
         </button>
+      </div>
+      <!-- CARRIER CTA: as prominent as Quick Quote — carriers are the
+           supply side; signup must be one tap from the main page, never
+           buried in a menu. -->
+      <div class="card carrier-cta-banner">
+        <span class="carrier-cta-text">🚛 <strong>Are you a carrier?</strong> Get your rates in front of shippers quoting on ShipRate — join free.</span>
+        <a href="/carriers/join" data-page="carrier-join" class="btn primary">Carrier? Join free →</a>
       </div>
       <!-- QUOTE FORM -->
       <h1>Quick Quote</h1>
@@ -556,7 +569,7 @@
     <!-- PRICING -->
     <section id="tab-pricing" class="panel" role="tabpanel">
       <h1>Billing Center</h1>
-      <p class="lede">Manage your ShipRate credits, payment methods, and view all your invoices in one place.</p>
+      <p class="lede">Manage your ShipRate credits and view all your invoices in one place.</p>
       <div class="billing-grid">
         <div class="card bill-card">
           <h3>Available Credit</h3>
@@ -577,7 +590,7 @@
           </dl>
           <div class="actions"><button type="button" class="btn small" id="bi-update">+ Update</button></div>
         </div>
-        <div class="card bill-card">
+        <div class="card bill-card hidden" id="pm-card">
           <h3>Payment Method</h3>
           <div id="pm-body"><p class="muted">Loading…</p></div>
           <div class="actions"><button type="button" class="btn small" id="pm-update">+ Update payment method</button></div>
@@ -593,6 +606,9 @@
         <label>Status <select id="inv-status"><option value="">All</option><option value="paid">Paid</option><option value="unpaid">Unpaid</option></select></label>
       </div>
       <div id="invoices"><div class="card empty">Sign in to see your invoices.</div></div>
+      <div id="free-tool-notice" class="card hidden" style="margin-top:12px"><strong>🛠 ShipRate is currently a free tool.</strong>
+        <span class="note">Unlimited quotes, no plans, no payment methods. <a href="/demo" data-page="demo">See a sample quote →</a></span></div>
+      <div id="plans-section" class="hidden">
       <h2>Subscription</h2>
       <div id="billing-status"></div>
       <h2>Plan history</h2>
@@ -616,6 +632,7 @@
       </div>
       <div class="plans" id="plans"></div>
       <p class="note">Prices in CAD, taxes extra. Cancel anytime from the billing portal — you keep your plan until the end of the paid period.</p>
+      </div>
     </section>
 
     <!-- ADDRESS BOOK -->
@@ -747,19 +764,22 @@
     <section id="tab-privacy" class="panel" role="tabpanel">
       <h1>Privacy Policy</h1>
       <div class="card legal">
-        <p class="muted">Last updated: September 29, 2026</p>
-        <h2>What we collect</h2>
-        <p><strong>Account information:</strong> name, company, email, and password (stored as a one-way hash — we never see your password). <strong>Shipment information:</strong> addresses, package details, and references you enter to get quotes or schedule freight. <strong>Payment information:</strong> processed by Stripe; we never see or store your card numbers. <strong>Usage data:</strong> basic request logs we use to keep the service running and prevent abuse.</p>
-        <h2>How we use it</h2>
-        <p>To provide quotes, schedule and track shipments, operate your account, prevent fraud, and communicate with you about the service (quotes, approvals, receipts). We do not sell your personal information.</p>
-        <h2>Who we share it with</h2>
-        <p>Carriers (only the shipment details needed to move your freight), Stripe (payments), and our hosting/email providers — each bound to use it only for the service. We disclose information if required by law.</p>
-        <h2>Your rights</h2>
-        <p>You can view and update your profile in Account settings, and delete your account (with all personal data we hold) there at any time. To request a copy of your data or ask questions, use the <a href="/contact" data-page="contact">contact page</a>. We respond to Canadian privacy requests under PIPEDA.</p>
+        <p class="muted">Last updated: October 19, 2026</p>
+        <p class="lede">Plain version: we collect only what the site needs to work, we never sell your data, we never share it except to move your freight, and we delete it when you ask.</p>
+        <h2>What we store</h2>
+        <p><strong>Account:</strong> your name, company, and email. Your password is stored as a one-way hash — we can't see it, and neither can anyone who gets the database. <strong>Shipments:</strong> the addresses, package details, and references you type in to get quotes or book freight. <strong>Quotes and bookings:</strong> the rates you were shown and the shipments you scheduled, so you can reload them later. <strong>Site logs:</strong> basic request logs we use to keep the service running and stop abuse.</p>
+        <h2>What we never do</h2>
+        <p>We never sell your personal information or your shipment data. We never share your data with advertisers. We never show one customer's addresses, quotes, or shipments to another customer.</p>
+        <h2>Who sees your data</h2>
+        <p>Only the people needed to move your freight: the carrier you pick (they get the shipment details for that load — pickup/delivery addresses, package info, references), and our hosting and email providers, who handle data only to run the service. If the law requires us to disclose something, we disclose only what is required.</p>
+        <h2>Payment information</h2>
+        <p>When you pay for a scheduled shipment, your card is processed by our payment provider (Stripe). We never see or store your card numbers.</p>
+        <h2>Your rights — including deletion</h2>
+        <p>You can view and update your profile in Account settings. You can ask us to <strong>delete your account and the personal data we hold</strong> — email us from the <a href="/contact" data-page="contact">contact page</a> and we will delete it and confirm. You can also ask for a copy of your data. We respond to Canadian privacy requests under PIPEDA.</p>
         <h2>Cookies and storage</h2>
         <p>We use browser local storage for your sign-in session token and interface preferences (like navigation state). We do not use third-party advertising trackers.</p>
         <h2>Retention and security</h2>
-        <p>Shipment records are kept as long as needed for accounting, tax, and legal obligations. Passwords are hashed with bcrypt; sessions are revocable tokens that expire after 30 days.</p>
+        <p>Shipment records are kept as long as needed for accounting, tax, and legal obligations, then deleted. Passwords are hashed with bcrypt; sessions are revocable tokens that expire after 30 days.</p>
       </div>
     </section>
 
@@ -784,7 +804,7 @@
       <h1>Frequently asked questions</h1>
       <div class="card legal">
         <h2>Do I need an account to get a quote?</h2>
-        <p>Yes — a free account. It takes less than a minute, and it lets us save your quotes, address book, and shipments under your name.</p>
+        <p>No signup needed to see how it works — <a href="/demo" data-page="demo">try a sample quote</a>. For a live quote on your lane, a free account takes less than a minute, and it lets us save your quotes, address book, and shipments under your name.</p>
         <h2>How do the instant quotes work?</h2>
         <p>We rate your shipment against carrier tariffs on file so you can compare available freight options instantly. Live carrier API rates appear automatically once our carrier integrations are connected.</p>
         <h2>What is the fuel surcharge (FSC) on my quote?</h2>
@@ -794,13 +814,13 @@
         <h2>Why can't I schedule a shipment yet?</h2>
         <p>New accounts start quote-only while we verify them — scheduling unlocks after we approve your account, and we'll notify you. If you need it urgently, contact us.</p>
         <h2>How many quotes do I get?</h2>
-        <p>Free accounts get 5 quotes per month, Starter 35, Growth 100, Business 200, Pro 500. Unused quotes don't roll over. If you hit your limit, you'll be offered an upgrade to the next tier — or, on Pro, contact shiprate.ca for more than 500 quotes a month.</p>
+        <p>Unlimited — ShipRate is currently a free tool, so there are no quote limits and no plans. If that ever changes, we'll say so here first.</p>
         <h2>Can I ship dangerous goods?</h2>
         <p>Declared dangerous goods only: enter a valid UN number and class before rating. DG shipments go through a review step before scheduling, at no charge until a carrier accepts the load.</p>
         <h2>How do I pay?</h2>
         <p>By card through Stripe when you schedule a shipment. Paid loads cancelled before carrier dispatch are refunded automatically.</p>
         <h2>Where do you ship?</h2>
-        <p>Across Canada and cross-border to the US, wherever our contracted carriers run. If a lane returns no rates, contact us — we'll price it manually.</p>
+        <p>Across Canada and cross-border to the US, wherever our contracted carriers run. If a lane returns no rates, <a href="/request-carrier" data-page="request-carrier">request the carrier or lane</a> — we load the carriers shippers ask for first.</p>
         <h2>I forgot my password.</h2>
         <p>Click "Forgot password?" on the log-in form and we'll email you a reset link.</p>
       </div>
@@ -817,10 +837,59 @@
       </div>
     </section>
 
+    <!-- DEMO QUOTE — public, no signup. STATIC sample only: fixed sample
+         prices, generic carrier labels, NO live rates, NO API call. -->
+    <section id="tab-demo" class="panel" role="tabpanel">
+      <h1>Sample quote</h1>
+      <p><a href="#" data-action="back-to-waiting" class="back-to-waiting">← Back to waiting page</a></p>
+      <div class="card warn" style="text-align:center"><strong>🔶 SAMPLE — not a live quote.</strong><br>
+        <span class="note">Fixed sample prices below show how the quote board looks. They are not real carrier rates. Sign up free for live rates on your lane.</span></div>
+      <div class="card">
+        <p><strong>Edmonton, AB → Calgary, AB</strong> · 1 pallet · 500 lb · Sample shipment</p>
+        <div class="table-wrap"><table class="data">
+          <thead><tr><th>Carrier</th><th>Estimated Transit</th><th>Est. Total Cost (excl. tax)</th></tr></thead>
+          <tbody>
+            <tr><td>Sample Carrier A<br><span class="note">SAMPLE</span></td><td>2–3 days (sample)</td><td class="num"><strong>$187.50</strong><br><span class="note">SAMPLE price</span></td></tr>
+            <tr><td>Sample Carrier B<br><span class="note">SAMPLE</span></td><td>2–3 days (sample)</td><td class="num"><strong>$203.20</strong><br><span class="note">SAMPLE price</span></td></tr>
+            <tr><td>Sample Carrier C<br><span class="note">SAMPLE</span></td><td>3–4 days (sample)</td><td class="num"><strong>$241.00</strong><br><span class="note">SAMPLE price</span></td></tr>
+          </tbody>
+        </table></div>
+        <p class="note">Fuel surcharge included in the sample totals. Your live quote may differ — it rates your actual shipment against each carrier's current sheet.</p>
+        <div class="actions">
+          <button type="button" class="tab btn primary demo-live-cta" data-tab="dashboard" data-scroll="quote-form">Get a live quote</button>
+          <a href="/request-carrier" data-page="request-carrier" class="btn">Request a carrier</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- REQUEST A CARRIER — public, no signup. Notifies Seven via notify.js. -->
+    <section id="tab-request-carrier" class="panel" role="tabpanel">
+      <h1>Request a carrier</h1>
+      <p><a href="#" data-action="back-to-waiting" class="back-to-waiting">← Back to waiting page</a></p>
+      <div class="card">
+        <p class="lede">Don't see your carrier or lane? Tell us what you need — we load the carriers shippers ask for first.</p>
+        <form id="request-carrier-form" autocomplete="on">
+          <label>Carrier or lane you need * <input name="carrier_name" type="text" required maxlength="255" placeholder="e.g. Example Transport, or Edmonton → Fort McMurray"></label>
+          <div class="row-2">
+            <label>From city <input name="origin_city" type="text" maxlength="120" placeholder="Edmonton"></label>
+            <label>To city <input name="dest_city" type="text" maxlength="120" placeholder="Calgary"></label>
+          </div>
+          <div class="row-2">
+            <label>Your name <input name="name" type="text" maxlength="255" autocomplete="name"></label>
+            <label>Email * <input name="email" type="email" required autocomplete="email"></label>
+          </div>
+          <label>Notes <textarea name="notes" rows="3" maxlength="2000" placeholder="Anything that helps — usual freight, volume, timing…"></textarea></label>
+          <p class="form-error hidden" id="request-carrier-error" role="alert"></p>
+          <p class="form-ok hidden" id="request-carrier-ok" role="status"></p>
+          <div class="actions"><button class="btn primary" type="submit" id="request-carrier-submit">Send request</button></div>
+        </form>
+      </div>
+    </section>
+
     <!-- FOR CARRIERS -->
     <section id="tab-carrier-join" class="panel" role="tabpanel">
       <h1>For Carriers</h1>
-      <p class="lede">Put your tariff in front of shippers quoting on ShipRate. Upload your rate sheet — once approved, your lanes go live in the quote engine and you start winning loads.</p>
+      <p class="lede">Put your tariff in front of shippers quoting on ShipRate — <strong>free</strong>. Send us your rate sheet, we load it, and you keep your full rate. Shippers quote your lanes and you win loads at zero sales cost — no fees, no commission.</p>
       <div class="form-grid">
         <fieldset>
           <legend>How it works</legend>
@@ -1380,6 +1449,36 @@
       r.metro_matched && r.lane_origin_city && r.lane_dest_city
         ? `<br><span class="note">via ${esc(titleCase(r.lane_origin_city))}, ${esc(r.lane_origin_prov || '')} → ${esc(titleCase(r.lane_dest_city))}, ${esc(r.lane_dest_prov || '')}</span>`
         : '';
+
+    // "Rate checked on [date]" for a quote row: FSC-as-of + sheet effective
+    // date from r.rate_checked (backend, lib/sheet-dates.js), plus staleness
+    // warnings for expired sheets / stale FSCs. Empty when the backend
+    // sent no freshness block (e.g. EasyPost parcel rates).
+    const fmtCheckedDate = (iso) => {
+      const s = String(iso || '');
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      let m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+      if (m) return `${months[+m[2] - 1]} ${+m[3]}, ${m[1]}`;
+      m = /^(\d{4})-(\d{2})$/.exec(s);
+      if (m) return `${months[+m[2] - 1]} ${m[1]}`;
+      return '';
+    };
+
+    const rateCheckedLine = (r) => {
+      const rc = r && r.rate_checked;
+      if (!rc) return '';
+      const parts = [];
+      if (rc.fsc_as_of && fmtCheckedDate(rc.fsc_as_of)) parts.push(`Rate checked on ${esc(fmtCheckedDate(rc.fsc_as_of))}`);
+      if (rc.sheet_effective && fmtCheckedDate(rc.sheet_effective)) parts.push(`Sheet eff. ${esc(fmtCheckedDate(rc.sheet_effective))}`);
+      let html = '';
+      if (parts.length) html += `<br><span class="note">${parts.join(' · ')}</span>`;
+      if (rc.sheet_expired) {
+        html += `<br><span class="badge warn">⚠ Rate sheet expired ${esc(fmtCheckedDate(rc.sheet_expiry))} — confirm before booking</span>`;
+      } else if (rc.fsc_stale) {
+        html += `<br><span class="badge warn">⚠ Fuel surcharge may be out of date</span>`;
+      }
+      return html;
+    };
 
     const dateStr = (d) => (d ? new Date(d).toLocaleDateString('en-CA') : '—');
 
@@ -2343,7 +2442,8 @@
       const rates = (data && data.rates) || [];
       if (!rates.length) {
         const sugs = (data && data.suggestions) || [];
-        let html = '<div class="card empty">No rates returned for this lane.';
+        let html = '<div class="card empty">No rates returned for this lane. ' +
+          '<a href="/request-carrier" data-page="request-carrier">Request this carrier or lane →</a>';
         if (sugs.length) {
           html +=
             ' Did you mean ' +
@@ -2383,7 +2483,7 @@
         .map(
           (r, i) => `<tr>
             <td class="chk"><input type="radio" name="rate-pick" value="${esc(r.rate_id)}"${i === 0 ? ' checked' : ''}></td>
-            <td>${esc(r.carrier)}${r.carrier_id ? `<br><span class="carrier-score" data-carrier-id="${esc(r.carrier_id)}"></span>` : ''}${r.service ? '<br><span class="note">' + esc(r.service) + '</span>' : ''}${metroNote(r)} ${sourceBadge(r.source)}</td>
+            <td>${esc(r.carrier)}${r.carrier_id ? `<br><span class="carrier-score" data-carrier-id="${esc(r.carrier_id)}"></span>` : ''}${r.service ? '<br><span class="note">' + esc(r.service) + '</span>' : ''}${metroNote(r)} ${sourceBadge(r.source)}${rateCheckedLine(r)}</td>
             <td>${r.delivery_days != null ? esc(String(r.delivery_days)) : '—'}${r.est_delivery_date ? `<br><span class="note">≈ ${esc(fmtEstDate(r.est_delivery_date))}</span>` : ''}</td>
             <td class="num"><strong>${cad(r.retail_cad)}</strong>${r.insurance_cad ? `<br><span class="note">incl. ${cad(r.insurance_cad)} insurance</span>` : ''}</td>
           </tr>`
@@ -2602,6 +2702,20 @@
           ? ` (${currentUser.email})` : '';
       }
       return pending;
+    }
+
+    // FREE-TOOL MODE: hide every pricing surface (Billing Center Plans
+    // section, Payment Method card) and show the free-tool notice instead.
+    // Pricing definitions (PLANS, upgrade prompt) stay in code, dormant.
+    // Idempotent — safe to call before or after the Billing Center renders.
+    function applyFreeToolMode() {
+      document.body.classList.toggle('free-tool-mode', FREE_TOOL_MODE);
+      const pm = $('#pm-card');
+      if (pm) pm.classList.toggle('hidden', FREE_TOOL_MODE);
+      const plans = $('#plans-section');
+      if (plans) plans.classList.toggle('hidden', FREE_TOOL_MODE);
+      const notice = $('#free-tool-notice');
+      if (notice) notice.classList.toggle('hidden', !FREE_TOOL_MODE);
     }
 
     function gateCompleteButton() {
@@ -4316,6 +4430,12 @@
     // In quote-only mode the public site runs the freight quote only for
     // non-admin accounts; admins always see the full site.
     let SITE_MODE = 'quote-only';
+    // FREE-TOOL MODE (testing phase): when true, all plan pricing is
+    // hidden from the UI and quote quotas never block. Single flag from
+    // GET /api/site-config (backend config.js FREE_TOOL_MODE); default
+    // true = fail toward free (pricing stays hidden if config is
+    // unreachable). Flip it off server-side to restore monetization.
+    let FREE_TOOL_MODE = true;
     fetch('/api/site-config')
       .then((r) => r.json())
       .then((c) => {
@@ -4323,10 +4443,13 @@
         // Server is the source of truth for the account-approval lock;
         // absent flag (old server) keeps the fail-closed default true.
         if (c && typeof c.accountLock === 'boolean') ACCOUNT_LOCK = c.accountLock;
+        if (c && typeof c.freeToolMode === 'boolean') FREE_TOOL_MODE = c.freeToolMode;
         applyQuoteOnlyMode();
         applyApprovalLock();
+        applyFreeToolMode();
+        if (currentUser) renderPricing();
       })
-      .catch(() => { applyQuoteOnlyMode(); applyApprovalLock(); });
+      .catch(() => { applyQuoteOnlyMode(); applyApprovalLock(); applyFreeToolMode(); });
 
     const PLANS = [
       {
@@ -4395,8 +4518,9 @@
       const box = $('#billing-status');
       if (!box) return;
       if (!currentUser) {
-        box.innerHTML =
-          `<div class="card empty"><strong>Sign up free</strong> to start quoting — ` +
+        box.innerHTML = FREE_TOOL_MODE
+          ? `<div class="card empty"><strong>Sign up free</strong> to start quoting — unlimited quotes while ShipRate is a free tool.</div>`
+          : `<div class="card empty"><strong>Sign up free</strong> to start quoting — ` +
           `5 quotes a month, no card needed.</div>`;
         return;
       }
@@ -4417,6 +4541,8 @@
     function renderPlans() {
       const box = $('#plans');
       if (!box) return;
+      // FREE-TOOL MODE: plans stay defined (PLANS) but never render.
+      if (FREE_TOOL_MODE) { box.innerHTML = ''; return; }
       box.innerHTML = PLANS.map((plan) => {
         const isCurrent = billingState && billingState.tier === plan.tier;
         const popular = plan.tier === 'starter' ? '<span class="badge save">Most popular</span>' : '';
@@ -4447,6 +4573,9 @@
     }
 
     function renderPricing() {
+      // FREE-TOOL MODE: the Plans section is hidden (applyFreeToolMode);
+      // skip the pricing renders so no plan/upgrade UI is ever built.
+      if (FREE_TOOL_MODE) return;
       renderBillingStatus();
       renderPlans();
       renderPlanHistory();
@@ -4457,6 +4586,8 @@
     async function renderPlanHistory() {
       const box = $('#plan-history');
       if (!box) return;
+      // FREE-TOOL MODE: plan history is monetization UI — never render.
+      if (FREE_TOOL_MODE) { box.innerHTML = ''; return; }
       if (!currentUser) {
         box.innerHTML = '<div class="card empty">Sign in to see your plan history.</div>';
         return;
@@ -4833,6 +4964,7 @@
        work continues behind the scenes. Idempotent. */
     const QO_KEEP_LABELS = new Set([
       'Dashboard', 'Quick Quote', 'Full Load', 'Home',
+      'Sample Quote', 'Request a Carrier',
       'Tracking', 'Tracking Shipment', 'Tracking Dashboard',
       'Resources', 'Address Book', 'Saved Quotes', 'Waybill',
     ]);
@@ -4934,6 +5066,15 @@
     function renderQuotaExceeded(data) {
       const box = $('#quote-results');
       syncRateEmptyHide();
+      // FREE-TOOL MODE: quotas never block, so this prompt stays dormant.
+      // (The backend never returns 402 in free-tool mode; this is a
+      // belt-and-braces guard for a stale session mid-flag-flip.)
+      if (FREE_TOOL_MODE) {
+        box.innerHTML =
+          `<div class="card empty"><strong>Quotes are unlimited right now.</strong><br>` +
+          `<span class="note">ShipRate is currently a free tool — no quote limits, no plans. Click Get Carrier Rates to run your quote.</span></div>`;
+        return;
+      }
       const offer = (data && data.upgrade) || null;
       const used = data && data.quotes_used;
       const limit = data && data.quotes_limit;
@@ -6449,6 +6590,10 @@
 
     // Public legal/info pages live outside the sidebar tab system.
     function showPanel(name) {
+      // Pending accounts viewing a PUBLIC panel (demo / request-carrier,
+      // linked from the waiting page) hide the waiting card while there.
+      const locked = document.body.classList.contains('approval-locked');
+      document.body.classList.toggle('viewing-demo', locked && (name === 'demo' || name === 'request-carrier'));
       $$('.tab[data-tab]').forEach((b) => {
         b.classList.remove('active');
         b.setAttribute('aria-selected', 'false');
@@ -6465,6 +6610,17 @@
       if (!a) return;
       e.preventDefault();
       showPanel(a.dataset.page);
+    });
+
+    // "Back to waiting page" on the public demo / request-carrier panels
+    // (visible only while the account is approval-locked).
+    document.addEventListener('click', (e) => {
+      const b = e.target && e.target.closest ? e.target.closest('[data-action="back-to-waiting"]') : null;
+      if (!b) return;
+      e.preventDefault();
+      document.body.classList.remove('viewing-demo');
+      $$('.panel').forEach((p) => p.classList.remove('active'));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     });
 
     // Deep links: /reset-password?token=, /verify-email?token=, /terms, …
@@ -6508,7 +6664,7 @@
         })();
         return;
       }
-      const pages = { '/terms': 'terms', '/privacy': 'privacy', '/contact': 'contact', '/faq': 'faq', '/about': 'about', '/carriers/join': 'carrier-join' };
+      const pages = { '/terms': 'terms', '/privacy': 'privacy', '/contact': 'contact', '/faq': 'faq', '/about': 'about', '/carriers/join': 'carrier-join', '/demo': 'demo', '/request-carrier': 'request-carrier' };
       if (pages[path]) setTimeout(() => showPanel(pages[path]), 0);
     })();
 
@@ -6836,6 +6992,37 @@
       } catch (err) {
         const el = $('#contact-error');
         el.textContent = (err && err.message) || 'Could not send your message.';
+        el.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // Request-a-carrier form.
+    const requestCarrierForm = $('#request-carrier-form');
+    if (requestCarrierForm) requestCarrierForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = $('#request-carrier-submit');
+      btn.disabled = true;
+      $('#request-carrier-error').classList.add('hidden');
+      $('#request-carrier-ok').classList.add('hidden');
+      try {
+        const f = new FormData(e.target);
+        const r = await api.requestCarrier({
+          carrier_name: String(f.get('carrier_name') || '').trim(),
+          origin_city: String(f.get('origin_city') || '').trim(),
+          dest_city: String(f.get('dest_city') || '').trim(),
+          name: String(f.get('name') || '').trim(),
+          email: String(f.get('email') || '').trim(),
+          notes: String(f.get('notes') || '').trim(),
+        });
+        const ok = $('#request-carrier-ok');
+        ok.textContent = (r && r.message) || 'Request sent — thanks!';
+        ok.classList.remove('hidden');
+        requestCarrierForm.reset();
+      } catch (err) {
+        const el = $('#request-carrier-error');
+        el.textContent = (err && err.message) || 'Could not send your request.';
         el.classList.remove('hidden');
       } finally {
         btn.disabled = false;

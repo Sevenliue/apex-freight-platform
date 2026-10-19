@@ -161,6 +161,14 @@ async function notify(event, order, opts = {}) {
         });
         break;
       }
+      case 'carrier_requested': {
+        const r = opts.request || {};
+        await sendEmail({
+          to: admin, event, subject: `Carrier requested — ${r.carrier_name || '?'} (${r.origin_city || '?'} → ${r.dest_city || '?'})`,
+          text: `A shipper asked for a carrier or lane ShipRate doesn't cover yet.\nCarrier / lane wanted: ${r.carrier_name || '—'}\nRoute: ${r.origin_city || '?'} → ${r.dest_city || '?'}\nShipper: ${r.name || '—'} (${r.email || '—'})\nNotes: ${r.notes || '—'}\n\nFollow up by loading the carrier or lane.`,
+        });
+        break;
+      }
       default:
         break;
     }

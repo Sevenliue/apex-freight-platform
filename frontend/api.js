@@ -215,6 +215,11 @@ export function sendContact({ name, email, message }) {
   return post('/api/contact', { name, email, message });
 }
 
+/* Request-a-carrier form (public, no signup). */
+export function requestCarrier({ carrier_name, origin_city, dest_city, name, email, notes }) {
+  return post('/api/request-carrier', { carrier_name, origin_city, dest_city, name, email, notes });
+}
+
 /* Rates — packages[] in LBS; accessorials[] are catalog codes. Legacy
    single-parcel {weight, length, width, height} still accepted. region /
    direction / freight_charges / bill_to are the Smart Shipping-style top

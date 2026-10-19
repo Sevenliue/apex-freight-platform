@@ -116,7 +116,14 @@ main.wrap { padding-top: 28px; padding-bottom: 48px; }
 #pending-approval { display: none; }
 body.approval-locked #pending-approval { display: block; }
 body.approval-locked .sidebar,
-body.approval-locked main .panel { display: none !important; }
+body.approval-locked main .panel:not(#tab-demo):not(#tab-request-carrier) { display: none !important; }
+/* Pending accounts may still use the PUBLIC demo + request-a-carrier
+   panels (linked from the waiting page). While viewing one, the waiting
+   card hides; "Back to waiting page" restores it. */
+body.approval-locked.viewing-demo #pending-approval { display: none; }
+.back-to-waiting { display: none; }
+body.approval-locked .back-to-waiting { display: inline; }
+body.approval-locked .demo-live-cta { display: none; }
 
 h1 { font-size: 26px; margin: 0 0 4px; color: var(--brand-dark); }
 h2 { font-size: 19px; color: var(--brand-dark); margin: 26px 0 10px; }
@@ -966,3 +973,15 @@ dl.kv dd { margin: 0; font-weight: 600; }
 .diesel-chg { color: #5a6b62; font-size: 13px; }
 .diesel-svg { width: 100%; height: auto; display: block; }
 #diesel-src a { color: #14402f; }
+
+/* Carrier CTA banner above Quick Quote (Oct 2026): carrier signup must be
+   as obvious as the quote form — one tap to the carrier onboarding. */
+.carrier-cta-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.carrier-cta-banner .carrier-cta-text { font-size: 15px; }
