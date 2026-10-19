@@ -422,6 +422,224 @@ const PA_WEIGHT_BANDS = [[10, 17], [20, 19], [30, 20], [40, 21], [50, 22],
   [250, 56], [300, 60], [350, 65], [400, 70], [450, 75], [500, 90],
   [600, 100], [700, 110], [800, 125], [900, 150], [1000, 165]];
 
+// Number 8 Freight (Abbotsford BC; Lower Mainland / Fraser Valley sameday).
+// Sheet: 6-zone CWT tariff eff. 2026-03-01 (Seven confirmed still current
+// 2026-10-19); general tariff, applies to all ShipRate shippers.
+// Full parse: number-8-freight-rate-analysis.md.
+// Seven's decisions 2026-10-19:
+//   - rates exact (ignore "max rate" highlighting)
+//   - van rates only (flatdeck rules skipped — no vehicle input in the form)
+//   - regular freight only (4-hour / hot-shot add-ons skipped)
+//   - area adds by address keyword match (NUMBER8_AREA_ADDS); these read as
+//     off-route charges, so FSC applies (T&C: "Base Rates, Special Services
+//     & Off Route Charges are subject to fuel surcharge") — Seven to correct
+//     if the reading is wrong
+//   - same-town quirks stay as printed: Ladner->Ladner Zone 2,
+//     Cultus Lake->Cultus Lake Zone 2, Deroche/Agassiz/Hope->itself Zone 3
+//   - FSC 33.76% set by Seven 2026-10-19 from Sep 2026 invoice (31.73/94);
+//     Jul 30.00% / Aug 31.76% history on file; monthly cadence — update via
+//     Admin when the carrier's number moves (Kent Group/Kalibrate publishes
+//     fuel prices only, no surcharge table — no auto-pull possible)
+// Rating:
+//   - zone from the 20x20 town matrix (exact town match after normalization;
+//     NO metro collapsing — the metro map would merge Burnaby/Surrey/Richmond
+//     into Vancouver and destroy the zone grid)
+//   - weight band from TOTAL shipment BILLABLE weight (bands upper-inclusive)
+//   - dim weight: 10 lb/cu ft or actual, whichever greater (sheet rule —
+//     no linear-foot rule; honors the admin dim-weight toggle + density floor)
+//   - any piece with max dimension > 10 ft (120 in) -> 2x base, FSC on doubled
+//   - no quote above 12,500 lb billable
+//   - area add: per end (origin/dest), max matching tier; FSC applies
+//   - quotes pre-GST; the 15% markup is applied in routes/rates.js like all
+//     other carriers
+// Not modeled: after-hours (+3 hr charge — on Kanban), flatdeck rules,
+// 4-hour/hot-shot add-ons, wait time / inside delivery / DG / tailgate etc.
+// (pre-arranged extras, like other carriers' accessorials).
+const NUMBER8_ID = 'number8';
+const NUMBER8_LABEL = 'Number 8 Freight';
+const NUMBER8_MAX_LB = 12500;
+const NUMBER8_OVERLENGTH_IN = 120; // any piece dimension > 10 ft
+// Towns in matrix column/row order (verified against the PDF's word
+// coordinates — see number-8-freight-rate-analysis.md).
+const NUMBER8_TOWNS = [
+  'VANCOUVER', 'BURNABY', 'N & W VANCOUVER', 'NEW WEST/ANNACIS IS.', 'RICHMOND',
+  'COQ/POCO/PORT MOODY', 'DELTA', 'SURREY', 'LANGLEY W 232 ST', 'SOUTH LANGLEY/SURREY',
+  'LADNER / TSSAWASSEN', 'WHITE ROCK', 'PITT MEADOWS/MAPLE RIDGE', 'GLOUCESTER/ALDERGROVE',
+  'ABBOTSFORD', 'MISSION', 'CHILLIWACK', 'ROSEDALE', 'CULTUS LAKE', 'DEROCHE/AGASSIZ/HOPE',
+];
+const NUMBER8_ZONE_INDEX = new Map(NUMBER8_TOWNS.map((t, i) => [t, i]));
+// Rows = picked up from (same town order as NUMBER8_TOWNS).
+const NUMBER8_ZONE_GRID = [
+  [1,1,1,2,1,2,2,2,2,2,2,2,2,3,4,5,5,6,6,6], // VANCOUVER
+  [1,1,1,1,1,1,2,2,2,2,2,2,2,3,3,4,4,6,6,6], // BURNABY
+  [1,1,1,2,2,2,2,2,2,3,3,3,3,4,4,5,5,6,6,6], // N & W VANCOUVER
+  [2,1,2,1,1,1,1,1,2,2,2,2,2,2,3,4,4,6,6,6], // NEW WEST/ANNACIS IS.
+  [1,1,2,1,1,2,1,2,2,2,2,2,2,3,3,4,4,6,6,6], // RICHMOND
+  [2,1,2,1,2,1,2,1,2,2,2,2,1,2,3,3,4,6,6,6], // COQ/POCO/PORT MOODY
+  [2,2,2,1,1,2,1,1,2,2,2,2,2,3,3,4,4,6,6,6], // DELTA
+  [2,2,2,1,2,1,1,1,1,1,2,2,2,2,3,3,3,5,5,6], // SURREY
+  [2,2,2,2,2,2,2,1,1,1,2,2,1,1,2,3,3,4,4,6], // LANGLEY W 232 ST
+  [2,2,3,2,2,2,2,1,1,1,2,2,2,1,2,3,3,4,4,6], // SOUTH LANGLEY/SURREY
+  [2,2,3,2,2,2,2,2,2,2,2,2,2,3,4,4,4,6,6,6], // LADNER / TSSAWASSEN
+  [2,2,3,2,2,2,2,2,2,2,2,1,2,2,3,4,4,6,6,6], // WHITE ROCK
+  [2,2,3,2,2,1,2,2,1,2,2,2,1,2,3,2,4,6,6,6], // PITT MEADOWS/MAPLE RIDGE
+  [3,3,4,2,3,2,3,2,1,1,3,2,2,1,2,2,3,4,4,4], // GLOUCESTER/ALDERGROVE
+  [4,3,4,3,3,3,3,3,2,2,4,3,3,2,1,2,2,3,3,4], // ABBOTSFORD
+  [5,4,5,4,4,3,4,3,3,3,4,4,2,2,2,1,3,4,4,6], // MISSION
+  [5,4,5,4,4,4,4,3,3,3,4,4,4,3,2,3,1,2,2,3], // CHILLIWACK
+  [6,6,6,6,6,6,6,5,4,4,6,6,6,4,3,4,2,1,2,3], // ROSEDALE
+  [6,6,6,6,6,6,6,5,4,4,6,6,6,4,3,4,2,2,2,4], // CULTUS LAKE
+  [6,6,6,6,6,6,6,6,6,6,6,6,6,4,4,6,3,3,4,3], // DEROCHE/AGASSIZ/HOPE
+];
+// Weight bands: [max_lb, [zone1..zone6]] — upper-inclusive, per shipment.
+const NUMBER8_WEIGHT_BANDS = [
+  [24,   [13,15,18,20,22,30]],
+  [49,   [14,16,20,22,24,34]],
+  [74,   [16,18,22,24,26,37]],
+  [99,   [17,20,24,25,28,41]],
+  [149,  [20,23,26,29,32,45]],
+  [199,  [22,25,29,33,36,50]],
+  [299,  [25,29,32,36,40,55]],
+  [399,  [29,33,36,41,45,59]],
+  [499,  [31,36,41,45,50,64]],
+  [699,  [36,41,45,50,55,73]],
+  [999,  [39,45,50,59,65,82]],
+  [1199, [43,50,59,73,80,95]],
+  [1499, [51,59,68,86,95,109]],
+  [1699, [59,68,77,95,105,123]],
+  [1999, [67,77,86,109,120,141]],
+  [2999, [75,86,100,123,135,159]],
+  [3999, [83,95,114,136,150,177]],
+  [4999, [91,105,127,150,165,195]],
+  [5999, [99,114,141,164,180,214]],
+  [6999, [107,123,155,177,195,232]],
+  [7999, [115,132,168,191,210,250]],
+  [8999, [123,141,182,205,225,268]],
+  [9999, [130,150,195,218,240,286]],
+  [12500,[154,177,241,273,300,355]],
+];
+const NUMBER8_CITY_ALIASES = {
+  'NORTH VANCOUVER': 'N & W VANCOUVER',
+  'WEST VANCOUVER': 'N & W VANCOUVER',
+  'N AND W VANCOUVER': 'N & W VANCOUVER',
+  'N&W VANCOUVER': 'N & W VANCOUVER',
+  'NEW WESTMINSTER': 'NEW WEST/ANNACIS IS.',
+  'ANNACIS ISLAND': 'NEW WEST/ANNACIS IS.',
+  'COQUITLAM': 'COQ/POCO/PORT MOODY',
+  'PORT COQUITLAM': 'COQ/POCO/PORT MOODY',
+  'PORT MOODY': 'COQ/POCO/PORT MOODY',
+  'PITT MEADOWS': 'PITT MEADOWS/MAPLE RIDGE',
+  'MAPLE RIDGE': 'PITT MEADOWS/MAPLE RIDGE',
+  'ALDERGROVE': 'GLOUCESTER/ALDERGROVE',
+  'GLOUCESTER': 'GLOUCESTER/ALDERGROVE',
+  'LADNER': 'LADNER / TSSAWASSEN',
+  'TSAWWASSEN': 'LADNER / TSSAWASSEN',
+  'TSSAWASSEN': 'LADNER / TSSAWASSEN',
+  'SOUTH LANGLEY': 'SOUTH LANGLEY/SURREY',
+  'AGASSIZ': 'DEROCHE/AGASSIZ/HOPE',
+  'DEROCHE': 'DEROCHE/AGASSIZ/HOPE',
+  'HOPE': 'DEROCHE/AGASSIZ/HOPE',
+};
+function number8TownFor(city) {
+  const c = norm(city);
+  const canon = NUMBER8_CITY_ALIASES[c] || c;
+  return NUMBER8_ZONE_INDEX.has(canon) ? canon : null;
+}
+// Off-route area adds, matched by address keyword (word boundaries).
+// Ordered by amount desc so the first match is the max tier. Per-end
+// (origin/dest) evaluation; FSC applies (off-route charges per the T&C).
+const NUMBER8_AREA_ADDS = [
+  { amount: 168, keywords: ['MANNING PARK', 'BOSTON BAR'] },
+  { amount: 112, keywords: ['SUNSHINE VALLEY', 'HEMLOCK VALLEY', 'YALE'] },
+  { amount: 56, keywords: ['CYPRESS HILL', 'MT SEYMOUR', 'MOUNT SEYMOUR', 'LIONS BAY', 'HORSESHOE BAY', 'ANMORE', 'BELCARRA', 'LINDELL BEACH'] },
+  { amount: 15, keywords: ['UBC', 'SFU', 'DEEP COVE'] },
+];
+function number8AreaAdd(street, city) {
+  const text = `${street || ''} ${city || ''}`.toUpperCase();
+  for (const tier of NUMBER8_AREA_ADDS) {
+    for (const kw of tier.keywords) {
+      const re = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+      if (re.test(text)) return tier.amount;
+    }
+  }
+  return 0;
+}
+function number8Quotes({ originCity, originProv, destCity, destProv, weightLbs, packages, originStreet, destStreet }) {
+  const oTown = number8TownFor(originCity);
+  const dTown = number8TownFor(destCity);
+  if (!oTown || !dTown) return [];
+  const w = Number(weightLbs);
+  if (!Number.isFinite(w) || w <= 0) return [];
+  const st = ensureLoaded();
+  const carrier = st.carriersById.get(NUMBER8_ID);
+  // Dimensional weight per the sheet: 10 lb/cu ft or actual, whichever
+  // greater (no linear-foot rule). Honors the admin dim-weight toggle and
+  // density-floor override like every other carrier.
+  const dimOn = dimWeightEnabledFor(NUMBER8_ID);
+  const floor = densityFloorFor(NUMBER8_ID);
+  const det = billableWeight(w, packages, floor);
+  const cubeBillable = det.cube_ft * floor;
+  const bw = dimOn ? Math.max(w, cubeBillable) : w;
+  if (bw > NUMBER8_MAX_LB) return [];
+  const zone = NUMBER8_ZONE_GRID[NUMBER8_ZONE_INDEX.get(oTown)][NUMBER8_ZONE_INDEX.get(dTown)];
+  const band = NUMBER8_WEIGHT_BANDS.find((b) => bw <= b[0]);
+  if (!band || !(band[1][zone - 1] > 0)) return [];
+  let base = band[1][zone - 1];
+  // Overlength: any piece with a dimension over 10 ft doubles the base.
+  let overlength = false;
+  for (const p of packages || []) {
+    const dims = [Number(p.length), Number(p.width), Number(p.height)].filter((d) => d > 0);
+    if (dims.length && Math.max(...dims) > NUMBER8_OVERLENGTH_IN) { overlength = true; break; }
+  }
+  if (overlength) base *= 2;
+  // Off-route area adds (FSC applies per the tariff T&C).
+  const areaAdd = number8AreaAdd(originStreet, originCity) + number8AreaAdd(destStreet, destCity);
+  if (areaAdd > 0) base += areaAdd;
+  const fscPercent = fscFor(carrier, bw);
+  const fsc = base * fscPercent / 100;
+  return [{
+    carrier_id: NUMBER8_ID,
+    carrier_label: NUMBER8_LABEL,
+    service: 'LTL',
+    weight_lbs: w,
+    billable_weight_lbs: r2(bw),
+    density_pcf: det.density_pcf,
+    cube_ft: det.cube_ft,
+    floor_lb_per_cuft: floor,
+    dimensional_applied: dimOn && cubeBillable > w,
+    dimensional_rule: dimOn ? (cubeBillable > w ? 'cube' : 'actual') : 'actual',
+    dim_weight_enabled: dimOn,
+    zone,
+    rate_basis: 'number8_zone',
+    rate_cwt_used: null,
+    base_cad: r2(base),
+    fsc_percent: fscPercent,
+    fsc_cad: r2(fsc),
+    total_cad: r2(base + fsc),
+    min_charge_applied: false,
+    currency: 'CAD',
+    source: 'matrix',
+    lane_origin_city: oTown,
+    lane_origin_prov: 'BC',
+    lane_dest_city: dTown,
+    lane_dest_prov: 'BC',
+    metro_matched: false,
+    ...(overlength ? { overlength_applied: true } : {}),
+    ...(areaAdd > 0 ? { area_add_cad: r2(areaAdd) } : {}),
+  }];
+}
+// Register the carrier record so the standard FSC machinery applies:
+// listCarriers() shows it (Admin > Fuel surcharges can override it monthly),
+// fscFor() resolves the live percent, and quote rows get rate-checked dates.
+upsertCarrier({
+  carrier_id: NUMBER8_ID,
+  carrier_label: NUMBER8_LABEL,
+  fsc_percent: 33.76, // set by Seven 2026-10-19 from Sep 2026 invoice (31.73/94); monthly cadence
+  fsc_as_of: '2026-10-19',
+  fsc_cadence: 'monthly',
+  fsc_note: 'Monthly per sheet (Kent Group/Kalibrate publishes fuel prices only — no auto-pull). Jul 30.00% / Aug 31.76% history on file; Oct % pending from carrier.',
+});
+
 // Prime Time Courier (Edmonton courier + hot shot; sheets received
 // 2026-10-18, analysis in prime-time-rate-analysis.md). Seven confirmed:
 // CAD, rates current as printed, NO fuel surcharge, GST added on top,
@@ -1001,7 +1219,7 @@ function guilbaultBillableWeight(actualLbs, packages, floorLbPerCuFt) {
 // regular (OD <= 35"), MT (OD <= 41.5"), Semi (OD above). A line with no dims
 // falls back to the first (regular) tier.
 // Dimensional weight never applies to any of these.
-function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, skidCount, packages, pickupDateTime }) {
+function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, skidCount, packages, pickupDateTime, originStreet, destStreet }) {
   const st = ensureLoaded();
   const oCity = norm(originCity);
   const oProv = norm(originProv);
@@ -1366,6 +1584,12 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
     const ptHot = primeTimeHotShotQuote({ destCity: dCity, destProv: dProv, weightLbs: w, packages, flags: ptFlags });
     if (ptHot) quotes.push(ptHot);
   }
+  // Number 8 Freight: dedicated zone-matrix rating path (no matrix lanes).
+  // BC-only; both cities must be Number 8 matrix towns (exact match after
+  // normalization — no metro collapsing and no nearby-town fallback).
+  if ((oProv === 'BC' || oProv === '') && (dProv === 'BC' || dProv === '')) {
+    for (const q of number8Quotes({ originCity: oCity, originProv: oProv, destCity: dCity, destProv: dProv, weightLbs: w, packages, originStreet, destStreet })) quotes.push(q);
+  }
   quotes.sort((a, b) => a.total_cad - b.total_cad || a.carrier_id.localeCompare(b.carrier_id));
   return quotes;
 }
@@ -1586,4 +1810,4 @@ function upsertCarrierRows(carrierId, rows) {  const st = ensureLoaded();
   return count;
 }
 
-module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, guilbaultBillableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides, primeTimeDeliveryQuotes, primeTimeAfterHoursQuote, primeTimeTruckQuote, primeTimeHotShotQuote };
+module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, guilbaultBillableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides, primeTimeDeliveryQuotes, primeTimeAfterHoursQuote, primeTimeTruckQuote, primeTimeHotShotQuote, number8Quotes };

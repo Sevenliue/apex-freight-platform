@@ -351,6 +351,8 @@ router.post('/', async (req, res) => {
         weightLbs: totalWeightLbs,
         skidCount,
         packages,
+        originStreet: origin.street1 || '',
+        destStreet: destination.street1 || '',
       });
     } catch (err) {
       return bad(res, 502, 'Rate matrix failed', err.message);

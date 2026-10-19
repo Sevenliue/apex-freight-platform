@@ -24,6 +24,7 @@ const SHEET_DATES = {
   willys: { effective: '2025-04-01', expiry: '2027-09-30' },
   minimax: { effective: null, expiry: '2026-12-31' },
   rosenau: { effective: null, expiry: '2026-12-31' },
+  number8: { effective: '2024-03-01', expiry: null }, // 6-zone CWT tariff eff. Mar 2024; Seven confirmed still current 2026-10-19; no expiry on sheet
 };
 
 // Staleness for the CUSTOMER-FACING quote board. Deliberately stricter than
