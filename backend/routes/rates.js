@@ -121,16 +121,10 @@ function expandParcels(pkgs) {
 }
 
 router.post('/', async (req, res) => {
-  try { require('../lib/crashlog').startTrace('rates-router-hit', {}).stage('hit'); } catch {}
-  if (req._trace) { try { req._trace.stage('reached-rates-router'); } catch {} }
   // Quoting requires a signed-in shipper account (no more guest quoting).
   if (!req.user) {
     return bad(res, 401, 'Sign in to get a quote — quoting needs an account.');
   }
-  const trace = require('../lib/crashlog').startTrace('POST /api/rates', {
-    user: req.user.id, origin: (req.body||{}).origin, destination: (req.body||{}).destination,
-  });
-  trace.stage('entry');
 
   // Full load is custom-priced per truck: no LTL rating, no quota burn.
   // The frontend shows a request card instead of the rate board.
@@ -154,10 +148,8 @@ router.post('/', async (req, res) => {
     }
   } catch (err) {
     console.error('[rates] quota check failed:', err.message);
-    trace.stage('quota-failed');
     return bad(res, 503, 'Billing is unavailable right now — please try again.');
   }
-  trace.stage('quota-ok');
 
   const {
     origin = {},
@@ -285,7 +277,6 @@ router.post('/', async (req, res) => {
       linear_ft: 0, density_pcf: null, dimensional_applied: false,
       dimensional_rule: 'actual', dim_lines: 0 };
   }
-  trace.stage('packages-ok');
   // Full-load scale: at/above one trailer of linear feet no LTL tariff applies.
   // Skip matrix rating (LTL hundredweight math on a 175,000 lb "billable" weight
   // is fantasy) and tell the board to explain instead of pricing.
@@ -303,7 +294,6 @@ router.post('/', async (req, res) => {
   // Freight markup for this quote: the signed-in customer's per-account
   // override when the admin set one, else the global MARKUP_PERCENT default.
   const markup = await markupLib.effectiveMarkup(req.user && req.user.id);
-  trace.stage('markup-ok');
 
   const worldwide = region === 'worldwide';
 
@@ -531,7 +521,6 @@ router.post('/', async (req, res) => {
   // One ranked board: cheapest sell price first.
   rates.sort((a, b) => a.retail_cad - b.retail_cad);
 
-  trace.stage('rating-ok');
   // Persist the quote when a database is configured (non-fatal).
   let db_quote_id = null;
   if (db.isEnabled()) {
@@ -609,7 +598,6 @@ router.post('/', async (req, res) => {
   if (db_quote_id != null) body.db_quote_id = db_quote_id;
   if (warnings.length) body.warnings = warnings;
   if (suggestions.length) body.suggestions = suggestions;
-  trace.stage('persist-ok');
   // Count the quote against the monthly quota only when rates were produced.
   // Admins (owner/staff bypass) are never counted. The increment is atomic:
   // if a concurrent request took the last available quote, this one is not
@@ -642,8 +630,6 @@ router.post('/', async (req, res) => {
       };
     }
   }
-  trace.stage('sending-response');
-  trace.done();
   return res.json(body);
 });
 

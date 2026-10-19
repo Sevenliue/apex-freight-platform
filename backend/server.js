@@ -72,26 +72,13 @@ app.use('/api', (req, res, next) => {
 // req.user = {id, email, name, company, role}. Public routes stay public;
 // they simply see req.user when a session is present.
 app.use('/api', async (req, res, next) => {
-  const crashlog = require('./lib/crashlog');
-  const trace = crashlog.startTrace(req.method + ' ' + req.path, {
-    hasAuth: !!req.headers.authorization,
-  });
-  trace.stage('middleware-entry');
-  req._trace = trace;
-  // Mark the trace when the response actually goes out, so the debug page
-  // can distinguish "handler still working" from "response sent".
-  res.on('finish', () => { try { trace.stage('response-sent'); } catch {} });
   if (!req.user) {
     try {
-      trace.stage('session-lookup-start');
       req.user = await require('./lib/session').lookupSession(req.headers.authorization);
-      trace.stage('session-lookup-done');
     } catch {
       req.user = null;
-      trace.stage('session-lookup-error');
     }
   }
-  trace.stage('middleware-done');
   next();
 });
 
@@ -101,19 +88,12 @@ app.use('/api', async (req, res, next) => {
 // never receive their verification link).
 function requireVerified(req, res, next) {
   try {
-    const crashlog = require('./lib/crashlog');
-    const t = crashlog.startTrace('requireVerified ' + req.method + ' ' + req.path, {});
-    t.stage('entered');
-    if (req._trace) req._trace.stage('reached-requireVerified');
     if (String(process.env.REQUIRE_EMAIL_VERIFICATION || '').toLowerCase() !== 'true') {
-      t.stage('env-off-calling-next');
       return next();
     }
     if (req.user && req.user.is_verified) {
-      t.stage('verified-calling-next');
       return next();
     }
-    t.stage('sending-403');
     return res.status(403).json({
       error: 'Please verify your email address first — check your inbox for the verification link.',
     });
