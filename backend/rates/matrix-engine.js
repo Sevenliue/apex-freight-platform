@@ -640,6 +640,131 @@ upsertCarrier({
   fsc_note: 'Monthly per sheet (Kent Group/Kalibrate publishes fuel prices only — no auto-pull). Jul 30.00% / Aug 31.76% history on file; Oct % pending from carrier.',
 });
 
+// Done Deal Delivery (Calgary-region local carrier; tiny operator).
+// Rate sheet: photo of "Done Deal Delivery Rate Sheet" provided by Seven
+// 2026-10-19. No date on the sheet — sheet effective recorded as 2026-10-19
+// (the date Seven received it); marked as an ASSUMPTION in sheet-dates.js.
+// Seven's decisions 2026-10-19: build the rate from their info, ONE flat
+// price table for ALL towns (no lanes, no zones); mark the exceptions.
+// Weight bands as printed, upper-inclusive, per shipment on ACTUAL weight
+// (no dim weight — the sheet is actual-weight only; ASSUMPTION):
+//   Envelope $32.00 (flat, documents) | 5-49 $40 | 50-99 $58 | 100-199 $71
+//   200-299 $85 | 300-399 $98 | 400-499 $111 | 500-599 $124 | 600-699 $139
+//   700-799 $152 | 800-899 $165 | 900-999 $178.
+// Over 1000 lbs: $178 + $0.16 x (weight - 1000) — ASSUMPTION (unconfirmed
+// reading of "Add .16 cents per pound"; the sheet names no threshold rule).
+// FSC: flat 10% on the base rate, from their sheet (no monthly update known).
+// Rating:
+//   - quote ONLY when BOTH origin and destination are in the 26-point
+//     service area (ASSUMPTION — the sheet lists towns but defines no lanes;
+//     exact town match after normalization, NO metro collapsing, NO
+//     nearby-town fallback)
+//   - 1-4 lb non-envelope: 5-49 band ($40) — ASSUMPTION (sheet starts at 5;
+//     envelope is $32 flat)
+//   - envelope shipments (every line package_type 'Envelope'): flat $32
+//   - symmetric: both directions price the same (ASSUMPTION)
+//   - no upper weight cap modeled ("call for quotes on extra large loads"
+//     names no threshold — do not invent one)
+//   - quotes pre-GST; the 15% markup is applied in routes/rates.js like all
+//     other carriers
+// Not modeled (amounts unknown): extra pickup charge for Banff / Cochrane /
+// Canmore / High River / Okotoks (carrier said these cost extra); wait time
+// and oversized-item extra charges; flatdeck (quote form has no
+// vehicle-type input; $100 minimum known but pricing beyond it unknown).
+const DONEDEAL_ID = 'donedeal';
+const DONEDEAL_LABEL = 'Done Deal Delivery';
+// 26-point Calgary-region service area, normalized (see norm()).
+const DONEDEAL_TOWNS = new Set([
+  'CALGARY', 'AIRDRIE', 'BANFF', 'BEISEKER', 'CANMORE', 'CARSTAIRS',
+  'COCHRANE', 'CROSSFIELD', 'DIDSBURY', 'DRUMHELLER', 'ELNORA', 'HIGH RIVER',
+  'INNISFAIL', 'IRRICANA', 'LINDEN', 'OKOTOKS', 'OLDS', 'PENHOLD', 'RED DEER',
+  'STETTLER', 'SUNDRE', 'THREE HILLS', 'TROCHU', 'DELBURNE', 'KNEEHILL COUNTY',
+  'DUCHESS',
+]);
+const DONEDEAL_CITY_ALIASES = {
+  'KNEEHILL': 'KNEEHILL COUNTY', // rural addresses may drop "County"
+};
+function doneDealTownFor(city) {
+  const c = norm(city);
+  const canon = DONEDEAL_CITY_ALIASES[c] || c;
+  return DONEDEAL_TOWNS.has(canon) ? canon : null;
+}
+// Weight bands: [max_lb, price_cad] — upper-inclusive, per shipment.
+const DONEDEAL_WEIGHT_BANDS = [
+  [49, 40], [99, 58], [199, 71], [299, 85], [399, 98], [499, 111],
+  [599, 124], [699, 139], [799, 152], [899, 165], [999, 178],
+];
+const DONEDEAL_ENVELOPE_CAD = 32;
+const DONEDEAL_OVER1000_BASE_CAD = 178;
+const DONEDEAL_OVER1000_PER_LB = 0.16;
+function doneDealQuotes({ originCity, originProv, destCity, destProv, weightLbs, packages }) {
+  const oTown = doneDealTownFor(originCity);
+  const dTown = doneDealTownFor(destCity);
+  if (!oTown || !dTown) return [];
+  const w = Number(weightLbs);
+  if (!Number.isFinite(w) || w <= 0) return [];
+  const st = ensureLoaded();
+  const carrier = st.carriersById.get(DONEDEAL_ID);
+  const lines = Array.isArray(packages) ? packages : [];
+  let base;
+  let envelope = false;
+  if (lines.length > 0 && lines.every((p) => norm(p.package_type) === 'ENVELOPE')) {
+    envelope = true;
+    base = DONEDEAL_ENVELOPE_CAD;
+  } else if (w < 1000) {
+    const band = DONEDEAL_WEIGHT_BANDS.find((b) => w <= b[0]);
+    if (!band) return [];
+    base = band[1];
+  } else {
+    // ASSUMPTION: $178 + $0.16 per lb over 1000 (unconfirmed reading).
+    // w = 1000 lands here too: 178 + 0 = $178 (top of the printed table).
+    base = DONEDEAL_OVER1000_BASE_CAD + DONEDEAL_OVER1000_PER_LB * (w - 1000);
+  }
+  const fscPercent = fscFor(carrier, w);
+  const fsc = base * fscPercent / 100;
+  return [{
+    carrier_id: DONEDEAL_ID,
+    carrier_label: DONEDEAL_LABEL,
+    service: 'LTL',
+    weight_lbs: w,
+    billable_weight_lbs: r2(w),
+    density_pcf: null,
+    cube_ft: null,
+    floor_lb_per_cuft: null,
+    dimensional_applied: false,
+    dimensional_rule: 'actual',
+    dim_weight_enabled: false,
+    rate_basis: 'donedeal_flat',
+    rate_cwt_used: null,
+    base_cad: r2(base),
+    fsc_percent: fscPercent,
+    fsc_cad: r2(fsc),
+    total_cad: r2(base + fsc),
+    min_charge_applied: false,
+    currency: 'CAD',
+    source: 'matrix',
+    lane_origin_city: oTown,
+    lane_origin_prov: 'AB',
+    lane_dest_city: dTown,
+    lane_dest_prov: 'AB',
+    metro_matched: false,
+    ...(envelope ? { envelope_applied: true } : {}),
+  }];
+}
+// Register the carrier record so the standard FSC machinery applies:
+// listCarriers() shows it (Admin > Fuel surcharges can override it),
+// fscFor() resolves the live percent, and quote rows get rate-checked dates.
+// FSC cadence 'per_sheet': flat 10% from their sheet, no monthly update
+// known — never flagged stale on the quote board.
+upsertCarrier({
+  carrier_id: DONEDEAL_ID,
+  carrier_label: DONEDEAL_LABEL,
+  fsc_percent: 10, // flat 10% from their sheet (photo provided by Seven 2026-10-19)
+  fsc_as_of: '2026-10-19',
+  fsc_cadence: 'per_sheet',
+  fsc_note: 'Flat 10% per their rate sheet; no monthly update known. Update via Admin when the carrier confirms a change.',
+});
+
 // Prime Time Courier (Edmonton courier + hot shot; sheets received
 // 2026-10-18, analysis in prime-time-rate-analysis.md). Seven confirmed:
 // CAD, rates current as printed, NO fuel surcharge, GST added on top,
@@ -1590,6 +1715,13 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
   if ((oProv === 'BC' || oProv === '') && (dProv === 'BC' || dProv === '')) {
     for (const q of number8Quotes({ originCity: oCity, originProv: oProv, destCity: dCity, destProv: dProv, weightLbs: w, packages, originStreet, destStreet })) quotes.push(q);
   }
+  // Done Deal Delivery: flat weight-table rating, no lanes/zones.
+  // AB-only; both cities must be in the 26-point Calgary-region service
+  // area (exact match after normalization — no metro collapsing, no
+  // nearby-town fallback).
+  if ((oProv === 'AB' || oProv === '') && (dProv === 'AB' || dProv === '')) {
+    for (const q of doneDealQuotes({ originCity: oCity, originProv: oProv, destCity: dCity, destProv: dProv, weightLbs: w, packages })) quotes.push(q);
+  }
   quotes.sort((a, b) => a.total_cad - b.total_cad || a.carrier_id.localeCompare(b.carrier_id));
   return quotes;
 }
@@ -1810,4 +1942,4 @@ function upsertCarrierRows(carrierId, rows) {  const st = ensureLoaded();
   return count;
 }
 
-module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, guilbaultBillableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides, primeTimeDeliveryQuotes, primeTimeAfterHoursQuote, primeTimeTruckQuote, primeTimeHotShotQuote, number8Quotes };
+module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, guilbaultBillableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides, primeTimeDeliveryQuotes, primeTimeAfterHoursQuote, primeTimeTruckQuote, primeTimeHotShotQuote, number8Quotes, doneDealQuotes };

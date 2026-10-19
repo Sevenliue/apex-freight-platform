@@ -25,6 +25,7 @@ const SHEET_DATES = {
   minimax: { effective: null, expiry: '2026-12-31' },
   rosenau: { effective: null, expiry: '2026-12-31' },
   number8: { effective: '2024-03-01', expiry: null }, // 6-zone CWT tariff eff. Mar 2024; Seven confirmed still current 2026-10-19; no expiry on sheet
+  donedeal: { effective: '2026-10-19', expiry: null }, // ASSUMPTION: no date on the sheet (photo); recorded as the date Seven provided it 2026-10-19
 };
 
 // Staleness for the CUSTOMER-FACING quote board. Deliberately stricter than
