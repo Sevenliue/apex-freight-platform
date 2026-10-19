@@ -103,6 +103,23 @@ export function billingPortal() {
   return post('/api/billing/portal', {});
 }
 
+/* Upgrade flow: accept the at-limit upgrade prompt — move this account to
+   the NEXT tier now. Returns { url } (redirect to Stripe Checkout, free →
+   paid) or { upgraded: true, tier, ... } (subscription updated in place). */
+export function upgradePlan() {
+  return post('/api/billing/upgrade', {});
+}
+
+/* This account's plan-upgrade approvals (who approved each upgrade). */
+export function billingHistory() {
+  return get('/api/billing/history');
+}
+
+/* Admin — every account's plan-upgrade approvals, newest first. */
+export function listPlanUpgrades() {
+  return get('/api/admin/upgrades');
+}
+
 export function getPaymentHistory() {
   return get('/api/billing/payments');
 }

@@ -519,7 +519,8 @@ $$;
 -- ---------------------------------------------------------------------------
 -- Subscription billing (added 2026-09-27): Stripe subscriptions + monthly
 -- quote quotas. Idempotent: ALTER ... IF NOT EXISTS.
--- Tiers: free (5 quotes/mo), starter (50 quotes/mo), pro (unlimited).
+-- Tiers: free (5 quotes/mo), starter ($29, 35), growth ($69, 100),
+-- business ($99, 200), pro ($149, 500). Over 500 → contact shiprate.ca.
 -- subscription_status: none | active | trialing | past_due | canceled ...
 -- Only active/trialing count as a paid subscription; anything else is
 -- treated as the free tier by the quota logic.
@@ -534,6 +535,31 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS quota_period text;
 -- quote cap without granting any admin rights.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS unlimited_quotes boolean NOT NULL DEFAULT false;
 CREATE INDEX IF NOT EXISTS idx_users_stripe_customer_id ON users(stripe_customer_id);
+
+-- ---------------------------------------------------------------------------
+-- Plan-upgrade approvals (added 2026-10-18): one row per Yes on an
+-- at-limit upgrade prompt. The approver is the signed-in user who clicked
+-- Yes (id + email snapshotted at approval time) — the accountability record
+-- for upgrades that bill a company account. status: 'pending' = checkout
+-- started, upgrade not yet confirmed by Stripe; 'completed' = the new tier
+-- landed (subscription update applied immediately, or the webhook
+-- confirmed checkout). Idempotent: CREATE TABLE / INDEX IF NOT EXISTS.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS plan_upgrade_approvals (
+    id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id               uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    approver_user_id      uuid,
+    approver_email        text NOT NULL,
+    from_tier             text NOT NULL,
+    to_tier               text NOT NULL,
+    method                text NOT NULL DEFAULT 'checkout',
+    status                text NOT NULL DEFAULT 'pending',
+    stripe_subscription_id text,
+    created_at            timestamptz NOT NULL DEFAULT now(),
+    completed_at          timestamptz
+);
+CREATE INDEX IF NOT EXISTS idx_plan_upgrade_approvals_user_id ON plan_upgrade_approvals (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_plan_upgrade_approvals_created_at ON plan_upgrade_approvals (created_at DESC);
 
 -- ---------------------------------------------------------------------------
 -- Shipping approval (added 2026-09-27): new accounts start quote-only.

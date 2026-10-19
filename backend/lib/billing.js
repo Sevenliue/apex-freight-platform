@@ -1,21 +1,43 @@
 // lib/billing.js — subscription tier + monthly quote-quota logic.
 //
-// Tiers: free (5 quotes / calendar month), starter (50), pro (unlimited).
+// Tiers (monthly, CAD): free (5 quotes / calendar month), starter ($29, 35),
+// growth ($69, 100), business ($99, 200), pro ($149, 500). Annual billing
+// is 10x monthly (2 months free). Over 500 quotes/month is not a tier —
+// the customer contacts shiprate.ca for a custom arrangement.
 // A paid tier only counts while subscription_status is 'active' or
 // 'trialing'; any other status (past_due, canceled, ...) falls back to the
 // free tier. Quota usage resets on the first request of a new YYYY-MM period.
 //
 // Admins: account emails listed in the ADMIN_EMAILS env var get tier
 // 'admin' — unlimited quotes, no paywall — for the site owner and staff.
+//
+// Upgrade flow (Oct 2026): when an account at its quota tries to quote,
+// the 402 response carries an upgrade offer (next tier + monthly price).
+// Clicking Yes calls POST /api/billing/upgrade, which upgrades the account
+// to the next tier immediately for the current month — a Stripe
+// subscription update (standard proration) when already paid, or a new
+// Checkout session when coming from free. Every Yes is recorded in
+// plan_upgrade_approvals with the approving user's id + email + timestamp
+// + from-tier → to-tier, so a company can always see WHO approved a bill.
 'use strict';
 
 const config = require('../config');
 const db = require('../db');
 
-const TIERS = ['free', 'starter', 'pro'];
+// Ladder order: the upgrade offer always points at the next rung.
+const TIERS = ['free', 'starter', 'growth', 'business', 'pro'];
 
-// quotes_limit: null = unlimited.
-const QUOTA_LIMITS = { free: 5, starter: 50, pro: null, admin: null };
+// PLAN_META: display name + monthly/annual CAD price + monthly quote cap.
+// quotes_limit: null = unlimited (only the staff 'admin' tier, not 'pro').
+const PLAN_META = {
+  free:     { name: 'Free',     monthly: 0,   annual: 0,    quotes_limit: 5 },
+  starter:  { name: 'Starter',  monthly: 29,  annual: 290,  quotes_limit: 35 },
+  growth:   { name: 'Growth',   monthly: 69,  annual: 690,  quotes_limit: 100 },
+  business: { name: 'Business', monthly: 99,  annual: 990,  quotes_limit: 200 },
+  pro:      { name: 'Pro',      monthly: 149, annual: 1490, quotes_limit: 500 },
+};
+
+const QUOTA_LIMITS = { free: 5, starter: 35, growth: 100, business: 200, pro: 500, admin: null };
 
 const ACTIVE_STATUSES = new Set(['active', 'trialing']);
 
@@ -32,6 +54,32 @@ function currentPeriod() {
 
 function normalizeTier(tier) {
   return TIERS.includes(tier) ? tier : 'free';
+}
+
+function planMeta(tier) {
+  return PLAN_META[normalizeTier(tier)];
+}
+
+// nextTier(tier): the next rung on the ladder, or null at the top (pro).
+function nextTier(tier) {
+  const i = TIERS.indexOf(normalizeTier(tier));
+  return i >= 0 && i < TIERS.length - 1 ? TIERS[i + 1] : null;
+}
+
+// upgradeOfferFor(state): what the quota-exceeded prompt should offer.
+// Returns { next_tier, next_tier_name, next_price, next_quotes_limit } or
+// null when there is no higher tier (pro at the 500 cap → contact sales).
+function upgradeOfferFor(state) {
+  if (!state || state.isAdmin || state.unlimitedQuotes) return null;
+  const next = nextTier(state.tier);
+  if (!next) return null;
+  const meta = PLAN_META[next];
+  return {
+    next_tier: next,
+    next_tier_name: meta.name,
+    next_price: meta.monthly,
+    next_quotes_limit: meta.quotes_limit,
+  };
 }
 
 // effectiveTier(row): the tier that actually applies right now.
@@ -184,10 +232,122 @@ async function setSubscription(userId, fields) {
   await db.query(`UPDATE users SET ${cols.join(', ')} WHERE id = $${i}`, vals);
 }
 
+// --- Plan-upgrade approval log -------------------------------------------
+// plan_upgrade_approvals: one row per Yes on an upgrade prompt. The
+// approver is the signed-in user who clicked Yes (id + email, snapshotted
+// at approval time). status: 'pending' = checkout started, upgrade not yet
+// confirmed by Stripe; 'completed' = the new tier landed (subscription
+// update applied immediately, or the Stripe webhook confirmed checkout).
+async function ensureUpgradeTables() {
+  if (!db.isEnabled()) return;
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS plan_upgrade_approvals (
+      id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id               uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      approver_user_id      uuid,
+      approver_email        text NOT NULL,
+      from_tier             text NOT NULL,
+      to_tier               text NOT NULL,
+      method                text NOT NULL DEFAULT 'checkout',
+      status                text NOT NULL DEFAULT 'pending',
+      stripe_subscription_id text,
+      created_at            timestamptz NOT NULL DEFAULT now(),
+      completed_at          timestamptz
+    )`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_plan_upgrade_approvals_user_id ON plan_upgrade_approvals (user_id, created_at DESC)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_plan_upgrade_approvals_created_at ON plan_upgrade_approvals (created_at DESC)`);
+}
+
+// recordUpgradeApproval: persist a Yes. Returns the inserted row.
+async function recordUpgradeApproval({ userId, approverUserId, approverEmail, fromTier, toTier, method, status, stripeSubscriptionId }) {
+  await ensureUpgradeTables();
+  const r = await db.query(
+    `INSERT INTO plan_upgrade_approvals
+       (user_id, approver_user_id, approver_email, from_tier, to_tier, method, status, stripe_subscription_id, completed_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CASE WHEN $7 = 'completed' THEN now() ELSE NULL END)
+     RETURNING id, user_id, approver_user_id, approver_email, from_tier, to_tier, method, status, stripe_subscription_id, created_at, completed_at`,
+    [userId, approverUserId || null, approverEmail, fromTier, toTier, method || 'checkout', status || 'pending', stripeSubscriptionId || null]
+  );
+  return r.rows[0];
+}
+
+// completeUpgradeApproval(userId, toTier): mark the latest pending approval
+// for this account+target-tier as completed. Called by the Stripe webhook
+// when the new tier lands. No-op when there is no pending approval (e.g.
+// the upgrade came through the customer portal) — never throws.
+async function completeUpgradeApproval(userId, toTier) {
+  if (!db.isEnabled() || !userId || !toTier) return null;
+  try {
+    await ensureUpgradeTables();
+    const r = await db.query(
+      `UPDATE plan_upgrade_approvals SET status = 'completed', completed_at = now()
+        WHERE id = (
+          SELECT id FROM plan_upgrade_approvals
+           WHERE user_id = $1 AND to_tier = $2 AND status = 'pending'
+           ORDER BY created_at DESC LIMIT 1
+        )
+       RETURNING id`,
+      [userId, toTier]
+    );
+    return r.rows.length ? r.rows[0].id : null;
+  } catch (err) {
+    console.error('[billing] completeUpgradeApproval failed:', err.message);
+    return null;
+  }
+}
+
+function approvalRow(r, accountEmail) {
+  return {
+    id: r.id,
+    user_id: r.user_id,
+    account_email: accountEmail || r.account_email || null,
+    approver_user_id: r.approver_user_id,
+    approver_email: r.approver_email,
+    from_tier: r.from_tier,
+    to_tier: r.to_tier,
+    method: r.method,
+    status: r.status,
+    stripe_subscription_id: r.stripe_subscription_id,
+    created_at: r.created_at,
+    completed_at: r.completed_at,
+  };
+}
+
+// listUpgradeApprovals(userId): this account's upgrade history, newest first.
+async function listUpgradeApprovals(userId) {
+  if (!db.isEnabled()) return [];
+  await ensureUpgradeTables();
+  const r = await db.query(
+    `SELECT * FROM plan_upgrade_approvals WHERE user_id = $1 ORDER BY created_at DESC LIMIT 100`,
+    [userId]
+  );
+  return r.rows.map((row) => approvalRow(row));
+}
+
+// listAllUpgradeApprovals(limit): every account's upgrades, newest first,
+// for the Admin view. Includes the account email for each row.
+async function listAllUpgradeApprovals(limit) {
+  if (!db.isEnabled()) return [];
+  await ensureUpgradeTables();
+  const r = await db.query(
+    `SELECT a.*, u.email AS account_email
+       FROM plan_upgrade_approvals a
+       LEFT JOIN users u ON u.id = a.user_id
+      ORDER BY a.created_at DESC LIMIT $1`,
+    [Math.max(1, Math.min(500, Number(limit) || 200))]
+  );
+  return r.rows.map((row) => approvalRow(row, row.account_email));
+}
+
 module.exports = {
   TIERS,
+  PLAN_META,
   QUOTA_LIMITS,
   currentPeriod,
+  normalizeTier,
+  planMeta,
+  nextTier,
+  upgradeOfferFor,
   effectiveTier,
   quotesLimit,
   isAdminEmail,
@@ -196,4 +356,9 @@ module.exports = {
   incrementQuota,
   tryIncrementQuota,
   setSubscription,
+  ensureUpgradeTables,
+  recordUpgradeApproval,
+  completeUpgradeApproval,
+  listUpgradeApprovals,
+  listAllUpgradeApprovals,
 };

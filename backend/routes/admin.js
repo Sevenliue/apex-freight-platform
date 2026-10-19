@@ -348,6 +348,22 @@ router.get('/quotes', async (req, res) => {
   }
 });
 
+// GET /api/admin/upgrades — every plan-upgrade approval, newest first:
+// which account, WHO approved it, from-tier → to-tier, method, status.
+// Admin-only, DB required. This is the accountability record for upgrades
+// that bill a company account.
+router.get('/upgrades', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 500);
+  try {
+    const approvals = await billing.listAllUpgradeApprovals(limit);
+    return res.json({ approvals });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not load plan upgrades: ' + err.message });
+  }
+});
+
 // GET /api/admin/analytics/quotes?from=YYYY-MM-DD&to=YYYY-MM-DD — quote
 // volume analytics for carrier rate negotiation. Aggregates quotes in the
 // date range (default: last 90 days) by carrier, by customer, and by lane.

@@ -26,6 +26,10 @@ function priceTierMap() {
   const pairs = [
     [process.env.STRIPE_PRICE_STARTER_MONTHLY, 'starter'],
     [process.env.STRIPE_PRICE_STARTER_ANNUAL, 'starter'],
+    [process.env.STRIPE_PRICE_GROWTH_MONTHLY, 'growth'],
+    [process.env.STRIPE_PRICE_GROWTH_ANNUAL, 'growth'],
+    [process.env.STRIPE_PRICE_BUSINESS_MONTHLY, 'business'],
+    [process.env.STRIPE_PRICE_BUSINESS_ANNUAL, 'business'],
     [process.env.STRIPE_PRICE_PRO_MONTHLY, 'pro'],
     [process.env.STRIPE_PRICE_PRO_ANNUAL, 'pro'],
   ];
@@ -62,6 +66,11 @@ async function syncSubscription(stripe, subscription) {
     subscription_status: subscription.status,
     current_period_end: periodEnd,
   });
+  // If this tier landed via an upgrade prompt (free → paid checkout), close
+  // out the pending approval record — the upgrade is now complete.
+  if (tier !== 'free') {
+    await billing.completeUpgradeApproval(userId, tier);
+  }
   console.log(`[stripe-webhook] user ${userId} → ${tier}/${subscription.status}`);
 }
 
@@ -106,7 +115,7 @@ async function handleEvent(stripe, event) {
       const userId = metaUserId || (await findUserIdByCustomer(customerId));
       if (userId) {
         let tier = (obj.metadata && obj.metadata.tier) || 'free';
-        if (!['starter', 'pro'].includes(tier)) {
+        if (!['starter', 'growth', 'business', 'pro'].includes(tier)) {
           // Resolve from the price actually purchased.
           const items = await stripe.checkout.sessions.listLineItems(obj.id, { limit: 5 });
           const priceId = items.data.length && items.data[0].price ? items.data[0].price.id : null;

@@ -63,7 +63,14 @@ router.post('/rates', async (req, res) => {
     const q = await billing.checkQuota(req.user.id);
     quotaState = q.state;
     if (!q.allowed) {
-      return res.status(402).json({ error: q.reason || 'Monthly quote limit reached.', upgrade_required: true });
+      return res.status(402).json({
+        error: q.reason || 'Monthly quote limit reached.',
+        upgrade_required: true,
+        tier: quotaState && quotaState.tier,
+        quotes_used: quotaState && quotaState.quotesUsed,
+        quotes_limit: quotaState && quotaState.quotesLimit,
+        upgrade: billing.upgradeOfferFor(quotaState),
+      });
     }
   } catch (err) {
     return bad(res, 503, 'Billing is unavailable right now — please try again.');

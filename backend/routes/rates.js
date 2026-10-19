@@ -132,7 +132,10 @@ router.post('/', async (req, res) => {
     return res.json({ full_load: true });
   }
 
-  // Monthly quota: free 5 / starter 50 / pro unlimited per calendar month.
+  // Monthly quota: free 5 / starter 35 / growth 100 / business 200 / pro 500
+  // per calendar month. At the cap the 402 carries an upgrade offer (next
+  // tier + price) so the frontend can prompt instead of silently blocking;
+  // pro at the cap gets no offer — over-500 is contact shiprate.ca.
   let quotaState = null;
   try {
     const quota = await billingLib.checkQuota(req.user.id);
@@ -144,6 +147,7 @@ router.post('/', async (req, res) => {
         tier: quota.state && quota.state.tier,
         quotes_used: quota.state && quota.state.quotesUsed,
         quotes_limit: quota.state && quota.state.quotesLimit,
+        upgrade: billingLib.upgradeOfferFor(quota.state),
       });
     }
   } catch (err) {

@@ -152,6 +152,7 @@
           <div class="nav-sub">
             <button class="tab sub" data-tab="admin" data-scroll="tab-admin" role="tab" aria-selected="false"><span>Overview</span></button>
             <button class="tab sub" data-tab="admin" data-scroll="account-queue" role="tab" aria-selected="false"><span>Account approvals</span></button>
+            <button class="tab sub" data-tab="admin" data-scroll="plan-upgrades" role="tab" aria-selected="false"><span>Plan upgrades</span></button>
             <button class="tab sub" data-tab="admin" data-scroll="tender-queue" role="tab" aria-selected="false"><span>Tender queue</span></button>
             <button class="tab sub" data-tab="admin" data-scroll="dg-queue" role="tab" aria-selected="false"><span>Dangerous goods review</span></button>
             <button class="tab sub" data-tab="admin" data-scroll="pickup-queue" role="tab" aria-selected="false"><span>Pickup requests</span></button>
@@ -582,6 +583,8 @@
       <div id="invoices"><div class="card empty">Sign in to see your invoices.</div></div>
       <h2>Subscription</h2>
       <div id="billing-status"></div>
+      <h2>Plan history</h2>
+      <div id="plan-history"></div>
       <h2>Plans</h2>
       <div class="pitch-strip">
         <h3>Stop chasing carriers for quotes.</h3>
@@ -779,7 +782,7 @@
         <h2>Why can't I schedule a shipment yet?</h2>
         <p>New accounts start quote-only while we verify them — scheduling unlocks after we approve your account, and we'll notify you. If you need it urgently, contact us.</p>
         <h2>How many quotes do I get?</h2>
-        <p>Free accounts get 5 quotes per month, Starter 50, Pro unlimited. Unused quotes don't roll over.</p>
+        <p>Free accounts get 5 quotes per month, Starter 35, Growth 100, Business 200, Pro 500. Unused quotes don't roll over. If you hit your limit, you'll be offered an upgrade to the next tier — or, on Pro, contact shiprate.ca for more than 500 quotes a month.</p>
         <h2>Can I ship dangerous goods?</h2>
         <p>Declared dangerous goods only: enter a valid UN number and class before rating. DG shipments go through a review step before scheduling, at no charge until a carrier accepts the load.</p>
         <h2>How do I pay?</h2>
@@ -1160,6 +1163,7 @@
       <div id="admin-cards" class="cards"></div>
       <div id="admin-note"></div>
       <div id="account-queue" style="margin-top:16px"></div>
+      <div id="plan-upgrades" style="margin-top:16px"></div>
       <div id="tender-queue" style="margin-top:16px"></div>
       <div id="dg-queue" style="margin-top:16px"></div>
       <div id="pickup-queue" style="margin-top:16px"></div>
@@ -3316,6 +3320,7 @@
       loadDgQueue();
       loadPickupQueue();
       loadAccountQueue();
+      loadPlanUpgradesAdmin();
       loadStoreAdmin();
       loadQuoteLog();
       loadQuoteAnalytics();
@@ -3375,6 +3380,45 @@
         );
       } catch (err) {
         // Not an admin (or DB off): hide the queue silently.
+        box.innerHTML = '';
+      }
+    }
+
+    /* Plan upgrades (Admin): every upgrade approval across accounts —
+       which account, WHO approved it, from-tier → to-tier, when, status. */
+    async function loadPlanUpgradesAdmin() {
+      const box = $('#plan-upgrades');
+      if (!box) return;
+      box.innerHTML = '<div class="card empty">Loading plan upgrades…</div>';
+      try {
+        const { approvals } = await api.listPlanUpgrades();
+        if (!approvals || !approvals.length) {
+          box.innerHTML =
+            '<h2>Plan upgrades</h2><p class="lede">Who approved each plan upgrade, and whether the new tier landed.</p>' +
+            '<div class="card empty">No plan upgrades yet.</div>';
+          return;
+        }
+        box.innerHTML =
+          '<h2>Plan upgrades</h2><p class="lede">Who approved each plan upgrade, and whether the new tier landed.</p>' +
+          `<div class="table-wrap"><table class="data"><thead><tr>
+            <th>Date</th><th>Account</th><th>Approved by</th><th>From</th><th>To</th><th>Method</th><th>Status</th>
+          </tr></thead><tbody>${approvals
+            .map(
+              (a) => `<tr>
+              <td>${esc((a.created_at || '').slice(0, 10))}</td>
+              <td>${esc(a.account_email || '—')}</td>
+              <td>${esc(a.approver_email || '—')}</td>
+              <td>${esc(tierName(a.from_tier))}</td>
+              <td>${esc(tierName(a.to_tier))}</td>
+              <td>${esc(a.method === 'subscription_update' ? 'Subscription update' : 'Checkout')}</td>
+              <td>${a.status === 'completed'
+                ? '<span class="badge ok">Completed</span>'
+                : '<span class="badge warn">Pending checkout</span>'}</td>
+            </tr>`
+            )
+            .join('')}</tbody></table></div>`;
+      } catch (err) {
+        // Not an admin (or DB off): hide the section silently.
         box.innerHTML = '';
       }
     }
@@ -4208,9 +4252,13 @@
 
     /* ---------- BILLING / SUBSCRIPTIONS ---------- */
     // Tiers: free (5 quotes/calendar month), starter ($29/mo or $290/yr,
-    // 50 quotes/mo), pro ($79/mo or $790/yr, unlimited). Quoting requires a
-    // signed-in account; the server enforces quotas and answers 402 when the
-    // month's allowance is used up.
+    // 35 quotes/mo), growth ($69/mo or $690/yr, 100 quotes/mo), business
+    // ($99/mo or $990/yr, 200 quotes/mo), pro ($149/mo or $1490/yr, 500
+    // quotes/mo). Over 500 quotes/month is not a tier — contact shiprate.ca.
+    // Quoting requires a signed-in account; the server enforces quotas and
+    // answers 402 when the month's allowance is used up. The 402 carries an
+    // upgrade offer, and the quote board prompts Yes/No (see
+    // renderQuotaExceeded); Yes calls POST /api/billing/upgrade.
 
     let billingState = null; // GET /api/billing/status — null when logged out
     let billingCycle = 'monthly';
@@ -4232,15 +4280,27 @@
       },
       {
         tier: 'starter', name: 'Starter', monthly: 29, annual: 290,
-        quotes: '50 quotes per month',
+        quotes: '35 quotes per month',
         pitch: 'For shippers quoting every week — pays for itself the first time you catch a cheaper rate.',
         features: ['Everything in Free', 'Save & reload quotes', 'Shipment history'],
       },
       {
-        tier: 'pro', name: 'Pro', monthly: 79, annual: 790,
-        quotes: 'Unlimited quotes',
-        pitch: 'For daily shippers — quote everything, compare everything, never hit a limit.',
+        tier: 'growth', name: 'Growth', monthly: 69, annual: 690,
+        quotes: '100 quotes per month',
+        pitch: 'For growing shippers — a bigger monthly allowance as quoting becomes a daily habit.',
         features: ['Everything in Starter', 'Priority support'],
+      },
+      {
+        tier: 'business', name: 'Business', monthly: 99, annual: 990,
+        quotes: '200 quotes per month',
+        pitch: 'For busy shipping desks — room for the whole team’s quotes each month.',
+        features: ['Everything in Growth', 'Priority support'],
+      },
+      {
+        tier: 'pro', name: 'Pro', monthly: 149, annual: 1490,
+        quotes: '500 quotes per month',
+        pitch: 'For daily shippers — our highest plan. Need more than 500 quotes a month? Contact shiprate.ca.',
+        features: ['Everything in Business', 'Priority support'],
       },
     ];
 
@@ -4333,6 +4393,45 @@
     function renderPricing() {
       renderBillingStatus();
       renderPlans();
+      renderPlanHistory();
+    }
+
+    // Plan history: every upgrade approval on this account — who approved
+    // it, from-tier → to-tier, when, and whether the new tier landed.
+    async function renderPlanHistory() {
+      const box = $('#plan-history');
+      if (!box) return;
+      if (!currentUser) {
+        box.innerHTML = '<div class="card empty">Sign in to see your plan history.</div>';
+        return;
+      }
+      box.innerHTML = '<div class="card empty">Loading plan history…</div>';
+      try {
+        const { approvals } = await api.billingHistory();
+        if (!approvals || !approvals.length) {
+          box.innerHTML = '<div class="card empty">No plan upgrades yet.</div>';
+          return;
+        }
+        box.innerHTML =
+          `<div class="table-wrap"><table class="data"><thead><tr>
+            <th>Date</th><th>Approved by</th><th>From</th><th>To</th><th>Method</th><th>Status</th>
+          </tr></thead><tbody>${approvals
+            .map(
+              (a) => `<tr>
+              <td>${esc((a.created_at || '').slice(0, 10))}</td>
+              <td>${esc(a.approver_email || '—')}</td>
+              <td>${esc(tierName(a.from_tier))}</td>
+              <td>${esc(tierName(a.to_tier))}</td>
+              <td>${esc(a.method === 'subscription_update' ? 'Subscription update' : 'Checkout')}</td>
+              <td>${a.status === 'completed'
+                ? '<span class="badge ok">Completed</span>'
+                : '<span class="badge warn">Pending checkout</span>'}</td>
+            </tr>`
+            )
+            .join('')}</tbody></table></div>`;
+      } catch (err) {
+        box.innerHTML = '';
+      }
     }
 
     async function planCta(tier) {
@@ -4775,15 +4874,65 @@
       form.classList.toggle('hidden', !authed);
     }
 
+    // At-limit upgrade prompt: the 402 carries an upgrade offer (next tier +
+    // monthly price). Yes calls POST /api/billing/upgrade — paid accounts
+    // are updated in place (prorated), free accounts go to Stripe Checkout.
+    // No keeps the current tier and the quote stays blocked until the
+    // monthly reset. Pro at the 500 cap has no higher tier: the prompt
+    // points at shiprate.ca instead.
     function renderQuotaExceeded(data) {
       const box = $('#quote-results');
       syncRateEmptyHide();
-      box.innerHTML =
-        `<div class="card empty"><strong>Monthly quote limit reached.</strong><br>` +
-        `<span class="note">${esc((data && data.error) || 'Upgrade your plan for more quotes.')}</span>` +
-        `<div class="actions" style="justify-content:center">` +
-        `<button type="button" class="btn primary" id="upgrade-btn">See plans</button></div></div>`;
-      $('#upgrade-btn').addEventListener('click', () => showTab('pricing'));
+      const offer = (data && data.upgrade) || null;
+      const used = data && data.quotes_used;
+      const limit = data && data.quotes_limit;
+      const usedLine = (used != null && limit != null)
+        ? `You've used ${used} of ${limit} quotes this month. `
+        : '';
+      if (offer) {
+        box.innerHTML =
+          `<div class="card empty"><strong>Monthly quote limit reached.</strong><br>` +
+          `<span class="note">${esc(usedLine)}Upgrade to ${esc(offer.next_tier_name)} for $${esc(String(offer.next_price))}/mo?</span>` +
+          `<div class="actions" style="justify-content:center">` +
+          `<button type="button" class="btn primary" id="upgrade-yes">Yes, upgrade to ${esc(offer.next_tier_name)}</button> ` +
+          `<button type="button" class="btn" id="upgrade-no">No, keep my plan</button></div></div>`;
+        $('#upgrade-yes').addEventListener('click', async (e) => {
+          const btn = e.currentTarget;
+          btn.disabled = true;
+          btn.textContent = 'Upgrading…';
+          try {
+            const res = await api.upgradePlan();
+            if (res && res.url) {
+              window.location.href = res.url; // free → paid: Stripe Checkout
+              return;
+            }
+            // Paid → paid: subscription updated in place, quota applies now.
+            showAlert(`Upgraded to the ${res.tier_name || offer.next_tier_name} plan — click Get Carrier Rates to run your quote.`);
+            await loadBilling();
+            box.innerHTML = '';
+          } catch (err) {
+            showAlert('Could not complete the upgrade: ' + err.message);
+            btn.disabled = false;
+            btn.textContent = `Yes, upgrade to ${offer.next_tier_name}`;
+          }
+        });
+        $('#upgrade-no').addEventListener('click', () => {
+          box.innerHTML =
+            `<div class="card empty"><strong>Still on the ${esc(tierName(data && data.tier))} plan.</strong><br>` +
+            `<span class="note">Quoting unlocks again next month, or upgrade anytime from the Billing Center.</span>` +
+            `<div class="actions" style="justify-content:center">` +
+            `<button type="button" class="btn primary" id="upgrade-btn">See plans</button></div></div>`;
+          $('#upgrade-btn').addEventListener('click', () => showTab('pricing'));
+        });
+      } else {
+        box.innerHTML =
+          `<div class="card empty"><strong>Monthly quote limit reached.</strong><br>` +
+          `<span class="note">${esc(usedLine)}You're on the Pro plan — our highest tier, capped at 500 quotes a month. ` +
+          `For more than 500 quotes a month, contact shiprate.ca.</span>` +
+          `<div class="actions" style="justify-content:center">` +
+          `<button type="button" class="btn primary" id="upgrade-btn">See plans</button></div></div>`;
+        $('#upgrade-btn').addEventListener('click', () => showTab('pricing'));
+      }
       box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
