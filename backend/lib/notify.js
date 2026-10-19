@@ -169,6 +169,14 @@ async function notify(event, order, opts = {}) {
         });
         break;
       }
+      case 'rate_requested': {
+        const r = opts.request || {};
+        await sendEmail({
+          to: admin, event, subject: `Rate requested — ${r.carrier_name || '?'} (${r.origin_city || '?'} → ${r.dest_city || '?'})`,
+          text: `A shipper asked for a rate from a carrier that may serve this lane (shown in the "May also serve this lane" section — no priced rate on file).\nCarrier: ${r.carrier_name || '—'} (${r.carrier_id || '—'})\nRoute: ${r.origin_city || '?'} → ${r.dest_city || '?'}\nShipper: ${r.email || '—'}\nRequested at: ${r.at || '—'}\n\nFollow up with the carrier for a rate on this lane.`,
+        });
+        break;
+      }
       default:
         break;
     }

@@ -151,6 +151,7 @@ app.get('/api/diesel-prices', async (req, res) => {
 app.use('/api/rates', requireVerified, requireApprovedAccount, require('./routes/rates'));
 app.use('/api/contact', require('./routes/contact'));
 app.use('/api/request-carrier', require('./routes/request-carrier'));
+app.use('/api/request-rate', require('./routes/request-rate'));
 app.use('/api/billing', requireApprovedAccount, require('./routes/billing'));
 app.use('/api/quotes', requireApprovedAccount, require('./routes/quotes'));
 app.use('/api/shipments', requireApprovedAccount, require('./routes/shipments'));

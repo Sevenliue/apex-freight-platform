@@ -373,6 +373,25 @@ router.post('/', async (req, res) => {
     console.error('[rates] exclusion filter failed (continuing):', err.message);
   }
 
+  // "May also serve this lane": small regional carriers whose coverage area
+  // includes an endpoint but who produced NO priced rows on this quote.
+  // Purely additive — priced quoting above is untouched. Non-fatal.
+  let mayServe = [];
+  if (!worldwide && !isFullLoad) {
+    try {
+      const pricedIds = new Set((matrixQuotes || []).map((q) => q.carrier_id));
+      mayServe = await matrix.mayServeLanes({
+        originCity: origin.city,
+        originProv: origin.state,
+        destCity: destination.city,
+        destProv: destination.state,
+        pricedCarrierIds: pricedIds,
+      });
+    } catch (err) {
+      console.error('[rates] may-serve check failed (non-fatal):', err.message);
+    }
+  }
+
   // Price each matrix rate: freight + accessorials (+ DG) -> markup -> retail.
   const rates = (matrixQuotes || []).map((q, i) => {
     const freight = round2(q.total_cad);
@@ -614,6 +633,14 @@ router.post('/', async (req, res) => {
     accessorials_applied: rates[0] ? rates[0].accessorials_applied || [] : [],
     has_dg: hasDG,
     pickup_date,
+    // "May also serve this lane": coverage-defined small carriers with no
+    // priced rows on this quote. Name only — never a price.
+    may_serve: mayServe.map((m) => ({
+      carrier_id: m.carrier_id,
+      carrier_name: m.carrier_name,
+      origin_city: origin.city || '',
+      dest_city: destination.city || '',
+    })),
     // Sep 30 delay warning for non-BC lanes (federally regulated carriers).
     holiday_notice: holidays.truthReconciliationNotice(
       pickup_date,

@@ -220,6 +220,10 @@ export function requestCarrier({ carrier_name, origin_city, dest_city, name, ema
   return post('/api/request-carrier', { carrier_name, origin_city, dest_city, name, email, notes });
 }
 
+export function requestRate({ carrier_id, carrier_name, origin_city, dest_city, email }) {
+  return post('/api/request-rate', { carrier_id, carrier_name, origin_city, dest_city, email });
+}
+
 /* Rates — packages[] in LBS; accessorials[] are catalog codes. Legacy
    single-parcel {weight, length, width, height} still accepted. region /
    direction / freight_charges / bill_to are the Smart Shipping-style top

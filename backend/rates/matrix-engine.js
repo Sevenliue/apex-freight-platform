@@ -765,6 +765,161 @@ upsertCarrier({
   fsc_note: 'Flat 10% per their rate sheet; no monthly update known. Update via Admin when the carrier confirms a change.',
 });
 
+// ---------------------------------------------------------------------------
+// "May also serve this lane" coverage areas (Seven, 2026-10-19).
+//
+// Small regional carriers define a coverage area (town list). When a quote's
+// origin AND destination both fall inside or near that coverage but the
+// carrier produced NO priced rows, the quote board shows the carrier in a
+// separate "May also serve this lane" section — name + "Rate on request",
+// NEVER a price. Add future small carriers here the same way: carrier_id,
+// carrier_name, towns (normalized Set), optional aliases + provs.
+//
+// Proximity: 50 km haversine from any coverage town. Coverage-town
+// coordinates below were geocoded ONCE at build time (2026-10-19) and are
+// stored statically — no per-quote API calls for them. A quoted town that
+// is not itself a coverage town is geocoded on demand via the server's
+// Google Places key, ONCE, then cached in memory for the life of the
+// process (quote payloads carry city/province names only, no coordinates).
+// A geocode failure fails closed: no may-serve entry, quoting unaffected.
+// ---------------------------------------------------------------------------
+const COVERAGE_RADIUS_KM = 50;
+// Static [lat, lng] per normalized coverage-town name (geocoded 2026-10-19).
+const COVERAGE_COORDS = {
+  'CALGARY': [51.04532, -114.06301],
+  'AIRDRIE': [51.2887, -114.01344],
+  'BANFF': [51.17583, -115.57275],
+  'BEISEKER': [51.38699, -113.52202],
+  'CANMORE': [51.08987, -115.36088],
+  'CARSTAIRS': [51.56288, -114.09538],
+  'COCHRANE': [51.1909, -114.46804],
+  'CROSSFIELD': [51.42954, -114.02705],
+  'DIDSBURY': [51.66627, -114.13789],
+  'DRUMHELLER': [51.46155, -112.70878],
+  'ELNORA': [51.99738, -113.1964],
+  'HIGH RIVER': [50.57824, -113.85911],
+  'INNISFAIL': [52.0274, -113.94887],
+  'IRRICANA': [51.32701, -113.59145],
+  'LINDEN': [51.59595, -113.49755],
+  'OKOTOKS': [50.72608, -113.97494],
+  'OLDS': [51.79181, -114.11055],
+  'PENHOLD': [52.13608, -113.87253],
+  'RED DEER': [52.26853, -113.80901],
+  'STETTLER': [52.32367, -112.7051],
+  'SUNDRE': [51.79719, -114.64117],
+  'THREE HILLS': [51.70714, -113.26555],
+  'TROCHU': [51.82371, -113.23767],
+  'DELBURNE': [52.19744, -113.235],
+  'KNEEHILL COUNTY': [51.64892, -113.24057],
+  'DUCHESS': [50.73249, -111.90441],
+};
+const COVERAGE_AREAS = [
+  {
+    carrier_id: DONEDEAL_ID,
+    carrier_name: DONEDEAL_LABEL,
+    towns: DONEDEAL_TOWNS, // normalized Set (see above)
+    aliases: DONEDEAL_CITY_ALIASES,
+    provs: new Set(['AB']),
+  },
+  // Future small carriers: { carrier_id, carrier_name, towns: new Set([...]),
+  //   aliases: {...}, provs: new Set(['SK']) }, + their COVERAGE_COORDS rows.
+];
+function haversineKm(aLat, aLng, bLat, bLng) {
+  const R = 6371;
+  const dLat = (bLat - aLat) * Math.PI / 180;
+  const dLng = (bLng - aLng) * Math.PI / 180;
+  const s = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+    + Math.cos(aLat * Math.PI / 180) * Math.cos(bLat * Math.PI / 180)
+    * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+// In-memory cache: "CITY|PROV" -> [lat, lng] | null (null = geocode failed;
+// cached too, so a bad town name costs one lookup ever).
+const _townGeoCache = new Map();
+async function geocodeTownOnce(city, prov) {
+  const key = process.env.GOOGLE_PLACES_API_KEY || '';
+  if (!key) return null;
+  const q = encodeURIComponent(`${city}, ${prov || ''}, Canada`);
+  const r = await fetch(
+    `https://maps.googleapis.com/maps/api/geocode/json?address=${q}&key=${key}`
+  );
+  if (!r.ok) return null;
+  const d = await r.json();
+  const loc = d && d.results && d.results[0] && d.results[0].geometry
+    && d.results[0].geometry.location;
+  if (!loc || !Number.isFinite(loc.lat) || !Number.isFinite(loc.lng)) return null;
+  return [loc.lat, loc.lng];
+}
+async function townCoords(city, prov, area) {
+  const c = norm(city);
+  if (!c) return null;
+  // Static fast-path only when the province fits the coverage area — a
+  // same-named town in another province (e.g. Linden, ON) must NOT resolve
+  // to the coverage town's coordinates.
+  if ((!area || coverageProvOk(prov, area)) && COVERAGE_COORDS[c]) return COVERAGE_COORDS[c];
+  const key = c + '|' + norm(prov);
+  if (_townGeoCache.has(key)) return _townGeoCache.get(key);
+  let coords = null;
+  try {
+    coords = await geocodeTownOnce(c, prov);
+  } catch (err) {
+    console.error('[may-serve] geocode failed (non-fatal):', c, err.message);
+  }
+  _townGeoCache.set(key, coords);
+  return coords;
+}
+function coverageProvOk(prov, area) {
+  const p = norm(prov);
+  return !p || !area.provs || area.provs.has(p);
+}
+function coverageTownFor(city, area) {
+  const c = norm(city);
+  const canon = (area.aliases && area.aliases[c]) || c;
+  return area.towns.has(canon) ? canon : null;
+}
+function nearCoverageTown(coords, area) {
+  if (!coords) return false;
+  for (const t of area.towns) {
+    const c = COVERAGE_COORDS[t];
+    if (!c) continue;
+    if (haversineKm(coords[0], coords[1], c[0], c[1]) <= COVERAGE_RADIUS_KM) return true;
+  }
+  return false;
+}
+// mayServeLanes({ originCity, originProv, destCity, destProv, pricedCarrierIds })
+// -> [{ carrier_id, carrier_name }]. For each coverage-defined carrier with
+// NO priced rows in this quote: true when BOTH the quoted origin AND the
+// quoted destination are in/near the coverage area — i.e. the lane as a
+// whole is plausibly servable. (An OR rule would list the carrier on lanes
+// like Calgary→Edmonton where one end is 300 km outside their area —
+// misleading, so both ends must qualify.) Each end qualifies by exact
+// coverage-town match (province must match when given) or by being within
+// COVERAGE_RADIUS_KM of a coverage town. Never throws — failures return []
+// so priced quoting can never break.
+async function mayServeLanes({ originCity, originProv, destCity, destProv, pricedCarrierIds }) {
+  const out = [];
+  try {
+    const priced = pricedCarrierIds instanceof Set
+      ? pricedCarrierIds
+      : new Set(pricedCarrierIds || []);
+    for (const area of COVERAGE_AREAS) {
+      if (priced.has(area.carrier_id)) continue; // priced rows exist: never list here
+      const endQualifies = async (city, prov) => {
+        if (coverageTownFor(city, area) && coverageProvOk(prov, area)) return true;
+        const coords = await townCoords(city, prov, area);
+        return nearCoverageTown(coords, area);
+      };
+      const oOk = await endQualifies(originCity, originProv);
+      if (!oOk) continue;
+      const dOk = await endQualifies(destCity, destProv);
+      if (oOk && dOk) out.push({ carrier_id: area.carrier_id, carrier_name: area.carrier_name });
+    }
+  } catch (err) {
+    console.error('[may-serve] check failed (non-fatal):', err.message);
+  }
+  return out;
+}
+
 // Prime Time Courier (Edmonton courier + hot shot; sheets received
 // 2026-10-18, analysis in prime-time-rate-analysis.md). Seven confirmed:
 // CAD, rates current as printed, NO fuel surcharge, GST added on top,
@@ -1942,4 +2097,4 @@ function upsertCarrierRows(carrierId, rows) {  const st = ensureLoaded();
   return count;
 }
 
-module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, guilbaultBillableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides, primeTimeDeliveryQuotes, primeTimeAfterHoursQuote, primeTimeTruckQuote, primeTimeHotShotQuote, number8Quotes, doneDealQuotes };
+module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, guilbaultBillableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides, primeTimeDeliveryQuotes, primeTimeAfterHoursQuote, primeTimeTruckQuote, primeTimeHotShotQuote, number8Quotes, doneDealQuotes, mayServeLanes };

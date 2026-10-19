@@ -2078,6 +2078,49 @@
       if (empty) empty.classList.add('hidden');
     }
 
+    /* "May also serve this lane" section: coverage-defined small carriers
+       with no priced rows on this quote. Name + "Rate on request" only —
+       never a price. */
+    function mayServeHtml(data) {
+      const list = (data && data.may_serve) || [];
+      if (!list.length) return '';
+      const rows = list.map((m) => `
+        <div class="may-serve-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-top:1px solid #e2e2e2">
+          <div><strong>${esc(m.carrier_name || m.carrier_id)}</strong><br><span class="note">Rate on request</span></div>
+          <button type="button" class="btn" data-mayserve="${esc(m.carrier_id)}" data-ms-name="${esc(m.carrier_name || '')}" data-ms-o="${esc(m.origin_city || '')}" data-ms-d="${esc(m.dest_city || '')}">Request a rate</button>
+        </div>`).join('');
+      return `<div class="card may-serve" style="margin-top:16px">
+        <h3 style="margin:0 0 4px">May also serve this lane</h3>
+        <p class="note" style="margin:0 0 6px">These carriers run in this area but don't have a priced rate for this lane on file. Ask and we'll get you a rate.</p>
+        ${rows}
+      </div>`;
+    }
+    function wireMayServeButtons(box) {
+      if (!box) return;
+      box.querySelectorAll('[data-mayserve]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          if (btn.disabled) return;
+          btn.disabled = true;
+          const label = btn.textContent;
+          btn.textContent = 'Sending…';
+          try {
+            await api.requestRate({
+              carrier_id: btn.dataset.mayserve,
+              carrier_name: btn.dataset.msName || '',
+              origin_city: btn.dataset.msO || '',
+              dest_city: btn.dataset.msD || '',
+              email: (currentUser && currentUser.email) || '',
+            });
+            btn.textContent = 'Request sent ✓';
+          } catch (err) {
+            btn.disabled = false;
+            btn.textContent = label;
+            popupAlert('Request failed', ['Could not send your rate request — please try again.']);
+          }
+        });
+      });
+    }
+
     /* The Fetch button is always visible. If required info is missing when it
        is clicked, pop up an error listing the fields to fill in. */
     function missingQuoteFields() {
@@ -2453,7 +2496,9 @@
             '?';
         }
         html += '</div>';
+        html += mayServeHtml(data);
         box.innerHTML = html;
+        wireMayServeButtons(box);
         syncRateEmptyHide();
         syncQuoteActions();
         paintCarrierScores(box);
@@ -2547,8 +2592,10 @@
           <tbody>${rows}</tbody>
         </table></div>
         <p class="note" style="margin-top:8px">Fuel surcharge included. Carriers reset it weekly from the fuel price index, so quotes always use the current week's rate. <a href="/faq" data-page="faq">Why quotes change</a></p>
+        ${mayServeHtml(data)}
 `;
 
+      wireMayServeButtons(box);
       syncQuoteActions();
       highlightPickedRow();
     }
