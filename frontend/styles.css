@@ -109,6 +109,15 @@ main.wrap { padding-top: 28px; padding-bottom: 48px; }
 .panel.active { display: block; animation: fade 0.18s ease-in; }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
+/* ---------- account-approval lock ---------- */
+/* While a new account awaits admin approval, the app shell is replaced by
+   the #pending-approval page (see applyApprovalLock in index.html). The
+   pending page is NOT a .panel, so the hiding rule below leaves it alone. */
+#pending-approval { display: none; }
+body.approval-locked #pending-approval { display: block; }
+body.approval-locked .sidebar,
+body.approval-locked main .panel { display: none !important; }
+
 h1 { font-size: 26px; margin: 0 0 4px; color: var(--brand-dark); }
 h2 { font-size: 19px; color: var(--brand-dark); margin: 26px 0 10px; }
 h3 { font-size: 16px; margin: 0 0 6px; color: var(--brand-dark); }

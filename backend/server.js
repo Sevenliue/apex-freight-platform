@@ -14,6 +14,7 @@ const fs = require('fs');
 
 const config = require('./config');
 const db = require('./db');
+const { requireApprovedAccount } = require('./lib/shipping-approval');
 const authStub = require('./middleware/auth');
 const { securityHeaders, corsPolicy } = require('./lib/security');
 
@@ -110,7 +111,12 @@ app.get('/api/health', (req, res) => {
 // Public site configuration the frontend needs before rendering
 // (no auth required; contains no secrets).
 app.get('/api/site-config', (req, res) => {
-  res.json({ siteMode: config.siteMode });
+  res.json({
+    siteMode: config.siteMode,
+    // Account-approval lock (see lib/shipping-approval.js): when true,
+    // unapproved accounts see only the "waiting for approval" page.
+    accountLock: require('./lib/shipping-approval').ACCOUNT_LOCK_ENABLED,
+  });
 });
 
 // GET /api/diesel-prices — current diesel index prices for the homepage ticker.
@@ -139,33 +145,33 @@ app.get('/api/diesel-prices', async (req, res) => {
   }
 });
 
-app.use('/api/rates', requireVerified, require('./routes/rates'));
+app.use('/api/rates', requireVerified, requireApprovedAccount, require('./routes/rates'));
 app.use('/api/contact', require('./routes/contact'));
-app.use('/api/billing', require('./routes/billing'));
-app.use('/api/quotes', require('./routes/quotes'));
-app.use('/api/shipments', require('./routes/shipments'));
+app.use('/api/billing', requireApprovedAccount, require('./routes/billing'));
+app.use('/api/quotes', requireApprovedAccount, require('./routes/quotes'));
+app.use('/api/shipments', requireApprovedAccount, require('./routes/shipments'));
 app.use('/api/tracking', require('./routes/tracking'));
-app.use('/api/easypost', require('./routes/easypost'));
-app.use('/api/places', require('./routes/places'));
+app.use('/api/easypost', requireApprovedAccount, require('./routes/easypost'));
+app.use('/api/places', requireApprovedAccount, require('./routes/places'));
 app.use('/api/webhooks', require('./routes/webhooks'));
-app.use('/api/loads', require('./routes/loads'));
-app.use('/api/bids', require('./routes/bids'));
+app.use('/api/loads', requireApprovedAccount, require('./routes/loads'));
+app.use('/api/bids', requireApprovedAccount, require('./routes/bids'));
 app.use('/api/carrier-rates', require('./routes/carrier-rates'));
-app.use('/api/address-book', require('./routes/addressbook'));
-app.use('/api/custom-lists', require('./routes/custom-lists'));
-app.use('/api/carriers', require('./routes/carriers'));
+app.use('/api/address-book', requireApprovedAccount, require('./routes/addressbook'));
+app.use('/api/custom-lists', requireApprovedAccount, require('./routes/custom-lists'));
+app.use('/api/carriers', requireApprovedAccount, require('./routes/carriers'));
 app.use('/api/carrier-uploads', require('./routes/carrier-uploads'));
-app.use('/api/carrier-ratings', require('./routes/carrier-ratings'));
-app.use('/api/reports', require('./routes/reports'));
+app.use('/api/carrier-ratings', requireApprovedAccount, require('./routes/carrier-ratings'));
+app.use('/api/reports', requireApprovedAccount, require('./routes/reports'));
 app.use('/api/admin', require('./routes/admin'));
-app.use('/api/pickups', require('./routes/pickups'));
+app.use('/api/pickups', requireApprovedAccount, require('./routes/pickups'));
 app.use('/api/holidays', require('./routes/holidays'));
 app.use('/api/fuel', require('./routes/fuel'));
 app.use('/api/market', require('./routes/market'));
-app.use('/api/waybills', require('./routes/waybills'));
-app.use('/api/company', require('./routes/company'));
-app.use('/api/store', require('./routes/store'));
-app.use('/api/inventory', require('./routes/inventory'));
+app.use('/api/waybills', requireApprovedAccount, require('./routes/waybills'));
+app.use('/api/company', requireApprovedAccount, require('./routes/company'));
+app.use('/api/store', requireApprovedAccount, require('./routes/store'));
+app.use('/api/inventory', requireApprovedAccount, require('./routes/inventory'));
 
 // Serve the sibling-built static frontend (same origin as the API).
 const FRONTEND_DIR = path.join(__dirname, '..', 'frontend');

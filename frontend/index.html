@@ -185,6 +185,18 @@
       <main class="wrap">
         <div id="alert" class="alert hidden" role="alert"></div>
 
+    <!-- PENDING APPROVAL — shown INSTEAD of the whole app while a new
+         account awaits admin approval (see applyApprovalLock). Carriers'
+         rates stay private until approval. -->
+    <section id="pending-approval" aria-label="Account pending approval">
+      <div class="card" style="max-width:560px;margin:48px auto;text-align:center">
+        <h2>⏳ Your account is pending approval</h2>
+        <p>Thanks for signing up<span id="pending-approval-who"></span>. A ShipRate admin reviews every new account before it can access quotes, shipments, and the rest of the site.</p>
+        <p>We'll notify you as soon as your account is approved — nothing else to do.</p>
+        <button class="btn" id="pending-logout" type="button">Log out</button>
+      </div>
+    </section>
+
     <!-- HOME (marketing homepage — preview-gated until approved) -->
     <section id="tab-home" class="panel" role="tabpanel">
       <div class="landing">
@@ -1330,6 +1342,12 @@
     // Shipper account session (see the SHIPPER ACCOUNT section below).
     // Declared up here so early init calls like loadSavedQuotes() can read it.
     let currentUser = null;
+    // Account-approval lock (Oct 2026): while true, unapproved accounts see
+    // ONLY the "waiting for approval" page. The server is the source of truth
+    // (GET /api/site-config → accountLock); default true = fail closed.
+    // Flip it off in backend/lib/shipping-approval.js to restore quote-only
+    // for new signups.
+    let ACCOUNT_LOCK = true;
 
     const alertBox = $('#alert');
     function showAlert(msg) {
@@ -1367,6 +1385,8 @@
 
     /* ---------- tabs ---------- */
     function activateTab(btn) {
+      // Account-approval lock: a pending account stays on the waiting page.
+      if (isPendingApproval()) { applyApprovalLock(); return; }
       $$('.tab[data-tab]').forEach((b) => {
         const on = b === btn;
         b.classList.toggle('active', on);
@@ -2561,6 +2581,27 @@
         !!((billingState && billingState.shipping_approved) ||
            (currentUser && currentUser.shipping_approved));
       return { ok: approved, pending: !approved };
+    }
+
+    /* Account-approval lock (Oct 2026): while ACCOUNT_LOCK is on, an
+       unapproved account sees ONLY the #pending-approval page — no sidebar,
+       no panels, no data loads. Admins always pass. The backend enforces
+       the same lock on the API routes, so this is presentation, not the
+       security boundary. */
+    function isPendingApproval() {
+      if (!ACCOUNT_LOCK || !currentUser) return false;
+      return !approvalGate().ok;
+    }
+
+    function applyApprovalLock() {
+      const pending = isPendingApproval();
+      document.body.classList.toggle('approval-locked', pending);
+      const who = $('#pending-approval-who');
+      if (who) {
+        who.textContent = (pending && currentUser && currentUser.email)
+          ? ` (${currentUser.email})` : '';
+      }
+      return pending;
     }
 
     function gateCompleteButton() {
@@ -4060,6 +4101,7 @@
       }
       renderVerifyBanner();
       syncUserIdField();
+      applyApprovalLock();
     }
 
     // Nudge unverified accounts to confirm their email (non-blocking).
@@ -4159,7 +4201,9 @@
       sessionExpiredFired = false; // re-arm the global 401 handler
       closeAuthModal();
       // Refresh the account-scoped views + billing plan.
-      loadBilling();
+      loadBilling(); // renderAccount inside re-applies the approval lock
+      // A pending-approval account loads nothing else — waiting page only.
+      if (applyApprovalLock()) return;
       loadSavedQuotes();
       if (typeof loadAddressBook === 'function') loadAddressBook();
       if (typeof refreshPrimeLocation === 'function') refreshPrimeLocation();
@@ -4183,6 +4227,9 @@
     async function initAccount() {
       renderAccount();
       $('#auth-close').addEventListener('click', closeAuthModal);
+      // Pending-approval page: its own Log out (the sidebar is hidden).
+      const pendingLogout = $('#pending-logout');
+      if (pendingLogout) pendingLogout.addEventListener('click', signOut);
       $('#auth-modal').addEventListener('click', (e) => {
         if (e.target.id === 'auth-modal') closeAuthModal();
       });
@@ -4236,7 +4283,9 @@
         try {
           const { user } = await api.me();
           currentUser = user;
-          loadBilling();
+          loadBilling(); // renderAccount inside re-applies the approval lock
+          // A pending-approval account loads nothing else — waiting page only.
+          if (applyApprovalLock()) return;
           loadSavedQuotes();
           if (typeof loadAddressBook === 'function') loadAddressBook();
           if (typeof refreshPrimeLocation === 'function') refreshPrimeLocation();
@@ -4269,8 +4318,15 @@
     let SITE_MODE = 'quote-only';
     fetch('/api/site-config')
       .then((r) => r.json())
-      .then((c) => { if (c && c.siteMode) SITE_MODE = c.siteMode; applyQuoteOnlyMode(); })
-      .catch(() => applyQuoteOnlyMode());
+      .then((c) => {
+        if (c && c.siteMode) SITE_MODE = c.siteMode;
+        // Server is the source of truth for the account-approval lock;
+        // absent flag (old server) keeps the fail-closed default true.
+        if (c && typeof c.accountLock === 'boolean') ACCOUNT_LOCK = c.accountLock;
+        applyQuoteOnlyMode();
+        applyApprovalLock();
+      })
+      .catch(() => { applyQuoteOnlyMode(); applyApprovalLock(); });
 
     const PLANS = [
       {
@@ -6749,6 +6805,18 @@
       if (typeof loadAddressBook === 'function') { try { loadAddressBook(); } catch { /* noop */ } }
       showAlert('Your session expired — please sign in again.');
       openAuthModal('login');
+    });
+
+    // Mid-session revoke: any API call that comes back 403 with
+    // pending_approval means the account was just unapproved (or signed in
+    // before approval) — refresh the user and show the waiting page.
+    window.addEventListener('shiprate:pending-approval', async () => {
+      try {
+        const { user } = await api.me();
+        currentUser = user;
+      } catch { /* keep the last-known user; the lock still applies */ }
+      loadBilling(); // renderAccount inside re-applies the approval lock
+      applyApprovalLock();
     });
 
     // Contact form.

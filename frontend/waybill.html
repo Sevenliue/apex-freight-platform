@@ -18,6 +18,12 @@
   .toolbar button.cta, .doc-head button.cta { background: #ff6a00; border: 1px solid #d95700; color: #0c2b20; }
   .toolbar button:disabled { opacity: .45; cursor: default; }
   .toolbar .note { font-size: 12px; color: #d1d5db; }
+  /* Account-approval lock: an unapproved account sees only the pending
+     page below — the waybill form is hidden until an admin approves them. */
+  #pending-approval { display: none; max-width: 560px; margin: 48px auto; padding: 0 14px; text-align: center; }
+  #pending-approval .card { background: #fff; border: 1px solid #d1d5db; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 24px; }
+  body.approval-locked .toolbar, body.approval-locked .wrap { display: none; }
+  body.approval-locked #pending-approval { display: block; }
   .wrap { max-width: 900px; margin: 18px auto 60px; padding: 0 14px; }
   .doc { background: #fff; border: 1px solid #d1d5db; box-shadow: 0 2px 10px rgba(0,0,0,.08); padding: 14px 18px; }
   .doc h1 { margin: 0; font-size: 22px; letter-spacing: 1px; }
@@ -119,6 +125,16 @@
 </style>
 </head>
 <body>
+<!-- PENDING APPROVAL — shown instead of the waybill while a new account
+     awaits admin approval (see init() below). -->
+<div id="pending-approval">
+  <div class="card">
+    <h2 style="margin-top:0">⏳ Your account is pending approval</h2>
+    <p>Thanks for signing up. A ShipRate admin reviews every new account before it can access quotes, waybills, and the rest of the site.</p>
+    <p>We'll notify you as soon as your account is approved — nothing else to do.</p>
+    <p><a href="/">← Back to ShipRate</a></p>
+  </div>
+</div>
 <div class="toolbar no-print">
   <span class="brand"><a href="/">← ShipRate</a></span>
   <strong>Waybill / Bill of Lading</strong>
@@ -914,6 +930,32 @@
   $$('input[name="fterms"]').forEach(function (el) { el.addEventListener('change', saveDraft); });
 
   (function init() {
+    // Account-approval lock (Oct 2026): an unapproved account sees only
+    // the pending page — the waybill form and its data loads stay hidden
+    // until an admin approves the account. Signed-out guests keep the
+    // blank local waybill. Staff/admin emails bypass the lock even if the
+    // approval flag is off (same rule as the API gate).
+    if (token()) {
+      api('/api/auth/me').then(function (me) {
+        var u = me && me.user;
+        if (u && u.shipping_approved === false) {
+          api('/api/billing/status').then(function (st) {
+            if (st && st.is_admin) { startWaybill(); return; }
+            lockWaybill();
+          }).catch(function () { lockWaybill(); });
+          return;
+        }
+        startWaybill();
+      }).catch(function () { startWaybill(); });
+      return;
+    }
+    startWaybill();
+
+    function lockWaybill() {
+      document.body.classList.add('approval-locked');
+    }
+
+    function startWaybill() {
     loadLogo();
     if (token()) {
       // Current user id drives view-only detection for company waybills.
@@ -936,6 +978,7 @@
     }
     if (token()) { loadShipments(); loadHistory(); loadAddresses(); loadUnmatched(); }
     else { $('#authNote').textContent = 'Sign in on ShipRate to save waybills and pre-fill from your shipments.'; }
+    } // end startWaybill
   })();
 })();
 </script>

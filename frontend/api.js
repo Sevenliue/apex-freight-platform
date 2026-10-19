@@ -82,6 +82,14 @@ async function request(method, path, body) {
         window.dispatchEvent(new CustomEvent('shiprate:session-expired'));
       } catch { /* non-browser env */ }
     }
+    // A 403 with pending_approval means the account is (or just became)
+    // unapproved: tell the app to show the waiting page instead of failing
+    // on every button. Covers mid-session revokes, not just fresh sign-ins.
+    if (res.status === 403 && data && data.pending_approval) {
+      try {
+        window.dispatchEvent(new CustomEvent('shiprate:pending-approval'));
+      } catch { /* non-browser env */ }
+    }
     throw err;
   }
   return data;
