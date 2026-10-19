@@ -4730,16 +4730,11 @@
           '<div class="card empty">Invoices unavailable (' + esc(err.message) + ').</div>';
       }
       // Billing information: account profile + first address-book entry.
-      $('#bi-name').textContent = (currentUser.full_name || currentUser.email || '—');
+      $('#bi-name').textContent = (currentUser.full_name || '—');
       $('#bi-company').textContent = currentUser.company_name || '—';
-      try {
-        const d = await api.listAddresses();
-        const a = (d.addresses || [])[0];
-        $('#bi-address').textContent = a
-          ? [a.street, a.city, a.state || a.province, a.zip || a.postal_code]
-              .filter(Boolean).join(', ')
-          : '—';
-      } catch { $('#bi-address').textContent = '—'; }
+      // Billing Information shows a dash for Address: there is no stored
+      // billing address (the old code showed the first address-book entry).
+      $('#bi-address').textContent = '—';
       // Saved payment method from Stripe, if any.
       try {
         const pm = await api.getPaymentMethod();
