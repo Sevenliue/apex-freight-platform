@@ -18,7 +18,7 @@
 const SHEET_DATES = {
   guilbault: { effective: '2026-04-01', expiry: '2027-03-31' },
   bandstra: { effective: '2025-10-08', expiry: '2026-10-07' },
-  morneau: { effective: null, expiry: '2026-09-30' },
+  morneau: { effective: null, expiry: '2027-09-30' },
   minimax_ottawa: { effective: null, expiry: '2025-05-31' },
   armour: { effective: '2025-08-28', expiry: '2026-12-31' },
   willys: { effective: '2025-04-01', expiry: '2027-09-30' },
