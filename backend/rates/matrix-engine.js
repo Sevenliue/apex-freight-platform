@@ -966,7 +966,7 @@ upsertCarrier({
   fsc_percent: 46, // LTL class, from last invoice; Truckload class 104.1% (TEAMS_FSC_TL) — both per Seven 2026-10-20
   fsc_as_of: '2026-10-20',
   fsc_cadence: 'monthly',
-  fsc_note: 'Quote sheets to Total Tire Distributors, printed Jun 5 2024, printed expiry Aug 31 2024 — loaded per Seven (stated still up to date Oct 2026). FSC by class (T&C #6): LTL 46% (invoice) / Truckload 104.1% per Seven Oct 2026 — set via Admin > Fuel surcharges.',
+  fsc_note: 'Quote sheets to Total Tire Distributors, printed Jun 5 2024, printed expiry Aug 31 2024 — loaded per Seven (stated still up to date Oct 2026); recorded expiry extended to 2027-08-31 per Seven. FSC by class (T&C #6): LTL 46% (invoice) / Truckload 104.1% per Seven Oct 2026 — set via Admin > Fuel surcharges.',
 });
 
 // ---------------------------------------------------------------------------
