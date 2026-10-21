@@ -346,8 +346,13 @@
         <a href="/carriers/join" data-page="carrier-join" class="btn primary">Carrier? Join free →</a>
       </div>
       <!-- QUOTE FORM -->
-      <h1>Quick Quote</h1>
-      <p class="lede">Compare carrier rates instantly. All amounts in CAD.</p>
+      <div style="display:flex; align-items:center; gap:16px">
+        <div>
+          <h1>Quick Quote</h1>
+          <p class="lede">Compare carrier rates instantly. All amounts in CAD.</p>
+        </div>
+        <button type="button" class="btn" id="new-quote-btn-top" title="Clear the form to start a new quote" style="margin:0 auto">New Quote</button>
+      </div>
       <div id="payment-result"></div>
       <div id="quote-gate" class="card empty hidden">
         <strong>Sign in to get a quote.</strong><br>
@@ -2239,6 +2244,7 @@
     $('#save-quote-btn').addEventListener('click', saveCurrentQuote);
     $('#complete-shipment-btn').addEventListener('click', openCompleteModal);
     $('#new-quote-btn').addEventListener('click', resetQuoteForm);
+    $('#new-quote-btn-top').addEventListener('click', resetQuoteForm);
 
     /* "New Quote": clear every quote field back to a fresh-form state so a new
        quote never inherits the previous entries. Mode selectors (region,
