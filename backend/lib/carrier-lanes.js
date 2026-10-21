@@ -8,8 +8,12 @@
 
 const db = require('../db');
 const matrix = require('./matrix');
+const config = require('../config');
 
 async function loadCarrierLanes() {
+  // Platform separation (Oct 2026): platform2 serves no carrier rates, so
+  // DB tariff lanes are never merged into its engine (its DB starts clean).
+  if (config.siteProfile === 'platform2') return 0;
   if (!db.isEnabled()) return 0;
   if (typeof matrix.upsertCarrier !== 'function' || typeof matrix.upsertCarrierRows !== 'function') return 0;
   try {

@@ -21,6 +21,16 @@ const path = require('path');
 
 const DATA_FILE = path.join(__dirname, 'matrix-data.json');
 
+// PLATFORM SEPARATION (Oct 2026): on the "platform2" deployment this engine
+// serves NO carrier rates. Every rate source funnels through here — the
+// matrix-data.json lanes, the dedicated rating paths below (Prime Time,
+// Number 8, Done Deal, KNR, TEAMS), coverage/may-serve data, and any lanes
+// merged in-memory via upsertCarrierRows (DB carrier loader) — so gating
+// the public entry points guarantees no rate data is served, from code or
+// database, while SITE_PROFILE=platform2. Unset/'full' = unchanged.
+const RATES_DISABLED =
+  String(process.env.SITE_PROFILE || '').trim().toLowerCase() === 'platform2';
+
 // Rosenau TL fuel-surcharge override (per 2026 sheet; checked 2026-09-25).
 const ROSENAU_TL_FSC = 105.44;
 const ROSENAU_TL_MIN_LB = 10000;
@@ -253,6 +263,7 @@ const titleCase = (s) => String(s).toLowerCase().replace(/\b\w/g, (c) => c.toUpp
 // in the lane data, return the closest known "City, PROV" within a small typo
 // tolerance (same province preferred), or null.
 function suggestCity(inputCity, inputProv) {
+  if (RATES_DISABLED) return null; // suggestions derive from lane data
   const st = ensureLoaded();
   const qCity = norm(inputCity);
   const qProv = norm(inputProv);
@@ -1262,6 +1273,7 @@ function nearCoverageTown(coords, area) {
 // COVERAGE_RADIUS_KM of a coverage town. Never throws — failures return []
 // so priced quoting can never break.
 async function mayServeLanes({ originCity, originProv, destCity, destProv, pricedCarrierIds }) {
+  if (RATES_DISABLED) return []; // platform2: no coverage/may-serve data
   const out = [];
   try {
     const priced = pricedCarrierIds instanceof Set
@@ -1872,6 +1884,7 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
   const dProv = norm(destProv);
   const w = Number(weightLbs);
   if (!oCity || !dCity || !Number.isFinite(w) || w <= 0) return [];
+  if (RATES_DISABLED) return []; // platform2: no carrier rates, any source
   const _sk = Number(skidCount);
   const skids = Number.isInteger(_sk) && _sk > 0 ? _sk : null;
 
@@ -2271,6 +2284,7 @@ function quoteFtl({ originCity, originProv, destCity, destProv, weightLbs, packa
   const dProv = norm(destProv);
   const w = Number(weightLbs);
   if (!oCity || !dCity || !Number.isFinite(w) || w <= 0) return [];
+  if (RATES_DISABLED) return []; // platform2: no carrier rates, any source
   const bw = Math.max(w, FTL_MIN_LB);
 
   const quotes = [];
@@ -2325,6 +2339,7 @@ function quoteFtl({ originCity, originProv, destCity, destProv, weightLbs, packa
 
 // Carrier directory with live lane counts.
 function listCarriers() {
+  if (RATES_DISABLED) return []; // platform2: no carriers on board yet
   const st = ensureLoaded();
   const counts = new Map();
   for (const lane of st.data.lanes) {
@@ -2357,6 +2372,7 @@ function listCarriers() {
 
 // Accessorials for a carrier ([] when the carrier has none).
 function getAccessorials(carrierId) {
+  if (RATES_DISABLED) return []; // platform2: no carrier data
   const st = ensureLoaded();
   return st.data.accessorials.filter((a) => a.carrier_id === carrierId);
 }
@@ -2374,6 +2390,7 @@ function getAccessorials(carrierId) {
 // carriers onboarded via self-serve uploads whose lanes live in the DB
 // rather than matrix-data.json. Returns the carrier_id.
 function upsertCarrier(carrier) {
+  if (RATES_DISABLED) return null; // platform2: rate data never enters the engine
   const st = ensureLoaded();
   const carrier_id = String((carrier && carrier.carrier_id) || '').trim();
   if (!carrier_id) return null;
@@ -2394,7 +2411,9 @@ function upsertCarrier(carrier) {
   return carrier_id;
 }
 
-function upsertCarrierRows(carrierId, rows) {  const st = ensureLoaded();
+function upsertCarrierRows(carrierId, rows) {
+  if (RATES_DISABLED) return 0; // platform2: rate data never enters the engine
+  const st = ensureLoaded();
   if (!Array.isArray(rows)) return 0;
   let count = 0;
   for (const r of rows) {

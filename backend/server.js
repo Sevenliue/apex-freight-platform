@@ -119,14 +119,35 @@ app.get('/api/site-config', (req, res) => {
     // Free-tool mode (see config.js): when true, the UI hides all plan
     // pricing and quote quotas never block.
     freeToolMode: config.freeToolMode,
+    // Platform separation (see config.js): 'full' | 'employer' | 'platform2',
+    // plus this deployment's visible brand name. The frontend uses both to
+    // gate nav/features and swap brand spots. 'full'/'ShipRate' = production.
+    siteProfile: config.siteProfile,
+    brandName: config.brandName,
   });
 });
+
+// Platform separation — employer profile route gates. The employer edition
+// is restricted to quote, invoice audit, waybill/BOL + POD, tracking,
+// address book, saved quotes, accounts and their admin. Everything below
+// belongs to an excluded feature; in the employer profile it answers 404
+// exactly like an unknown route. Other profiles are untouched.
+function employerBlocked(req, res, next) {
+  if (config.siteProfile === 'employer') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  return next();
+}
 
 // GET /api/diesel-prices — current diesel index prices for the homepage ticker.
 // Cached in memory for 1 hour. Returns nulls when fetchers aren't configured.
 let _dieselCache = null;
 let _dieselCacheAt = 0;
 app.get('/api/diesel-prices', async (req, res) => {
+  // Employer profile: no market widgets — answer the empty shape.
+  if (config.siteProfile === 'employer') {
+    return res.json({ doe_usd_per_gal: null, nrcan_cad_per_litre: null, as_of: null });
+  }
   try {
     const now = Date.now();
     if (!_dieselCache || now - _dieselCacheAt > 3600000) {
@@ -150,8 +171,8 @@ app.get('/api/diesel-prices', async (req, res) => {
 
 app.use('/api/rates', requireVerified, requireApprovedAccount, require('./routes/rates'));
 app.use('/api/contact', require('./routes/contact'));
-app.use('/api/request-carrier', require('./routes/request-carrier'));
-app.use('/api/request-rate', require('./routes/request-rate'));
+app.use('/api/request-carrier', employerBlocked, require('./routes/request-carrier'));
+app.use('/api/request-rate', employerBlocked, require('./routes/request-rate'));
 app.use('/api/billing', requireApprovedAccount, require('./routes/billing'));
 app.use('/api/quotes', requireApprovedAccount, require('./routes/quotes'));
 app.use('/api/shipments', requireApprovedAccount, require('./routes/shipments'));
@@ -165,18 +186,33 @@ app.use('/api/carrier-rates', require('./routes/carrier-rates'));
 app.use('/api/address-book', requireApprovedAccount, require('./routes/addressbook'));
 app.use('/api/custom-lists', requireApprovedAccount, require('./routes/custom-lists'));
 app.use('/api/carriers', requireApprovedAccount, require('./routes/carriers'));
-app.use('/api/carrier-uploads', require('./routes/carrier-uploads'));
+app.use('/api/carrier-uploads', employerBlocked, require('./routes/carrier-uploads'));
 app.use('/api/carrier-ratings', requireApprovedAccount, require('./routes/carrier-ratings'));
 app.use('/api/reports', requireApprovedAccount, require('./routes/reports'));
-app.use('/api/admin', require('./routes/admin'));
+// Employer profile keeps the admin it needs (account approvals, FSC editor,
+// quote log, markup) but not the store admin, which belongs to an excluded
+// feature.
+app.use('/api/admin', (req, res, next) => {
+  if (config.siteProfile === 'employer' && req.path.startsWith('/store')) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  return next();
+}, require('./routes/admin'));
 app.use('/api/pickups', requireApprovedAccount, require('./routes/pickups'));
 app.use('/api/holidays', require('./routes/holidays'));
-app.use('/api/fuel', require('./routes/fuel'));
-app.use('/api/market', require('./routes/market'));
+app.use('/api/fuel', employerBlocked, require('./routes/fuel'));
+app.use('/api/market', employerBlocked, require('./routes/market'));
 app.use('/api/waybills', requireApprovedAccount, require('./routes/waybills'));
 app.use('/api/company', requireApprovedAccount, require('./routes/company'));
-app.use('/api/store', requireApprovedAccount, require('./routes/store'));
-app.use('/api/inventory', requireApprovedAccount, require('./routes/inventory'));
+app.use('/api/store', employerBlocked, requireApprovedAccount, require('./routes/store'));
+app.use('/api/inventory', employerBlocked, requireApprovedAccount, require('./routes/inventory'));
+
+// Employer profile: demo, carrier-join and request-carrier are excluded
+// features — bounce their pretty URLs home (their SPA sections are also
+// nav-hidden client-side and their APIs are gated above).
+if (config.siteProfile === 'employer') {
+  app.get(['/demo', '/carriers/join', '/request-carrier'], (req, res) => res.redirect('/'));
+}
 
 // Serve the sibling-built static frontend (same origin as the API).
 const FRONTEND_DIR = path.join(__dirname, '..', 'frontend');
@@ -284,6 +320,7 @@ if (require.main === module) {
     try {
       const { updateGrimshawFsc } = require('./lib/fsc-auto');
       const tickGrimshaw = () => {
+        if (config.siteProfile === 'platform2') return; // no carriers there
         updateGrimshawFsc().catch((err) =>
           console.error('[fsc-auto] Grimshaw tick failed (continuing):', err.message));
       };
@@ -300,6 +337,7 @@ if (require.main === module) {
     try {
       const { updateRockfallFsc } = require('./lib/fsc-auto');
       const tickRockfall = () => {
+        if (config.siteProfile === 'platform2') return; // no carriers there
         updateRockfallFsc().catch((err) =>
           console.error('[fsc-auto] Rockfall tick failed (continuing):', err.message));
       };
@@ -329,6 +367,7 @@ if (require.main === module) {
       const tickInventoryReports = async () => {
         try {
           if (!db.isEnabled()) return;
+          if (config.siteProfile === 'employer') return; // no inventory feature
           const today = invReports.edmontonToday();
           if (invReports.edmontonClock() < INVENTORY_REPORT_TIME) return;
           const r = await db.query(
@@ -343,8 +382,10 @@ if (require.main === module) {
       const t = setInterval(() => { tickInventoryReports(); }, 5 * 60 * 1000);
       if (t.unref) t.unref();
       // Boot catch-up: backfill up to 3 missed days (email only the newest).
-      invReports.catchUpInventoryReports().catch((err) =>
-        console.error('[inventory-reports] catch-up failed (continuing):', err.message));
+      if (config.siteProfile !== 'employer') {
+        invReports.catchUpInventoryReports().catch((err) =>
+          console.error('[inventory-reports] catch-up failed (continuing):', err.message));
+      }
     } catch (err) {
       console.error('[inventory-reports] init failed (continuing):', err.message);
     }

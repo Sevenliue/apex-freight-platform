@@ -377,7 +377,7 @@ router.post('/', async (req, res) => {
   // includes an endpoint but who produced NO priced rows on this quote.
   // Purely additive — priced quoting above is untouched. Non-fatal.
   let mayServe = [];
-  if (!worldwide && !isFullLoad) {
+  if (!worldwide && !isFullLoad && config.siteProfile !== 'employer') {
     try {
       const pricedIds = new Set((matrixQuotes || []).map((q) => q.carrier_id));
       mayServe = await matrix.mayServeLanes({
@@ -496,7 +496,9 @@ router.post('/', async (req, res) => {
 
   // EasyPost parcel rates (optional). Rating is free; nothing is charged.
   // Skipped for full-load-scale shipments: parcel pricing can't cover them.
-  if (easypost.isEnabled() && !isFullLoad) {
+  // Platform separation: platform2 serves no carrier rates from any source,
+  // EasyPost included (its engine gate covers the matrix side).
+  if (easypost.isEnabled() && !isFullLoad && config.siteProfile !== 'platform2') {
     try {
       const shipment = await easypost.createShipment({
         to: {
