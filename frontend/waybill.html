@@ -981,6 +981,16 @@
     } // end startWaybill
   })();
 })();
+
+// Platform separation: swap the visible brand when this deployment runs
+// under a different name (SITE_BRAND_NAME via /api/site-config). Default
+// 'ShipRate' = production, untouched.
+fetch('/api/site-config').then((r) => r.json()).then((c) => {
+  const brand = c && c.brandName;
+  if (!brand || brand === 'ShipRate') return;
+  document.title = 'Waybill / Bill of Lading — ' + brand;
+  document.querySelectorAll('.brand a').forEach((a) => { a.textContent = '← ' + brand; });
+}).catch(() => {});
 </script>
 </body>
 </html>

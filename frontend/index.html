@@ -2776,6 +2776,52 @@
       if (notice) notice.classList.toggle('hidden', !FREE_TOOL_MODE);
     }
 
+    // PLATFORM SEPARATION: brand swap + per-profile feature gating.
+    // 'full' with the default brand is a no-op (production unchanged).
+    // Employer gating is done with an !important stylesheet + body class so
+    // later re-renders (quote-only mode resets inline display) can't undo it;
+    // the matching APIs are gated server-side as well.
+    function applySiteProfile() {
+      if (BRAND_NAME && BRAND_NAME !== 'ShipRate') {
+        document.querySelectorAll('.brand-name').forEach((el) => { el.textContent = BRAND_NAME; });
+        document.querySelectorAll('.brand-mark').forEach((el) => { el.alt = BRAND_NAME; });
+        document.title = BRAND_NAME + ' — Instant LTL Freight Quotes';
+        document.querySelectorAll('.land-foot, .foot-base').forEach((el) => {
+          el.innerHTML = el.innerHTML.split('ShipRate').join(BRAND_NAME);
+        });
+      }
+      if (SITE_PROFILE === 'platform2') {
+        // No carriers on board yet: make the homepage stats read that way
+        // instead of quoting the production carrier/lane counts.
+        const stats = document.querySelectorAll('.land-stats > div');
+        if (stats[0]) stats[0].innerHTML = '<strong>Canada-wide</strong><span>coverage as carriers come on board</span>';
+        if (stats[1]) stats[1].innerHTML = '<strong>0</strong><span>Canadian carriers live — onboarding now</span>';
+      }
+      document.body.classList.toggle('profile-employer', SITE_PROFILE === 'employer');
+      if (SITE_PROFILE === 'employer' && !document.getElementById('profile-gate-style')) {
+        const st = document.createElement('style');
+        st.id = 'profile-gate-style';
+        st.textContent =
+          'body.profile-employer .side-nav button.tab[data-tab="inventory"],' +
+          'body.profile-employer .side-nav button.tab[data-tab="store"],' +
+          'body.profile-employer .side-nav button.tab[data-tab="library"],' +
+          'body.profile-employer .side-nav button.tab[data-tab="demo"],' +
+          'body.profile-employer .side-nav button.tab[data-tab="request-carrier"],' +
+          'body.profile-employer [data-page="carrier-join"],' +
+          'body.profile-employer [data-page="demo"],' +
+          'body.profile-employer [data-page="request-carrier"],' +
+          'body.profile-employer .land-rail,' +
+          'body.profile-employer #diesel-prices,' +
+          'body.profile-employer #tab-inventory,' +
+          'body.profile-employer #tab-store,' +
+          'body.profile-employer #tab-library,' +
+          'body.profile-employer #tab-demo,' +
+          'body.profile-employer #tab-request-carrier,' +
+          'body.profile-employer #tab-carrier-join { display: none !important; }';
+        document.head.appendChild(st);
+      }
+    }
+
     function gateCompleteButton() {
       const btn = $('#complete-shipment-btn');
       const note = $('#approval-note');
@@ -4494,6 +4540,12 @@
     // true = fail toward free (pricing stays hidden if config is
     // unreachable). Flip it off server-side to restore monetization.
     let FREE_TOOL_MODE = true;
+    // PLATFORM SEPARATION (see backend config.js): SITE_PROFILE is 'full'
+    // (production default), 'employer' (restricted shipper edition) or
+    // 'platform2' (full features, no carrier rates yet); BRAND_NAME is this
+    // deployment's visible brand. Defaults keep production untouched.
+    let SITE_PROFILE = 'full';
+    let BRAND_NAME = 'ShipRate';
     fetch('/api/site-config')
       .then((r) => r.json())
       .then((c) => {
@@ -4502,12 +4554,15 @@
         // absent flag (old server) keeps the fail-closed default true.
         if (c && typeof c.accountLock === 'boolean') ACCOUNT_LOCK = c.accountLock;
         if (c && typeof c.freeToolMode === 'boolean') FREE_TOOL_MODE = c.freeToolMode;
+        if (c && c.siteProfile) SITE_PROFILE = c.siteProfile;
+        if (c && c.brandName) BRAND_NAME = c.brandName;
         applyQuoteOnlyMode();
         applyApprovalLock();
         applyFreeToolMode();
+        applySiteProfile();
         if (currentUser) renderPricing();
       })
-      .catch(() => { applyQuoteOnlyMode(); applyApprovalLock(); applyFreeToolMode(); });
+      .catch(() => { applyQuoteOnlyMode(); applyApprovalLock(); applyFreeToolMode(); applySiteProfile(); });
 
     const PLANS = [
       {
