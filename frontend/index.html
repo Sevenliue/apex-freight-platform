@@ -44,7 +44,7 @@
         </button>
         <a class="tab" href="/waybill.html" id="nav-waybill">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-          <span>Waybill</span>
+          <span>Waybill/BOL</span>
         </a>
         <div class="nav-group" data-group="package">
           <button class="tab group-toggle" aria-expanded="false">
@@ -4837,7 +4837,7 @@
               <td>${esc(r.Carrier || '—')}</td>
               <td class="num">${r['Charged (CAD)'] == null ? '—' : cad(r['Charged (CAD)']) + ' CAD'}</td>
               <td>${statusPill(r)}</td>
-              <td><button type="button" class="btn small" data-track="${esc(r['PRO / Tracking'] || '')}">Track</button> <a class="btn small" href="/waybill.html?order=${esc(r['Order ID'])}" target="_blank" rel="noopener">Waybill</a>${cancellable ? ` <button type="button" class="btn small danger" data-cancel="${esc(r['Order ID'])}">Cancel</button>` : ''}</td>
+              <td><button type="button" class="btn small" data-track="${esc(r['PRO / Tracking'] || '')}">Track</button> <a class="btn small" href="/waybill.html?order=${esc(r['Order ID'])}" target="_blank" rel="noopener">Waybill/BOL</a>${cancellable ? ` <button type="button" class="btn small danger" data-cancel="${esc(r['Order ID'])}">Cancel</button>` : ''}</td>
             </tr>`;
           })
           .join('')}</tbody></table></div>`;
@@ -5024,7 +5024,7 @@
       'Dashboard', 'Quick Quote', 'Full Load', 'Home',
       'Sample Quote', 'Request a Carrier',
       'Tracking', 'Tracking Shipment', 'Tracking Dashboard',
-      'Resources', 'Address Book', 'Saved Quotes', 'Waybill',
+      'Resources', 'Address Book', 'Saved Quotes', 'Waybill/BOL',
     ]);
     function qoIsAdmin() {
       return !!(billingState && billingState.is_admin);
