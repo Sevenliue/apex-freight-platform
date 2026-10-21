@@ -765,6 +765,210 @@ upsertCarrier({
   fsc_note: 'Flat 10% per their rate sheet; no monthly update known. Update via Admin when the carrier confirms a change.',
 });
 
+// TEAMS Transport (Winnipeg MB; 8-terminal Canadian network).
+// Rate source: carrier QUOTE sheets Q154360-Q154372 issued to TOTAL TIRE
+// DISTRIBUTORS INC, printed Jun 05, 2024, printed expiry Aug 31, 2024 —
+// loaded per Seven 2026-10-20 (he states the rates are still up to date;
+// Total Tire account rates approved for use on ShipRate).
+// Full parse: teams-transport-intake.md.
+// Pricing model: FLAT per-shipment price by LINEAR FEET of deck space —
+// 21 price points per lane (even feet 2'-40' plus FTL). No weight tiers,
+// no CWT, no dim weight; weight enters ONLY via the FSC class rule.
+// Rating:
+//   - terminals: Chilliwack, Kelowna, Calgary, Edmonton, Saskatoon,
+//     Winnipeg, Ottawa, Woodbridge — 56 directional lanes, no same-city
+//   - city matching follows the standard matrix behaviour (placeMatches:
+//     metro collapsing applies, e.g. Acheson rates as Edmonton; the GTA
+//     terminal needs an exact 'Woodbridge' entry — Toronto / Vaughan
+//     metro does NOT collapse into Woodbridge)
+//   - linear feet = sum over package lines of qty x longest side (in) /
+//     12; a line with no dimension at all cannot be space-rated, so the
+//     shipment gets no TEAMS quote; billed at the next even-foot point
+//     (round up), 2' floor, over 40' bills the FTL point
+//   - FSC class (sheet T&C #6): TRUCKLOAD class when the billed point is
+//     over 12 feet OR total weight is over 6,000 kg (13,227.7 lb);
+//     exactly 12' is LTL class; the FTL point is Truckload class
+//   - FSC percents per Seven 2026-10-20 (the sheets' Jun 2024 print
+//     values 23.8% / 56% are stale and NOT used): LTL 46% (from last
+//     invoice), Truckload 104.1%. Admin overrides (Admin > Fuel
+//     surcharges, the standard carrier_fsc mechanism) win over these.
+//   - quotes pre-GST; the 15% markup is applied in routes/rates.js like
+//     all other carriers
+// Not modeled (notes only): extra pick/drop $75 each, detention $80/hr
+// (Truckload includes 2 hrs, LTL 1 hr). The Winnipeg sheet's '5 TON'
+// header (vs 53' VAN on the other 7 sheets) was never resolved — its
+// prices are coded as printed.
+const TEAMS_ID = 'teams';
+const TEAMS_LABEL = 'TEAMS Transport';
+const TEAMS_FSC_LTL = 46;
+const TEAMS_FSC_TL = 104.1;
+const TEAMS_TL_WEIGHT_LB = 13227.7; // 6,000 kg within Canada (T&C #6)
+const TEAMS_FEET_POINTS = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40]; // rates index 20 = FTL
+const TEAMS_TERMINALS = [
+  ['CHILLIWACK', 'BC'],
+  ['KELOWNA', 'BC'],
+  ['CALGARY', 'AB'],
+  ['EDMONTON', 'AB'],
+  ['SASKATOON', 'SK'],
+  ['WINNIPEG', 'MB'],
+  ['OTTAWA', 'ON'],
+  ['WOODBRIDGE', 'ON'],
+];
+const TEAMS_RATES = {
+  'CHILLIWACK|CALGARY': [310,360,415,460,520,565,565,670,720,775,830,890,940,990,1055,1100,1160,1200,1260,1320,1365],
+  'CHILLIWACK|EDMONTON': [485,555,630,695,775,840,840,950,1010,1090,1165,1250,1320,1390,1480,1550,1635,1700,1780,1860,1915],
+  'CHILLIWACK|KELOWNA': [360,410,465,510,570,615,615,720,770,825,880,940,990,1040,1100,1155,1210,1255,1310,1370,1415],
+  'CHILLIWACK|OTTAWA': [955,1185,1425,1640,1895,2085,2085,2515,2720,2935,3160,3390,3575,3770,4020,4345,4530,4670,4855,5045,5190],
+  'CHILLIWACK|SASKATOON': [485,575,675,755,860,940,940,1125,1220,1315,1415,1520,1600,1695,1810,1900,2000,2075,2175,2280,2360],
+  'CHILLIWACK|WINNIPEG': [460,555,655,760,875,960,960,1155,1245,1345,1445,1555,1640,1730,1845,1935,2035,2110,2210,2310,2390],
+  'CHILLIWACK|WOODBRIDGE': [670,875,1085,1280,1500,1670,1670,2050,2225,2415,2610,2815,2975,3145,3360,3530,3715,3855,4040,4230,4375],
+  'KELOWNA|CALGARY': [250,320,375,420,480,525,525,600,640,675,710,740,765,795,825,850,870,890,910,935,950],
+  'KELOWNA|CHILLIWACK': [365,425,495,550,615,665,665,780,835,890,950,1010,1060,1110,1180,1230,1285,1330,1385,1445,1490],
+  'KELOWNA|EDMONTON': [425,515,590,655,735,800,800,885,930,990,1045,1100,1145,1195,1250,1295,1345,1385,1430,1475,1500],
+  'KELOWNA|OTTAWA': [895,1145,1385,1600,1855,2045,2045,2450,2640,2835,3040,3240,3400,3575,3790,4090,4240,4355,4500,4660,4775],
+  'KELOWNA|SASKATOON': [425,535,635,715,820,900,900,1060,1140,1215,1295,1370,1430,1500,1580,1645,1710,1760,1825,1895,1945],
+  'KELOWNA|WINNIPEG': [400,515,615,720,835,920,920,1090,1165,1245,1325,1400,1465,1535,1615,1680,1745,1795,1860,1925,1975],
+  'KELOWNA|WOODBRIDGE': [610,835,1045,1240,1465,1630,1630,1985,2145,2315,2490,2665,2800,2950,3130,3275,3425,3540,3690,3845,3960],
+  'CALGARY|CHILLIWACK': [315,375,445,500,565,615,615,730,785,840,900,960,1010,1060,1130,1180,1235,1280,1335,1395,1440],
+  'CALGARY|EDMONTON': [175,195,215,235,255,275,275,280,290,315,335,360,380,400,425,445,475,495,520,540,550],
+  'CALGARY|KELOWNA': [275,335,400,460,525,575,575,690,745,800,860,920,970,1020,1090,1140,1195,1240,1295,1355,1400],
+  'CALGARY|OTTAWA': [645,825,1010,1180,1375,1520,1520,1845,2000,2160,2330,2500,2635,2780,2965,3240,3370,3465,3595,3725,3825],
+  'CALGARY|SASKATOON': [175,215,260,295,340,375,375,455,500,540,585,630,665,700,755,795,840,870,915,960,995],
+  'CALGARY|WINNIPEG': [150,195,240,300,355,395,395,485,525,570,615,665,700,740,790,830,875,900,950,990,1025],
+  'CALGARY|WOODBRIDGE': [360,515,670,820,985,1100,1100,1380,1500,1640,1780,1925,2035,2155,2300,2425,2555,2650,2780,2900,3000],
+  'EDMONTON|CALGARY': [150,160,170,180,190,195,195,210,220,230,240,250,260,270,280,290,300,310,315,320,325],
+  'EDMONTON|CHILLIWACK': [465,535,615,680,755,810,810,940,1000,1070,1140,1210,1270,1330,1410,1470,1535,1590,1650,1715,1765],
+  'EDMONTON|KELOWNA': [425,495,575,640,715,770,770,900,965,1030,1100,1170,1230,1290,1370,1430,1495,1550,1610,1675,1725],
+  'EDMONTON|OTTAWA': [645,825,1010,1180,1375,1520,1520,1845,2000,2160,2330,2500,2635,2780,2965,3240,3370,3465,3595,3725,3825],
+  'EDMONTON|SASKATOON': [150,180,190,200,230,250,250,300,325,355,380,415,440,465,500,530,560,585,615,650,675],
+  'EDMONTON|WINNIPEG': [150,195,240,300,355,395,395,485,525,570,615,665,700,740,790,830,875,900,950,990,1025],
+  'EDMONTON|WOODBRIDGE': [360,515,670,820,985,1100,1100,1380,1500,1640,1780,1925,2035,2155,2300,2425,2555,2650,2780,2900,3000],
+  'SASKATOON|CALGARY': [250,260,270,280,290,300,300,325,345,370,390,410,445,465,485,500,535,555,575,590,600],
+  'SASKATOON|CHILLIWACK': [570,635,710,770,850,915,915,1070,1145,1225,1310,1400,1475,1550,1650,1735,1820,1885,1975,2070,2140],
+  'SASKATOON|EDMONTON': [100,185,195,200,220,250,250,285,300,330,350,375,400,425,445,465,490,500,520,525,535],
+  'SASKATOON|KELOWNA': [530,595,670,730,810,875,875,1030,1100,1185,1270,1360,1435,1510,1610,1695,1780,1845,1935,2030,2100],
+  'SASKATOON|OTTAWA': [645,800,960,1090,1270,1410,1410,1710,1855,2000,2150,2300,2430,2560,2725,2990,3110,3200,3315,3425,3495],
+  'SASKATOON|WINNIPEG': [150,170,190,210,250,285,285,350,380,410,435,465,495,520,550,580,615,640,670,690,695],
+  'SASKATOON|WOODBRIDGE': [360,490,620,730,880,995,995,1245,1360,1480,1600,1725,1830,1935,2065,2175,2295,2385,2500,2610,2680],
+  'WINNIPEG|CALGARY': [100,200,300,395,480,550,550,690,755,820,875,940,985,1035,1095,1140,1190,1225,1270,1320,1350],
+  'WINNIPEG|CHILLIWACK': [560,700,850,965,1110,1215,1215,1460,1580,1700,1820,1950,2055,2160,2300,2410,2525,2610,2730,2850,2940],
+  'WINNIPEG|EDMONTON': [100,200,300,400,500,580,580,730,795,860,925,985,1035,1085,1145,1195,1240,1275,1320,1365,1400],
+  'WINNIPEG|KELOWNA': [520,660,810,925,1070,1175,1175,1420,1540,1660,1780,1910,2015,2120,2260,2370,2485,2570,2690,2810,2900],
+  'WINNIPEG|OTTAWA': [495,630,770,880,1020,1125,1125,1360,1475,1590,1715,1835,1935,2040,2175,2410,2495,2560,2645,2735,2800],
+  'WINNIPEG|SASKATOON': [100,195,280,350,415,480,480,590,640,690,740,785,835,880,930,980,1040,1085,1130,1160,1200],
+  'WINNIPEG|WOODBRIDGE': [200,320,430,520,630,710,710,895,980,1070,1165,1260,1335,1415,1515,1595,1680,1745,1830,1920,1985],
+  'OTTAWA|CALGARY': [585,875,1170,1450,1730,1995,1995,2190,2395,2600,2815,3025,3220,3420,3635,3960,4135,4290,4460,4630,4800],
+  'OTTAWA|CHILLIWACK': [1045,1375,1720,2020,2360,2660,2660,2960,3220,3485,3760,4035,4290,4545,4840,5230,5470,5675,5920,6160,6390],
+  'OTTAWA|EDMONTON': [585,875,1170,1455,1750,2025,2025,2230,2435,2645,2865,3070,3270,3470,3685,4015,4185,4340,4510,4675,4850],
+  'OTTAWA|KELOWNA': [1000,1335,1680,1980,2320,2620,2620,2920,3180,3445,3720,3995,4250,4500,4800,5190,5430,5635,5880,6120,6350],
+  'OTTAWA|SASKATOON': [585,870,1150,1400,1665,1925,1925,2090,2280,2475,2680,2870,3070,3265,3470,3800,3985,4150,4320,4470,4650],
+  'OTTAWA|WINNIPEG': [485,675,870,1055,1250,1445,1445,1500,1640,1785,1940,2085,2235,2385,2540,2820,2945,3065,3190,3310,3450],
+  'OTTAWA|WOODBRIDGE': [355,380,410,430,460,485,485,535,565,590,620,645,670,695,730,885,885,885,885,885,885],
+  'WOODBRIDGE|CALGARY': [300,565,830,1090,1340,1580,1580,1725,1900,2085,2265,2450,2620,2795,2975,3145,3320,3475,3645,3815,3985],
+  'WOODBRIDGE|CHILLIWACK': [760,1065,1380,1660,1970,2245,2245,2495,2725,2965,3210,3460,3690,3920,4180,4415,4655,4860,5100,5345,5575],
+  'WOODBRIDGE|EDMONTON': [300,565,830,1095,1360,1610,1610,1765,1940,2125,2315,2495,2670,2845,3025,3200,3370,3525,3695,3860,4035],
+  'WOODBRIDGE|KELOWNA': [720,1025,1340,1620,1930,2200,2200,2455,2685,2925,3170,3420,3650,3880,4140,4375,4615,4820,5065,5300,5535],
+  'WOODBRIDGE|OTTAWA': [355,380,410,430,460,485,485,535,565,590,620,645,670,695,730,885,885,885,885,885,885],
+  'WOODBRIDGE|SASKATOON': [300,560,810,1045,1275,1510,1510,1625,1785,1955,2130,2295,2470,2640,2810,2985,3170,3335,3500,3655,3835],
+  'WOODBRIDGE|WINNIPEG': [200,365,530,695,860,1030,1030,1035,1145,1265,1390,1510,1635,1760,1880,2000,2130,2250,2375,2495,2635],
+};
+// Three printed typos corrected to Seven-approved likely values
+// (2026-10-20): Edmonton->Saskatoon 18' $35->$325, Winnipeg->Saskatoon
+// 28' $80->$880, Woodbridge->Kelowna 36' $1,820->$4,820 (applied above).
+function teamsTerminalFor(city, prov) {
+  const qC = norm(city);
+  const qP = norm(prov);
+  for (const [t, p] of TEAMS_TERMINALS) {
+    if (placeMatches(t, p, qC, qP)) return { city: t, prov: p };
+  }
+  return null;
+}
+function teamsLinearFeet(packages) {
+  const lines = Array.isArray(packages) ? packages : [];
+  if (!lines.length) return null;
+  let inches = 0;
+  for (const p of lines) {
+    const dims = [Number(p.length), Number(p.width), Number(p.height)].filter((d) => d > 0);
+    if (!dims.length) return null; // a line with no dims cannot be space-rated
+    const q = Math.max(1, Math.floor(Number(p.qty) || 1));
+    inches += q * Math.max(...dims);
+  }
+  return inches / 12;
+}
+function teamsFscPercent(tlClass) {
+  const ov = _fscOverrides.get(TEAMS_ID);
+  if (ov && Number.isFinite(ov.ltl)) {
+    if (tlClass && ov.tl != null && Number.isFinite(ov.tl)) return ov.tl;
+    return ov.ltl;
+  }
+  return tlClass ? TEAMS_FSC_TL : TEAMS_FSC_LTL;
+}
+function teamsQuotes({ originCity, originProv, destCity, destProv, weightLbs, packages }) {
+  const oTerm = teamsTerminalFor(originCity, originProv);
+  const dTerm = teamsTerminalFor(destCity, destProv);
+  if (!oTerm || !dTerm || oTerm.city === dTerm.city) return [];
+  const w = Number(weightLbs);
+  if (!Number.isFinite(w) || w <= 0) return [];
+  const rates = TEAMS_RATES[`${oTerm.city}|${dTerm.city}`];
+  if (!rates) return [];
+  const feet = teamsLinearFeet(packages);
+  if (feet == null) return [];
+  let pointIdx, pointLabel, pointFt;
+  if (feet > 40) {
+    pointIdx = 20; pointLabel = 'FTL'; pointFt = Infinity;
+  } else {
+    pointFt = Math.max(2, Math.ceil(feet / 2) * 2);
+    pointIdx = TEAMS_FEET_POINTS.indexOf(pointFt);
+    pointLabel = `${pointFt}'`;
+  }
+  const base = rates[pointIdx];
+  if (!(base > 0)) return [];
+  const tlClass = pointFt > 12 || w > TEAMS_TL_WEIGHT_LB;
+  const fscPercent = teamsFscPercent(tlClass);
+  const fsc = base * fscPercent / 100;
+  return [{
+    carrier_id: TEAMS_ID,
+    carrier_label: TEAMS_LABEL,
+    service: 'LTL',
+    weight_lbs: w,
+    billable_weight_lbs: r2(w),
+    density_pcf: null,
+    cube_ft: null,
+    linear_ft: r2(feet),
+    floor_lb_per_cuft: null,
+    dimensional_applied: false,
+    dimensional_rule: 'actual',
+    dim_weight_enabled: false,
+    linear_feet_billed: pointLabel,
+    fsc_class: tlClass ? 'truckload' : 'ltl',
+    rate_basis: 'teams_feet',
+    rate_cwt_used: null,
+    base_cad: r2(base),
+    fsc_percent: fscPercent,
+    fsc_cad: r2(fsc),
+    total_cad: r2(base + fsc),
+    min_charge_applied: false,
+    currency: 'CAD',
+    source: 'matrix',
+    lane_origin_city: oTerm.city,
+    lane_origin_prov: oTerm.prov,
+    lane_dest_city: dTerm.city,
+    lane_dest_prov: dTerm.prov,
+    metro_matched: oTerm.city !== norm(originCity) || dTerm.city !== norm(destCity),
+  }];
+}
+// Register the carrier record so the standard FSC machinery applies:
+// listCarriers() shows it (Admin > Fuel surcharges can override both
+// class percents), and quote rows get rate-checked dates.
+upsertCarrier({
+  carrier_id: TEAMS_ID,
+  carrier_label: TEAMS_LABEL,
+  fsc_percent: 46, // LTL class, from last invoice; Truckload class 104.1% (TEAMS_FSC_TL) — both per Seven 2026-10-20
+  fsc_as_of: '2026-10-20',
+  fsc_cadence: 'monthly',
+  fsc_note: 'Quote sheets to Total Tire Distributors, printed Jun 5 2024, printed expiry Aug 31 2024 — loaded per Seven (stated still up to date Oct 2026). FSC by class (T&C #6): LTL 46% (invoice) / Truckload 104.1% per Seven Oct 2026 — set via Admin > Fuel surcharges.',
+});
+
 // ---------------------------------------------------------------------------
 // "May also serve this lane" coverage areas (Seven, 2026-10-19).
 //
@@ -1877,6 +2081,10 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
   if ((oProv === 'AB' || oProv === '') && (dProv === 'AB' || dProv === '')) {
     for (const q of doneDealQuotes({ originCity: oCity, originProv: oProv, destCity: dCity, destProv: dProv, weightLbs: w, packages })) quotes.push(q);
   }
+  // TEAMS Transport: dedicated linear-foot flat rating (no matrix lanes).
+  // Both ends must resolve to one of the 8 terminals via the standard
+  // matrix place-matching (incl. metro collapsing).
+  for (const q of teamsQuotes({ originCity: oCity, originProv: oProv, destCity: dCity, destProv: dProv, weightLbs: w, packages })) quotes.push(q);
   quotes.sort((a, b) => a.total_cad - b.total_cad || a.carrier_id.localeCompare(b.carrier_id));
   return quotes;
 }
@@ -1964,7 +2172,7 @@ function listCarriers() {
       // Effective (live) FSC percents: admin override wins over rate sheet.
       fsc_ltl_percent: ov && Number.isFinite(ov.ltl) ? ov.ltl : (Number(c.fsc_percent) || 0),
       fsc_tl_percent: ov && ov.tl != null && Number.isFinite(ov.tl) ? ov.tl
-        : (c.carrier_id === 'rosenau' ? ROSENAU_TL_FSC : null),
+        : (c.carrier_id === 'rosenau' ? ROSENAU_TL_FSC : c.carrier_id === 'teams' ? TEAMS_FSC_TL : null),
       fsc_overridden: !!(ov && Number.isFinite(ov.ltl)),
       fsc_percent: c.fsc_percent, // rate-sheet value, for reference
       fsc_cadence: c.fsc_cadence || null, // 'weekly' | 'monthly' | 'per_sheet'
@@ -2097,4 +2305,4 @@ function upsertCarrierRows(carrierId, rows) {  const st = ensureLoaded();
   return count;
 }
 
-module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, guilbaultBillableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides, primeTimeDeliveryQuotes, primeTimeAfterHoursQuote, primeTimeTruckQuote, primeTimeHotShotQuote, number8Quotes, doneDealQuotes, mayServeLanes };
+module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, guilbaultBillableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides, primeTimeDeliveryQuotes, primeTimeAfterHoursQuote, primeTimeTruckQuote, primeTimeHotShotQuote, number8Quotes, doneDealQuotes, teamsQuotes, mayServeLanes };

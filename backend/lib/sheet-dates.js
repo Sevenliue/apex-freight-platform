@@ -26,6 +26,7 @@ const SHEET_DATES = {
   rosenau: { effective: null, expiry: '2026-12-31' },
   number8: { effective: '2024-03-01', expiry: null }, // 6-zone CWT tariff eff. Mar 2024; Seven confirmed still current 2026-10-19; no expiry on sheet
   donedeal: { effective: '2026-10-19', expiry: null }, // ASSUMPTION: no date on the sheet (photo); recorded as the date Seven provided it 2026-10-19
+  teams: { effective: '2024-06-05', expiry: '2024-08-31' }, // printed dates on the Total Tire quote sheets; loaded per Seven 2026-10-20 (stated still up to date) — rows will flag the sheet as expired, which is the honest state of the paper
 };
 
 // Staleness for the CUSTOMER-FACING quote board. Deliberately stricter than
