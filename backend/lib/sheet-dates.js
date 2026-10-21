@@ -27,6 +27,7 @@ const SHEET_DATES = {
   number8: { effective: '2024-03-01', expiry: null }, // 6-zone CWT tariff eff. Mar 2024; Seven confirmed still current 2026-10-19; no expiry on sheet
   donedeal: { effective: '2026-10-19', expiry: null }, // ASSUMPTION: no date on the sheet (photo); recorded as the date Seven provided it 2026-10-19
   teams: { effective: '2024-06-05', expiry: '2027-08-31' }, // printed dates on the Total Tire quote sheets (printed expiry Aug 31, 2024); loaded per Seven 2026-10-20 (stated still up to date) — recorded expiry extended to 2027-08-31 per Seven 2026-10-20, like Morneau
+  knr: { effective: '2026-01-08', expiry: null }, // KNR price list eff. 2026-01-08 (printed on the sheet); no expiry on the sheet; rates + FSC 18% confirmed current by the carrier 2026-10-21
 };
 
 // Staleness for the CUSTOMER-FACING quote board. Deliberately stricter than

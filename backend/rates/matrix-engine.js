@@ -765,6 +765,167 @@ upsertCarrier({
   fsc_note: 'Flat 10% per their rate sheet; no monthly update known. Update via Admin when the carrier confirms a change.',
 });
 
+// KNR Courier (2024) Ltd. (Kipling SK; Hwy 48 corridor courier).
+// Rate sheet: KNR price list (PDF provided by Seven), effective
+// 2026-01-08, no expiry on the sheet. The carrier's answers to Seven's
+// six clarification questions were confirmed 2026-10-21 (intake:
+// knr-courier-intake.md):
+//   - ONE flat price table for ALL towns, same price in both directions
+//   - rating is on TOTAL shipment weight, bands upper-inclusive:
+//       <=30 lb $35 | 31-50 $40 | 51-80 $45 | 81-100 $50
+//       101+ lb: $50 + $0.25 x TOTAL weight (carrier-confirmed: the
+//       per-lb charge is on the total weight, not the excess over 100;
+//       120 lb = $80)
+//   - envelopes/documents ride the <=30 lb band ($35) — automatic, the
+//     band is weight-based, no special handling
+//   - FSC: flat 18%, current since summer 2026; the carrier emails its
+//     customers in advance of any change (no auto-pull source)
+//   - actual weight only — the sheet states no dimensional rule
+// Rating:
+//   - quote ONLY when BOTH origin and destination are in the 13-town
+//     service area (exact town match after normalization, NO metro
+//     collapsing — metroOf() would fold White City / Pilot Butte into
+//     Regina and neither is on the carrier's list; NO nearby-town
+//     fallback). Same-town lanes quote (local pickup/delivery).
+//   - the carrier also serves "any farms or stops in-between" the
+//     listed towns — not codable as named places, not modeled.
+//   - no upper weight cap stated on the sheet — none modeled
+//   - quotes pre-GST; the 15% markup is applied in routes/rates.js like
+//     all other carriers
+// Tires (ASSUMPTION — set by Seven 2026-10-21): the sheet prices tires
+// per piece ($20 passenger / $25 semi, FSC applies on both — confirmed)
+// but the quote form has no tire-type input. Detection rule: a piece
+// whose two largest dimensions are equal (diameter x diameter x width)
+// rates as a tire of that diameter; diameter > 35 in = semi ($25),
+// otherwise passenger ($20). When EVERY piece in the shipment is a
+// tire, the shipment prices per piece (sum over lines of qty x tire
+// price) INSTEAD of the weight table. Mixed shipments (tires plus
+// non-tire pieces) fall back to the weight table — the sheet gives no
+// rule for splitting them.
+const KNR_ID = 'knr';
+const KNR_LABEL = 'KNR Courier';
+// 13-point SK Hwy 48 corridor service area, normalized (see norm()).
+// Stored under the carrier's own spelling 'KENOSEE' (the place itself
+// is Kenosee / Kenosee Lake SK) — aliases below map the other spellings
+// onto it so either entry matches.
+const KNR_TOWNS = new Set([
+  'REGINA', 'DAVIN', 'VIBANK', 'ODESSA', 'KENDAL', 'MONTMARTRE',
+  'GLENAVON', 'PEEBLES', 'WINDTHORST', 'KIPLING', 'KENNEDY', 'WAWOTA',
+  'KENOSEE',
+]);
+const KNR_CITY_ALIASES = {
+  'KENOSEE': 'KENOSEE',      // real-world spelling
+  'KENNOSEE': 'KENOSEE',     // carrier's own spelling on their sheet/reply (double N)
+  'KENOSEE LAKE': 'KENOSEE', // Google Places locality name
+};
+function knrTownFor(city) {
+  const c = norm(city);
+  const canon = KNR_CITY_ALIASES[c] || c;
+  return KNR_TOWNS.has(canon) ? canon : null;
+}
+// Weight bands: [max_lb, price_cad] — upper-inclusive, per shipment on
+// TOTAL actual weight.
+const KNR_WEIGHT_BANDS = [
+  [30, 35], [50, 40], [80, 45], [100, 50],
+];
+const KNR_OVER100_BASE_CAD = 50;
+const KNR_OVER100_PER_LB = 0.25; // on TOTAL weight (carrier-confirmed)
+const KNR_TIRE_PASSENGER_CAD = 20;
+const KNR_TIRE_SEMI_CAD = 25;
+const KNR_TIRE_SEMI_MIN_DIAMETER_IN = 35; // diameter > 35 in = semi
+// Tire detection (ASSUMPTION, see header): per-piece tire price for a
+// package line, or null when the line is not tire-shaped (a tire is
+// diameter x diameter x width: the two largest dims are equal) or the
+// line carries fewer than three dimensions.
+function knrTirePriceFor(p) {
+  const dims = [Number(p.length), Number(p.width), Number(p.height)]
+    .filter((d) => Number.isFinite(d) && d > 0)
+    .sort((a, b) => b - a);
+  if (dims.length !== 3) return null;
+  if (dims[0] !== dims[1]) return null;
+  return dims[0] > KNR_TIRE_SEMI_MIN_DIAMETER_IN
+    ? KNR_TIRE_SEMI_CAD
+    : KNR_TIRE_PASSENGER_CAD;
+}
+function knrQuotes({ originCity, originProv, destCity, destProv, weightLbs, packages }) {
+  const oTown = knrTownFor(originCity);
+  const dTown = knrTownFor(destCity);
+  if (!oTown || !dTown) return [];
+  const w = Number(weightLbs);
+  if (!Number.isFinite(w) || w <= 0) return [];
+  const st = ensureLoaded();
+  const carrier = st.carriersById.get(KNR_ID);
+  const lines = Array.isArray(packages) ? packages : [];
+  let base;
+  let tires = false;
+  let tirePieces = 0;
+  if (lines.length > 0) {
+    let tireTotal = 0;
+    let allTires = true;
+    for (const p of lines) {
+      const price = knrTirePriceFor(p);
+      if (price == null) { allTires = false; break; }
+      const q = Math.max(1, Math.floor(Number(p.qty) || 1));
+      tireTotal += q * price;
+      tirePieces += q;
+    }
+    if (allTires) { tires = true; base = tireTotal; }
+  }
+  if (!tires) {
+    if (w > 100) {
+      base = KNR_OVER100_BASE_CAD + KNR_OVER100_PER_LB * w;
+    } else {
+      const band = KNR_WEIGHT_BANDS.find((b) => w <= b[0]);
+      if (!band) return [];
+      base = band[1];
+    }
+  }
+  const fscPercent = fscFor(carrier, w);
+  const fsc = base * fscPercent / 100;
+  return [{
+    carrier_id: KNR_ID,
+    carrier_label: KNR_LABEL,
+    service: 'LTL',
+    weight_lbs: w,
+    billable_weight_lbs: r2(w),
+    density_pcf: null,
+    cube_ft: null,
+    floor_lb_per_cuft: null,
+    dimensional_applied: false,
+    dimensional_rule: 'actual',
+    dim_weight_enabled: false,
+    rate_basis: tires ? 'knr_tires' : 'knr_flat',
+    rate_cwt_used: null,
+    base_cad: r2(base),
+    fsc_percent: fscPercent,
+    fsc_cad: r2(fsc),
+    total_cad: r2(base + fsc),
+    min_charge_applied: false,
+    currency: 'CAD',
+    source: 'matrix',
+    lane_origin_city: oTown,
+    lane_origin_prov: 'SK',
+    lane_dest_city: dTown,
+    lane_dest_prov: 'SK',
+    metro_matched: false,
+    ...(tires ? { tire_pieces: tirePieces } : {}),
+  }];
+}
+// Register the carrier record so the standard FSC machinery applies:
+// listCarriers() shows it (Admin > Fuel surcharges can override it),
+// fscFor() resolves the live percent, and quote rows get rate-checked
+// dates. FSC cadence 'per_sheet': flat 18% from their sheet — the
+// carrier emails customers in advance of changes, so it is never
+// flagged stale on the quote board.
+upsertCarrier({
+  carrier_id: KNR_ID,
+  carrier_label: KNR_LABEL,
+  fsc_percent: 18, // flat 18% per their sheet; confirmed current 2026-10-21 (in effect since summer 2026)
+  fsc_as_of: '2026-10-21',
+  fsc_cadence: 'per_sheet',
+  fsc_note: 'Flat 18% per their rate sheet (eff. 2026-01-08), confirmed current 2026-10-21. Carrier emails customers in advance of any FSC change — no auto-pull; update via Admin when Seven forwards the notice.',
+});
+
 // TEAMS Transport (Winnipeg MB; 8-terminal Canadian network).
 // Rate source: carrier QUOTE sheets Q154360-Q154372 issued to TOTAL TIRE
 // DISTRIBUTORS INC, printed Jun 05, 2024, printed expiry Aug 31, 2024 —
@@ -2081,6 +2242,13 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
   if ((oProv === 'AB' || oProv === '') && (dProv === 'AB' || dProv === '')) {
     for (const q of doneDealQuotes({ originCity: oCity, originProv: oProv, destCity: dCity, destProv: dProv, weightLbs: w, packages })) quotes.push(q);
   }
+  // KNR Courier: flat weight-table rating, no lanes/zones.
+  // SK-only; both cities must be in the 13-town Hwy 48 corridor service
+  // area (exact match after normalization — no metro collapsing, no
+  // nearby-town fallback). All-tire shipments price per piece instead.
+  if ((oProv === 'SK' || oProv === '') && (dProv === 'SK' || dProv === '')) {
+    for (const q of knrQuotes({ originCity: oCity, originProv: oProv, destCity: dCity, destProv: dProv, weightLbs: w, packages })) quotes.push(q);
+  }
   // TEAMS Transport: dedicated linear-foot flat rating (no matrix lanes).
   // Both ends must resolve to one of the 8 terminals via the standard
   // matrix place-matching (incl. metro collapsing).
@@ -2305,4 +2473,4 @@ function upsertCarrierRows(carrierId, rows) {  const st = ensureLoaded();
   return count;
 }
 
-module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, guilbaultBillableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides, primeTimeDeliveryQuotes, primeTimeAfterHoursQuote, primeTimeTruckQuote, primeTimeHotShotQuote, number8Quotes, doneDealQuotes, teamsQuotes, mayServeLanes };
+module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, guilbaultBillableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides, primeTimeDeliveryQuotes, primeTimeAfterHoursQuote, primeTimeTruckQuote, primeTimeHotShotQuote, number8Quotes, doneDealQuotes, knrQuotes, teamsQuotes, mayServeLanes };
