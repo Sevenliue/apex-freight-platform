@@ -367,7 +367,7 @@
           <button type="button" class="btn" id="gate-signup">Sign up free</button>
         </div>
       </div>
-      <form id="quote-form" class="qq" novalidate>
+      <form id="quote-form" class="qq" novalidate autocomplete="off">
         <div class="qq-topbar">
           <div class="qq-topseg"><span class="qq-toplabel">Shipment Type:</span>
             <div class="segmented" role="radiogroup" aria-label="Region">
@@ -1422,7 +1422,7 @@
 
   <script src="fsa.js"></script>
   <script src="postal-autofill.js"></script>
-  <script src="places-autocomplete.js?v=20261022a"></script>
+  <script src="places-autocomplete.js?v=20261022b"></script>
   <script type="module">
     import * as api from './api.js';
 
@@ -4514,6 +4514,23 @@
       for (const [name, val] of Object.entries(map)) {
         const el = form.elements[name];
         if (el) { el.value = val || ''; delete el.dataset.prime; }
+      }
+      // Picking a shipper clears the consignee block: the form otherwise
+      // keeps the previous quote's values for the whole session, so the
+      // last quote's consignee would still be sitting in the To panel next
+      // to the freshly picked shipper. A consignee pick is explicit and
+      // leaves the shipper block untouched.
+      if (side === 'shipper') {
+        ['c_name', 'd_street', 'd_city', 'd_state', 'd_zip', 'd_country', 'd_phone', 'd_email'].forEach((n) => {
+          const el = form.elements[n];
+          if (!el) return;
+          el.value = '';
+          delete el.dataset.prime;
+          delete el.dataset.manual;
+          if (n === 'd_zip') delete el.dataset.lastFsa;
+        });
+        const depot = form.elements['depot_pickup'];
+        if (depot) depot.checked = false;
       }
       // Tell postal auto-fill about the programmatic fill so it doesn't fight it.
       if (window.SHIPRATE_postalFilled) {

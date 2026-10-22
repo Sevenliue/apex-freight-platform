@@ -22,6 +22,9 @@
  *   street/city/province/postal/country.
  * - On select of an address-book entry, every address field (plus contact
  *   name/phone/email where the block has them) fills instantly — no Google call.
+ * - An address-book pick for the shipper block also clears the consignee
+ *   block, so the previous quote's consignee never carries over next to a
+ *   freshly picked shipper.
  * - Coexists with the offline postal auto-fill: after a suggestion is applied,
  *   window.SHIPRATE_postalFilled(zipName, fsa) is called when present so the
  *   postal auto-fill treats those fields as set and doesn't fight it.
@@ -220,6 +223,27 @@
     }
   }
 
+  // After an address-book pick for the shipper/origin block, clear the
+  // consignee block. The quote form keeps the previous quote's values for
+  // the whole session, so without this the To panel still shows the last
+  // quote's consignee next to the freshly picked shipper — it looked like
+  // the site had "pulled" that consignee in. A fresh shipper pick starts
+  // the consignee blank; the user can still pick a saved consignee
+  // explicitly in the To block (that pick is not affected).
+  function clearConsigneeBlock() {
+    var g = GROUPS[1]; // consignee group
+    [g.name, g.street, g.city, g.state, g.zip, g.country, g.phone, g.email].forEach(function (n) {
+      var t = el(n);
+      if (!t) return;
+      t.value = '';
+      delete t.dataset.prime;
+      delete t.dataset.manual;
+      if (n === g.zip) delete t.dataset.lastFsa;
+    });
+    var depot = el('depot_pickup');
+    if (depot) depot.checked = false;
+  }
+
   async function selectSuggestion(input, group, item, isNameInput) {
     closeDropdown();
     if (item.source === 'address_book' && item.address) {
@@ -227,6 +251,7 @@
         ? (item.address.name || input.value)
         : (item.address.street || input.value);
       applyBookAddress(group, item.address);
+      if (group === GROUPS[0]) clearConsigneeBlock();
       return;
     }
     input.value = item.main_text || item.description || input.value;
