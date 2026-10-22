@@ -127,15 +127,30 @@
     try {
       // The address-book API requires sign-in: send the same Bearer token
       // the rest of the app uses. Without it the server 401s and the book
-      // suggestions silently come back empty (only Google ever showed).
+      // suggestions come back empty (only Google ever shows).
       var tok = '';
       try { tok = localStorage.getItem('shiprate_auth_token') || ''; } catch (e) {}
       var r = await fetch('/api/address-book/search?q=' + encodeURIComponent(q), {
         headers: tok ? { Authorization: 'Bearer ' + tok } : {},
       });
-      var data = await r.json();
+      var data = await r.json().catch(function () { return null; });
+      if (!r.ok) {
+        // Never fail silently: a rejected or failed lookup used to be
+        // indistinguishable from "no saved addresses" (the Oct 2026
+        // silent-401 bug). Surface the real cause in the console.
+        console.warn(
+          '[shiprate] address-book search failed:', r.status,
+          'for query', JSON.stringify(q),
+          data && data.error ? '(' + data.error + ')' : ''
+        );
+        return [];
+      }
       return (data && data.suggestions) || [];
     } catch (e) {
+      console.warn(
+        '[shiprate] address-book search error for query', JSON.stringify(q),
+        e && e.message ? e.message : e
+      );
       return []; // address book hiccup: Google path still works
     }
   }
@@ -148,6 +163,13 @@
     }
     // Address book first — the user's own saved shippers/receivers.
     var bookItems = await fetchBookSuggestions(q);
+    if (isNameInput && signedIn() && !bookItems.length) {
+      // The Company field is book-only, so an empty result here is the
+      // whole answer. Leave a console trace that distinguishes "lookup
+      // worked, nothing saved matched" from a broken lookup — the two
+      // used to look identical (no popup either way).
+      console.info('[shiprate] no saved address-book match for company query', JSON.stringify(q));
+    }
     var country = (el(group.country) && el(group.country).value.trim().toUpperCase()) || 'CA';
     var googleItems = [];
     // Name inputs are book-only: a company name is not a Google query.
