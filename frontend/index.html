@@ -146,6 +146,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
           <span>Inventory</span>
         </button>
+        <button class="tab" id="nav-mycompany" data-tab="mycompany" role="tab" aria-selected="false" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/><path d="M10 7h1M13 7h1M10 11h1M13 11h1M10 15h1M13 15h1"/></svg>
+          <span>My Company</span>
+        </button>
         <button class="tab" data-tab="comingsoon" data-comingsoon="Settings" role="tab" aria-selected="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.2 4.2l2.8 2.8M17 17l2.8 2.8M1 12h4M19 12h4M4.2 19.8l2.8-2.8M17 7l2.8-2.8"/></svg>
           <span>Settings</span>
@@ -1245,6 +1249,13 @@
         </div>
       </div>
     </section>
+    <section id="tab-mycompany" class="panel" role="tabpanel">
+      <h1>My Company</h1>
+      <p class="lede" id="mc-lede">Your company's people, quotes and address book.</p>
+      <div id="mc-people" style="margin-top:16px"></div>
+      <div id="mc-quotes" style="margin-top:16px"></div>
+      <div id="mc-addresses" style="margin-top:16px"></div>
+    </section>
     <section id="tab-admin" class="panel" role="tabpanel">
       <h1>Admin overview</h1>
       <p class="lede">Platform activity at a glance.</p>
@@ -1530,6 +1541,7 @@
       if (btn.dataset.tab === 'store') loadStore();
       if (btn.dataset.tab === 'library') loadLibrary();
       if (btn.dataset.tab === 'inventory') loadInventory();
+      if (btn.dataset.tab === 'mycompany') loadMyCompany();
       if (btn.dataset.tab === 'pricing') loadBillingCenter();
       if (btn.dataset.tab === 'pickups') loadPickups();
       closeSidebar();
@@ -3701,7 +3713,8 @@
         box.innerHTML =
           '<h2>Account approvals</h2><p class="lede">New accounts can get quotes right away. ' +
           'Approve an account to let them schedule and pay for shipments.<br>' +
-          `Freight markup defaults to <strong>${defaultMarkup}%</strong>; use Edit to set a per-customer markup (blank resets to the default).</p>` +
+          `Freight markup defaults to <strong>${defaultMarkup}%</strong>; use Edit to set a per-customer markup (blank resets to the default).<br>` +
+          `<strong>Make company admin</strong> gives a shipper a “My Company” view of their own company — people, quotes and address book. They never see costs or margins, and approvals stay with you.</p>` +
           (pending.length
             ? `<div class="card warn" style="margin-bottom:10px">⏳ ${pending.length} account${pending.length === 1 ? '' : 's'} waiting for approval.</div>`
             : '') +
@@ -3712,7 +3725,7 @@
               (u) => `<tr>
               <td>${esc((u.created_at || '').slice(0, 10))}</td>
               <td>${esc(u.name || '—')}</td>
-              <td>${esc(u.company || '—')}</td>
+              <td>${esc(u.company || '—')}${u.company_group ? `<br><span class="note">🏢 ${esc(u.company_group)}</span>` : ''}${u.role === 'company_admin' ? '<br><span class="badge ok">Company admin</span>' : ''}</td>
               <td>${esc(u.email || '—')}</td>
               <td>${u.is_admin
                 ? '—'
@@ -3735,7 +3748,10 @@
                 : `${u.shipping_approved
                     ? `<button class="btn small" data-acct-revoke="${esc(u.id)}">Revoke</button>`
                     : `<button class="btn small primary" data-acct-approve="${esc(u.id)}">Approve</button>`}
-                   <button class="btn small" data-acct-resetpw="${esc(u.id)}" data-email="${esc(u.email || '')}" style="margin-left:4px">Reset PW</button>`}</td>
+                   <button class="btn small" data-acct-resetpw="${esc(u.id)}" data-email="${esc(u.email || '')}" style="margin-left:4px">Reset PW</button>
+                   ${u.role === 'company_admin'
+                     ? `<button class="btn small" data-acct-coadmin-off="${esc(u.id)}" data-name="${esc(u.name || u.email || '')}" style="margin-left:4px">Remove company admin</button>`
+                     : `<button class="btn small" data-acct-coadmin="${esc(u.id)}" data-name="${esc(u.name || u.email || '')}" data-company-id="${esc(u.company_id || '')}" data-signup-company="${esc(u.company || '')}" style="margin-left:4px">Make company admin</button>`}`}</td>
             </tr>`
             )
             .join('')}</tbody></table></div>`;
@@ -3825,10 +3841,362 @@
             }
           })
         );
+        box.querySelectorAll('[data-acct-coadmin]').forEach((btn) =>
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-acct-coadmin');
+            const who = btn.getAttribute('data-name') || 'This account';
+            const companyId = btn.getAttribute('data-company-id') || '';
+            const signupCompany = btn.getAttribute('data-signup-company') || '';
+            btn.disabled = true;
+            try {
+              const payload = { company_admin: true };
+              let targetLabel = '';
+              if (companyId) {
+                targetLabel = 'their company';
+              } else {
+                // Not in a company group yet: pick an existing company by
+                // number, or create one — the signup company name is
+                // prefilled, so the common case is a single OK click.
+                let companies = [];
+                try {
+                  companies = (await api.listAdminCompanies()).companies || [];
+                } catch (e) {
+                  companies = [];
+                }
+                const listText = companies.length
+                  ? 'Existing companies:\n' +
+                    companies
+                      .map((c, i) => `${i + 1}. ${c.name} (${c.member_count} member${c.member_count === 1 ? '' : 's'})`)
+                      .join('\n') +
+                    '\n\n'
+                  : '';
+                const answer = prompt(
+                  `${who} is not linked to a company group yet.\n\n${listText}` +
+                    'Type a company NUMBER to pick an existing company, or a NAME to create a new company group.\n' +
+                    'The signup company name is prefilled — just click OK to use it.',
+                  signupCompany
+                );
+                if (answer === null) {
+                  btn.disabled = false;
+                  return; // cancelled
+                }
+                const trimmed = answer.trim();
+                if (!trimmed) {
+                  showAlert('Enter a company number or a company name.');
+                  btn.disabled = false;
+                  return;
+                }
+                const asNum = Number(trimmed);
+                if (Number.isInteger(asNum) && String(asNum) === trimmed) {
+                  if (asNum < 1 || asNum > companies.length) {
+                    showAlert('That number is not in the company list.');
+                    btn.disabled = false;
+                    return;
+                  }
+                  payload.company_id = companies[asNum - 1].id;
+                  targetLabel = companies[asNum - 1].name;
+                } else if (trimmed === signupCompany) {
+                  targetLabel = trimmed; // server creates it from the signup company_name
+                } else {
+                  payload.new_company_name = trimmed;
+                  targetLabel = trimmed;
+                }
+              }
+              const ok = confirm(
+                `Make ${who} a company admin${targetLabel && targetLabel !== 'their company' ? ` of "${targetLabel}"` : ''}?\n\n` +
+                  'They get a "My Company" view of their own company\'s people, quotes and address book — never costs or margins — and can edit staff names and phone numbers. Shipping approvals stay with you.'
+              );
+              if (!ok) {
+                btn.disabled = false;
+                return;
+              }
+              const res = await api.setUserCompanyAdmin(id, payload);
+              showAlert(`${who} is now the company admin of ${res.company_name || targetLabel || 'their company'}.`);
+              reload();
+            } catch (err) {
+              showAlert('Could not make company admin: ' + err.message);
+              btn.disabled = false;
+            }
+          })
+        );
+        box.querySelectorAll('[data-acct-coadmin-off]').forEach((btn) =>
+          btn.addEventListener('click', async () => {
+            const who = btn.getAttribute('data-name') || 'This account';
+            if (
+              !confirm(
+                `Remove company admin from ${who}?\n\nThey keep their normal shipper account — they just lose the My Company view.`
+              )
+            )
+              return;
+            btn.disabled = true;
+            try {
+              await api.setUserCompanyAdmin(btn.getAttribute('data-acct-coadmin-off'), { company_admin: false });
+              reload();
+            } catch (err) {
+              showAlert('Could not remove company admin: ' + err.message);
+              btn.disabled = false;
+            }
+          })
+        );
       } catch (err) {
         // Not an admin (or DB off): hide the queue silently.
         box.innerHTML = '';
       }
+    }
+
+    /* My Company — company admins (role 'company_admin', assigned only by
+       the site admin) manage their own company's people, quote history and
+       address book. Scope is enforced server-side from the caller's session
+       company_id — these functions only render what the API returns. Quote
+       payloads carry totals only: cost/margin fields never leave the server
+       for this view. */
+    let mcAddresses = [];
+    let mcEditingId = null; // null = form closed, 'new' = adding, else address id
+
+    function loadMyCompany() {
+      loadMcPeople();
+      loadMcQuotes();
+      loadMcAddresses();
+    }
+
+    async function loadMcPeople() {
+      const box = $('#mc-people');
+      if (!box) return;
+      box.innerHTML = '<div class="card empty">Loading people…</div>';
+      try {
+        const { company, people } = await api.getCompanyPeople();
+        const lede = $('#mc-lede');
+        if (lede) {
+          lede.textContent = company
+            ? `${company.name} — your company's people, quotes and address book.`
+            : 'Your account is not assigned to a company yet — ask the site admin to set one up.';
+        }
+        if (!company) {
+          box.innerHTML = '<h2>People</h2><div class="card empty">No company assigned to your account yet.</div>';
+          return;
+        }
+        box.innerHTML =
+          '<h2>People</h2>' +
+          '<p class="lede">Everyone with an account under your company. You can fix a name or phone number; shipping approvals and roles stay with the site admin.</p>' +
+          `<div class="table-wrap"><table class="data"><thead><tr>
+            <th>Name</th><th>Email</th><th>Phone</th><th>Role</th><th>Status</th><th></th>
+          </tr></thead><tbody>${people
+            .map(
+              (p) => `<tr>
+              <td>${esc(p.name || '—')}${p.is_you ? ' <span class="badge ok">You</span>' : ''}</td>
+              <td>${esc(p.email || '—')}</td>
+              <td>${esc(p.phone || '—')}</td>
+              <td>${p.role === 'company_admin' ? 'Company admin' : p.role === 'carrier' ? 'Carrier' : 'Shipper'}</td>
+              <td>${p.shipping_approved ? '<span class="badge ok">Approved</span>' : '<span class="badge warn">Quote-only</span>'}</td>
+              <td><button class="btn small" data-mc-edit-person="${esc(p.id)}" data-name="${esc(p.name || '')}" data-phone="${esc(p.phone || '')}">Edit</button></td>
+            </tr>`
+            )
+            .join('')}</tbody></table></div>`;
+        box.querySelectorAll('[data-mc-edit-person]').forEach((btn) =>
+          btn.addEventListener('click', async () => {
+            const name = prompt('Name:', btn.getAttribute('data-name') || '');
+            if (name === null) return; // cancelled
+            if (!name.trim()) {
+              showAlert('Name cannot be empty.');
+              return;
+            }
+            const phone = prompt('Phone (leave blank to clear):', btn.getAttribute('data-phone') || '');
+            if (phone === null) return; // cancelled
+            btn.disabled = true;
+            try {
+              await api.updateCompanyPerson(btn.getAttribute('data-mc-edit-person'), {
+                name: name.trim(),
+                phone: phone.trim(),
+              });
+              loadMcPeople();
+            } catch (err) {
+              showAlert('Could not save: ' + err.message);
+              btn.disabled = false;
+            }
+          })
+        );
+      } catch (err) {
+        box.innerHTML = '<h2>People</h2><div class="card empty">Company admin access is required.</div>';
+      }
+    }
+
+    async function loadMcQuotes() {
+      const box = $('#mc-quotes');
+      if (!box) return;
+      box.innerHTML = '<div class="card empty">Loading quotes…</div>';
+      try {
+        const { quotes } = await api.getCompanyQuotes();
+        if (!quotes.length) {
+          box.innerHTML = '<h2>Quotes</h2><div class="card empty">No quotes yet for your company.</div>';
+          return;
+        }
+        const rows = [];
+        quotes.forEach((q) => {
+          const head =
+            `${esc((q.created_at || '').slice(0, 10))} · ${q.quote_no ? '#' + esc(q.quote_no) : 'Quote'}` +
+            `${q.is_saved ? ' <span class="badge ok">Saved</span>' : ''}<br>` +
+            `${esc(q.origin || '—')} → ${esc(q.destination || '—')}<br>` +
+            `<span class="note">ran by ${esc(q.ran_by || '—')}</span>`;
+          if (!q.rates.length) {
+            rows.push(`<tr><td>${head}</td><td colspan="2" class="note">No priced carriers</td></tr>`);
+            return;
+          }
+          q.rates.forEach((r) => {
+            rows.push(
+              `<tr><td>${head}</td>` +
+                `<td>${esc(r.carrier || '—')}${r.service ? ` <span class="note">${esc(r.service)}</span>` : ''}` +
+                `${r.delivery_days ? `<br><span class="note">${esc(String(r.delivery_days))} day${String(r.delivery_days) === '1' ? '' : 's'}</span>` : ''}</td>` +
+                `<td>${cad(r.total_cad)}</td></tr>`
+            );
+          });
+        });
+        box.innerHTML =
+          '<h2>Quotes</h2>' +
+          '<p class="lede">Every quote your company has run, with the total price quoted.</p>' +
+          `<div class="table-wrap"><table class="data"><thead><tr>
+            <th>Quote</th><th>Carrier</th><th>Total</th>
+          </tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+      } catch (err) {
+        box.innerHTML = '';
+      }
+    }
+
+    async function loadMcAddresses() {
+      const box = $('#mc-addresses');
+      if (!box) return;
+      try {
+        const { addresses } = await api.listCompanyAddresses();
+        mcAddresses = addresses || [];
+        renderMcAddresses();
+      } catch (err) {
+        box.innerHTML = '<h2>Address book</h2><div class="card empty">Could not load the address book.</div>';
+      }
+    }
+
+    function renderMcAddresses() {
+      const box = $('#mc-addresses');
+      if (!box) return;
+      const editing =
+        mcEditingId && mcEditingId !== 'new'
+          ? mcAddresses.find((a) => String(a.id) === String(mcEditingId)) || null
+          : null;
+      const formOpen = mcEditingId !== null;
+      const val = (v) => esc(v || '');
+      box.innerHTML =
+        '<h2>Address book</h2>' +
+        '<p class="lede">Addresses saved by anyone in your company. New entries are saved under your own account.</p>' +
+        '<div class="actions"><button type="button" class="btn primary" id="mcab-add">+ Add address</button></div>' +
+        `<fieldset id="mcab-form-wrap"${formOpen ? '' : ' hidden'}>
+          <legend id="mcab-form-title">${editing ? 'Edit address' : 'Add address'}</legend>
+          <div class="form-grid">
+            <label>Label * <input id="mcab-label" type="text" value="${editing ? val(editing.label) : ''}" placeholder="e.g. Edmonton warehouse"></label>
+            <label>Company <input id="mcab-company" type="text" value="${editing ? val(editing.company) : ''}" placeholder="Company name"></label>
+          </div>
+          <div class="form-grid">
+            <label>Contact name <input id="mcab-contact" type="text" value="${editing ? val(editing.contact_name) : ''}"></label>
+            <label>Street <input id="mcab-street" type="text" value="${editing ? val(editing.street) : ''}"></label>
+          </div>
+          <div class="form-grid">
+            <label>City * <input id="mcab-city" type="text" value="${editing ? val(editing.city) : ''}" placeholder="Edmonton"></label>
+            <div class="row-2">
+              <label>Province <input id="mcab-province" type="text" value="${editing ? val(editing.province) : ''}" maxlength="10"></label>
+              <label>Postal code <input id="mcab-postal" type="text" value="${editing ? val(editing.postal) : ''}"></label>
+            </div>
+          </div>
+          <div class="form-grid">
+            <label class="inline">Country <input id="mcab-country" type="text" value="${editing ? val(editing.country) || 'CA' : 'CA'}" maxlength="2" style="max-width:80px"></label>
+            <label>Phone <input id="mcab-phone" type="tel" value="${editing ? val(editing.phone) : ''}"></label>
+            <label>Email <input id="mcab-email" type="email" value="${editing ? val(editing.email) : ''}"></label>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn primary" id="mcab-save">Save</button>
+            <button type="button" class="btn" id="mcab-cancel">Cancel</button>
+          </div>
+        </fieldset>` +
+        (mcAddresses.length
+          ? `<div class="table-wrap"><table class="data"><thead><tr>
+              <th>Label</th><th>Company</th><th>City</th><th>Prov</th><th>Phone</th><th>Saved by</th><th></th>
+            </tr></thead><tbody>${mcAddresses
+              .map(
+                (a) => `<tr>
+                <td>${esc(a.label || '—')}</td>
+                <td>${esc(a.company || '—')}</td>
+                <td>${esc(a.city || '—')}</td>
+                <td>${esc(a.province || '—')}</td>
+                <td>${esc(a.phone || '—')}</td>
+                <td>${esc(a.owner_name || a.owner_email || '—')}</td>
+                <td><button class="btn small" data-mcab-edit="${esc(a.id)}">Edit</button>
+                    <button class="btn small" data-mcab-del="${esc(a.id)}" data-label="${esc(a.label || '')}">Delete</button></td>
+              </tr>`
+              )
+              .join('')}</tbody></table></div>`
+          : '<div class="card empty">No saved addresses yet.</div>');
+      const addBtn = $('#mcab-add');
+      if (addBtn)
+        addBtn.addEventListener('click', () => {
+          mcEditingId = 'new';
+          renderMcAddresses();
+        });
+      const cancelBtn = $('#mcab-cancel');
+      if (cancelBtn)
+        cancelBtn.addEventListener('click', () => {
+          mcEditingId = null;
+          renderMcAddresses();
+        });
+      const saveBtn = $('#mcab-save');
+      if (saveBtn)
+        saveBtn.addEventListener('click', async () => {
+          const payload = {
+            label: $('#mcab-label').value.trim(),
+            company: $('#mcab-company').value.trim(),
+            contact_name: $('#mcab-contact').value.trim(),
+            street: $('#mcab-street').value.trim(),
+            city: $('#mcab-city').value.trim(),
+            province: $('#mcab-province').value.trim(),
+            postal: $('#mcab-postal').value.trim(),
+            country: $('#mcab-country').value.trim() || 'CA',
+            phone: $('#mcab-phone').value.trim(),
+            email: $('#mcab-email').value.trim(),
+          };
+          if (!payload.label || !payload.city) {
+            showAlert('Label and city are required.');
+            return;
+          }
+          saveBtn.disabled = true;
+          try {
+            if (mcEditingId && mcEditingId !== 'new') {
+              await api.updateCompanyAddress(mcEditingId, payload);
+            } else {
+              await api.createCompanyAddress(payload);
+            }
+            mcEditingId = null;
+            loadMcAddresses();
+          } catch (err) {
+            showAlert('Could not save address: ' + err.message);
+            saveBtn.disabled = false;
+          }
+        });
+      box.querySelectorAll('[data-mcab-edit]').forEach((btn) =>
+        btn.addEventListener('click', () => {
+          mcEditingId = btn.getAttribute('data-mcab-edit');
+          renderMcAddresses();
+        })
+      );
+      box.querySelectorAll('[data-mcab-del]').forEach((btn) =>
+        btn.addEventListener('click', async () => {
+          const label = btn.getAttribute('data-label') || 'this address';
+          if (!confirm(`Delete "${label}" from the company address book?`)) return;
+          btn.disabled = true;
+          try {
+            await api.deleteCompanyAddress(btn.getAttribute('data-mcab-del'));
+            if (String(mcEditingId) === String(btn.getAttribute('data-mcab-del'))) mcEditingId = null;
+            loadMcAddresses();
+          } catch (err) {
+            showAlert('Could not delete: ' + err.message);
+            btn.disabled = false;
+          }
+        })
+      );
     }
 
     /* Dangerous-goods review queue: DG loads held before completion. */
@@ -5071,6 +5439,25 @@
       }
     }
 
+    /* Sidebar: show My Company only to company admins (and site admins).
+       Called at the end of applyQuoteOnlyMode so it has the final word
+       over the quote-only show/hide passes on auth changes. */
+    function isMyCompanyUser() {
+      return !!(
+        currentUser &&
+        (currentUser.role === 'company_admin' || (billingState && billingState.is_admin))
+      );
+    }
+    function syncMyCompanyNav() {
+      const btn = $('#nav-mycompany');
+      if (!btn) return;
+      const show = isMyCompanyUser();
+      btn.style.display = show ? '' : 'none';
+      if (!show && $('#tab-mycompany') && $('#tab-mycompany').classList.contains('active')) {
+        showTab('dashboard');
+      }
+    }
+
     /* Phase-one quote-only mode: for non-admin accounts, hide every sidebar
        item and dashboard card that goes beyond the freight quote (quote form,
        address book, saved quotes, tracking). Admins keep the full site so
@@ -5093,6 +5480,7 @@
         el.style.display = '';
       });
       document.querySelectorAll('.dash-card').forEach((c) => { c.style.display = ''; });
+      syncMyCompanyNav();
       if (SITE_MODE !== 'quote-only' || qoIsAdmin()) return;
       document.body.classList.add('quote-only');
       const labelOf = (btn) => (btn.textContent || '').trim().replace(/\s+/g, ' ');
@@ -5112,6 +5500,8 @@
       document.querySelectorAll('.dash-card[data-dash-goto="pickups"], .dash-card[data-dash-goto="pricing"]').forEach((c) => {
         c.style.display = 'none';
       });
+      // Final word on the My Company item (role-based, not label-based).
+      syncMyCompanyNav();
     }
 
     /* Phase one: every Create Shipment button stays visible, but for

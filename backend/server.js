@@ -204,6 +204,7 @@ app.use('/api/fuel', employerBlocked, require('./routes/fuel'));
 app.use('/api/market', employerBlocked, require('./routes/market'));
 app.use('/api/waybills', requireApprovedAccount, require('./routes/waybills'));
 app.use('/api/company', requireApprovedAccount, require('./routes/company'));
+app.use('/api/company-admin', requireApprovedAccount, require('./routes/company-admin'));
 app.use('/api/store', employerBlocked, requireApprovedAccount, require('./routes/store'));
 app.use('/api/inventory', employerBlocked, requireApprovedAccount, require('./routes/inventory'));
 

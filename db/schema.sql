@@ -11,9 +11,16 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- Enum types (guarded so re-runs don't fail)
 -- ---------------------------------------------------------------------------
 DO $$ BEGIN
-    CREATE TYPE user_role AS ENUM ('shipper', 'carrier', 'admin');
+    CREATE TYPE user_role AS ENUM ('shipper', 'carrier', 'admin', 'company_admin');
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+
+-- Existing databases: add the company_admin role value (Oct 2026). Runs as
+-- part of this script's implicit transaction — PostgreSQL 12+ allows ADD
+-- VALUE inside a transaction as long as the value isn't used until commit,
+-- and nothing in this script uses it. The boot migration in
+-- backend/routes/company-admin.js covers the same ground independently.
+ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'company_admin';
 
 DO $$ BEGIN
     CREATE TYPE carrier_status AS ENUM ('pending', 'approved', 'rejected');

@@ -210,6 +210,37 @@ export function removeCompanyMember(id) {
   return post(`/api/company/members/${encodeURIComponent(id)}/remove`, {});
 }
 
+/* My Company — the company-admin layer (role 'company_admin', assigned by
+   the site admin only). Every endpoint is scoped server-side to the
+   caller's own company; the quotes payload carries retail totals only. */
+export function getCompanyPeople() {
+  return get('/api/company-admin/people');
+}
+
+export function updateCompanyPerson(id, patch) {
+  return request('PUT', `/api/company-admin/people/${encodeURIComponent(id)}`, patch);
+}
+
+export function getCompanyQuotes(limit) {
+  return get('/api/company-admin/quotes' + (limit ? `?limit=${encodeURIComponent(limit)}` : ''));
+}
+
+export function listCompanyAddresses() {
+  return get('/api/company-admin/address-book');
+}
+
+export function createCompanyAddress(a) {
+  return post('/api/company-admin/address-book', a);
+}
+
+export function updateCompanyAddress(id, a) {
+  return request('PUT', `/api/company-admin/address-book/${encodeURIComponent(id)}`, a);
+}
+
+export function deleteCompanyAddress(id) {
+  return request('DELETE', `/api/company-admin/address-book/${encodeURIComponent(id)}`);
+}
+
 /* Contact form. */
 export function sendContact({ name, email, message }) {
   return post('/api/contact', { name, email, message });
@@ -486,6 +517,18 @@ export function setUserMarkup(id, markupPercent) {
    rights attached). */
 export function setUserUnlimited(id, unlimited) {
   return post(`/api/admin/users/${encodeURIComponent(id)}/unlimited-quotes`, { unlimited: !!unlimited });
+}
+
+/* Admin — company groups (for the company-admin promote flow's picker). */
+export function listAdminCompanies() {
+  return get('/api/admin/companies');
+}
+
+/* Admin — promote/demote a shipper account to company admin of its
+   company. payload: { company_admin: true, company_id? , new_company_name? }
+   or { company_admin: false }. */
+export function setUserCompanyAdmin(id, payload) {
+  return post(`/api/admin/users/${encodeURIComponent(id)}/company-admin`, payload);
 }
 
 /* Admin — quote analytics: volume by carrier / customer / lane for rate

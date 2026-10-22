@@ -98,14 +98,18 @@ async function requireAdmin(req, res) {
 }
 
 // GET /api/admin/users — all accounts, newest first, with approval status.
+// role / company_id / company_group power the company-admin controls
+// (company_group is the joined companies row name, which can differ from
+// the free-text company_name the account signed up with).
 router.get('/users', async (req, res) => {
   if (needDb(res)) return;
   if (!(await requireAdmin(req, res))) return;
   try {
     const r = await db.query(
-      `SELECT id, email, full_name, company_name, phone, shipping_approved, markup_percent,
-              unlimited_quotes, created_at
-         FROM users ORDER BY created_at DESC LIMIT 500`
+      `SELECT u.id, u.email, u.full_name, u.company_name, u.phone, u.shipping_approved, u.markup_percent,
+              u.unlimited_quotes, u.created_at, u.role, u.company_id, c.name AS company_group
+         FROM users u LEFT JOIN companies c ON c.id = u.company_id
+        ORDER BY u.created_at DESC LIMIT 500`
     );
     const users = r.rows.map((u) => ({
       id: u.id,
@@ -117,6 +121,9 @@ router.get('/users', async (req, res) => {
       markup_percent: u.markup_percent == null ? null : Number(u.markup_percent),
       unlimited_quotes: !!u.unlimited_quotes,
       is_admin: billing.isAdminEmail(u.email),
+      role: u.role,
+      company_id: u.company_id || null,
+      company_group: u.company_group || null,
       created_at: u.created_at,
     }));
     return res.json({ users, default_markup: config.markupPercent });
@@ -230,6 +237,144 @@ router.post('/users/:id/revoke', async (req, res) => {
     return res.json({ approved: false, id: r.rows[0].id });
   } catch (err) {
     return res.status(502).json({ error: 'Could not update account: ' + err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Company admins (Oct 2026): a shipper company's own admin sees their
+// company's people, quote history (retail totals only) and address book in
+// the "My Company" section — never costs or margins, never another
+// company. Only the site admin assigns the role, here. Carriers don't get
+// this layer. Approvals (shipping_approved) stay site-admin only, as ever.
+// ---------------------------------------------------------------------------
+
+// GET /api/admin/companies — every company group with its member count,
+// for the assign-a-company picker in the promote flow.
+router.get('/companies', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const r = await db.query(
+      `SELECT c.id, c.name, c.created_at, COUNT(u.id)::int AS member_count
+         FROM companies c LEFT JOIN users u ON u.company_id = c.id
+        GROUP BY c.id, c.name, c.created_at
+        ORDER BY c.name`
+    );
+    return res.json({ companies: r.rows });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not list companies: ' + err.message });
+  }
+});
+
+const JOIN_ALPHABET_CA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
+async function genCompanyJoinCode() {
+  for (let i = 0; i < 10; i++) {
+    let code = '';
+    const bytes = crypto.randomBytes(8);
+    for (const b of bytes) code += JOIN_ALPHABET_CA[b % JOIN_ALPHABET_CA.length];
+    const r = await db.query('SELECT id FROM companies WHERE join_code = $1 LIMIT 1', [code]);
+    if (!r.rows.length) return code;
+  }
+  throw new Error('Could not generate a unique join code.');
+}
+
+// Highest numeric waybill suffix a user already holds, so a company created
+// for them seeds its counter above their solo numbers (same rule as
+// routes/company.js company creation).
+async function maxWaybillNoFor(userId) {
+  const r = await db.query('SELECT waybill_no FROM waybills WHERE user_id = $1', [userId]);
+  let max = 0;
+  for (const row of r.rows) {
+    const m = /^WB-0*(\d+)$/.exec(String(row.waybill_no || ''));
+    if (m) max = Math.max(max, parseInt(m[1], 10));
+  }
+  return max;
+}
+
+// POST /api/admin/users/:id/company-admin — promote or demote a shipper
+// account to company admin of its company.
+//   Promote body: { company_admin: true, company_id? , new_company_name? }
+//     Company resolution order: explicit company_id → the account's current
+//     company → a new company created from new_company_name or the
+//     account's signup company_name (created_by = the promoted account, so
+//     the existing company tooling treats them as its admin).
+//   Demote body: { company_admin: false } — role returns to 'shipper';
+//     company membership is left untouched.
+router.post('/users/:id/company-admin', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  const body = req.body || {};
+  const promote = body.company_admin === true;
+  const demote = body.company_admin === false;
+  if (!promote && !demote) {
+    return res.status(400).json({ error: 'company_admin must be true (promote) or false (demote).' });
+  }
+  try {
+    const r = await db.query(
+      'SELECT id, email, full_name, company_name, role, company_id FROM users WHERE id = $1 LIMIT 1',
+      [req.params.id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Unknown account.' });
+    const user = r.rows[0];
+    if (billing.isAdminEmail(user.email)) {
+      return res.status(403).json({ error: 'Staff accounts already have full access — no company role needed.' });
+    }
+
+    if (demote) {
+      if (user.role !== 'company_admin') {
+        return res.json({ id: user.id, role: user.role, company_admin: false, unchanged: true });
+      }
+      await db.query("UPDATE users SET role = 'shipper' WHERE id = $1", [user.id]);
+      return res.json({ id: user.id, role: 'shipper', company_admin: false });
+    }
+
+    // Promote.
+    if (user.role === 'carrier') {
+      return res.status(400).json({ error: 'Carrier accounts cannot be company admins.' });
+    }
+    // Make sure the enum value exists before writing it (fresh databases
+    // get it from schema.sql; this covers any boot-order race).
+    try {
+      await require('./company-admin').ensureRoleValue();
+    } catch { /* the UPDATE below surfaces any real problem */ }
+
+    let companyId = user.company_id || null;
+    let companyName = null;
+    if (body.company_id) {
+      const c = await db.query('SELECT id, name FROM companies WHERE id = $1 LIMIT 1', [String(body.company_id)]);
+      if (!c.rows.length) return res.status(400).json({ error: 'Unknown company_id.' });
+      companyId = c.rows[0].id;
+      companyName = c.rows[0].name;
+    } else if (companyId) {
+      const c = await db.query('SELECT name FROM companies WHERE id = $1 LIMIT 1', [companyId]);
+      companyName = c.rows.length ? c.rows[0].name : null;
+    } else {
+      const name = String(body.new_company_name || user.company_name || '').trim().slice(0, 255);
+      if (!name) {
+        return res.status(400).json({
+          error: 'This account is not in a company and has no company name — pass company_id or new_company_name.',
+        });
+      }
+      companyId = crypto.randomUUID();
+      companyName = name;
+      const code = await genCompanyJoinCode();
+      await db.query(
+        'INSERT INTO companies (id, name, join_code, created_by) VALUES ($1, $2, $3, $4)',
+        [companyId, name, code, user.id]
+      );
+      const seed = await maxWaybillNoFor(user.id).catch(() => 0);
+      await db.query(
+        'INSERT INTO company_waybill_counters (company_id, last_no) VALUES ($1, $2) ON CONFLICT (company_id) DO NOTHING',
+        [companyId, seed]
+      );
+    }
+    if (String(user.company_id || '') !== String(companyId)) {
+      await db.query('UPDATE users SET company_id = $1 WHERE id = $2', [companyId, user.id]);
+    }
+    await db.query("UPDATE users SET role = 'company_admin' WHERE id = $1", [user.id]);
+    return res.json({ id: user.id, role: 'company_admin', company_admin: true, company_id: companyId, company_name: companyName });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not update company admin: ' + err.message });
   }
 });
 
