@@ -1876,6 +1876,29 @@ function guilbaultBillableWeight(actualLbs, packages, floorLbPerCuFt) {
 // regular (OD <= 35"), MT (OD <= 41.5"), Semi (OD above). A line with no dims
 // falls back to the first (regular) tier.
 // Dimensional weight never applies to any of these.
+
+// Collapse exact-duplicate rows before a quote list leaves the engine.
+// A carrier can publish the same tariff from two places that one request
+// matches at once — e.g. Rosenau rates EDMONTON and its metro sibling
+// ACHESON identically, so an Edmonton-area request matches both lanes and
+// produced two indistinguishable Rosenau rows at the same price (Seven,
+// Oct 22 2026). Two rows are duplicates only when carrier AND total both
+// match; the transit estimate is a function of the request's province
+// pair, so it is identical for every row of one response. When one of the
+// pair is the direct/exact lane and the other matched via its metro lane
+// towns, the DIRECT row wins (it also drops the misleading "via" note).
+// Same carrier at a different price is a genuine alternative lane and
+// always stays (breadth beats precision — Oct 18 policy).
+function dedupeQuotes(quotes) {
+  const byKey = new Map();
+  for (const q of quotes) {
+    const key = `${q.carrier_id}|${q.total_cad}`;
+    const prev = byKey.get(key);
+    if (!prev || (prev.metro_matched && !q.metro_matched)) byKey.set(key, q);
+  }
+  return [...byKey.values()];
+}
+
 function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, skidCount, packages, pickupDateTime, originStreet, destStreet }) {
   const st = ensureLoaded();
   const oCity = norm(originCity);
@@ -2267,7 +2290,7 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
   // matrix place-matching (incl. metro collapsing).
   for (const q of teamsQuotes({ originCity: oCity, originProv: oProv, destCity: dCity, destProv: dProv, weightLbs: w, packages })) quotes.push(q);
   quotes.sort((a, b) => a.total_cad - b.total_cad || a.carrier_id.localeCompare(b.carrier_id));
-  return quotes;
+  return dedupeQuotes(quotes);
 }
 
 // Full-load (FTL) rating for full-load-scale shipments (see fullLoadCheck).
@@ -2334,7 +2357,7 @@ function quoteFtl({ originCity, originProv, destCity, destProv, weightLbs, packa
     });
   }
   quotes.sort((a, b) => a.total_cad - b.total_cad || a.carrier_id.localeCompare(b.carrier_id));
-  return quotes;
+  return dedupeQuotes(quotes);
 }
 
 // Carrier directory with live lane counts.
