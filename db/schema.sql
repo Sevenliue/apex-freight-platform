@@ -664,3 +664,41 @@ CREATE TABLE IF NOT EXISTS company_waybill_counters (
     company_id  uuid        PRIMARY KEY REFERENCES companies(id) ON DELETE CASCADE,
     last_no     integer     NOT NULL DEFAULT 0
 );
+
+-- ---------------------------------------------------------------------------
+-- Invoice Audit (added 2026-10-22): carrier invoices submitted by shipper
+-- accounts, re-rated at the pure carrier rate (no markup) and compared
+-- line-by-line. Uploaded invoice files live on disk (uploads/audits/<user>/);
+-- only metadata is stored here. users.audit_tier holds the account's audit
+-- plan key (pricing is data-model only during the free-tool testing phase;
+-- quotas never block). Idempotent.
+-- ---------------------------------------------------------------------------
+ALTER TABLE users ADD COLUMN IF NOT EXISTS audit_tier varchar(30) NOT NULL DEFAULT 'starter';
+CREATE TABLE IF NOT EXISTS invoice_audits (
+    id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id       uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    company_id    uuid REFERENCES companies(id) ON DELETE SET NULL,
+    carrier_name  varchar(160) NOT NULL,
+    carrier_id    varchar(120),
+    invoice_no    varchar(120) NOT NULL,
+    invoice_date  date,
+    origin_city   varchar(80) NOT NULL,
+    origin_province varchar(40),
+    dest_city     varchar(80) NOT NULL,
+    dest_province varchar(40),
+    total_weight_lb numeric NOT NULL DEFAULT 0,
+    total_pieces  integer NOT NULL DEFAULT 0,
+    pieces_json   jsonb NOT NULL DEFAULT '[]'::jsonb,
+    charges_json  jsonb NOT NULL DEFAULT '{}'::jsonb,
+    result_json   jsonb,
+    status        varchar(30) NOT NULL DEFAULT 'cannot_rerate',
+    verdict       varchar(20),
+    variance_cad  numeric,
+    file_name     varchar(255),
+    file_path     text,
+    file_mime     varchar(120),
+    file_size     integer,
+    created_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_invoice_audits_user ON invoice_audits (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_invoice_audits_company ON invoice_audits (company_id, created_at DESC);

@@ -139,6 +139,17 @@ function employerBlocked(req, res, next) {
   return next();
 }
 
+// Platform separation — platform2 route gates. Platform2 starts with zero
+// carrier rate data, so features that need the production rate book (the
+// invoice audit's re-rate, below) answer 404 there exactly like an unknown
+// route. Other profiles are untouched.
+function platform2Blocked(req, res, next) {
+  if (config.siteProfile === 'platform2') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  return next();
+}
+
 // GET /api/diesel-prices — current diesel index prices for the homepage ticker.
 // Cached in memory for 1 hour. Returns nulls when fetchers aren't configured.
 let _dieselCache = null;
@@ -205,6 +216,10 @@ app.use('/api/market', employerBlocked, require('./routes/market'));
 app.use('/api/waybills', requireApprovedAccount, require('./routes/waybills'));
 app.use('/api/company', requireApprovedAccount, require('./routes/company'));
 app.use('/api/company-admin', requireApprovedAccount, require('./routes/company-admin'));
+// Invoice Audit: ships in the full + employer profiles (it is part of the
+// employer handover bundle); gated off on platform2, whose database holds
+// no carrier rate data to re-rate against.
+app.use('/api/audits', platform2Blocked, requireApprovedAccount, require('./routes/audits'));
 app.use('/api/store', employerBlocked, requireApprovedAccount, require('./routes/store'));
 app.use('/api/inventory', employerBlocked, requireApprovedAccount, require('./routes/inventory'));
 

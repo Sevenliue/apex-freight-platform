@@ -241,6 +241,60 @@ export function deleteCompanyAddress(id) {
   return request('DELETE', `/api/company-admin/address-book/${encodeURIComponent(id)}`);
 }
 
+/* Invoice Audit — shipper accounts submit carrier invoices; the server
+   re-rates at the pure carrier rate and returns the line-by-line
+   comparison (no markup/margin data ever appears in these payloads). */
+export function getAuditCarriers() {
+  return get('/api/audits/carriers');
+}
+
+export function listAudits(limit) {
+  return get('/api/audits' + (limit ? `?limit=${encodeURIComponent(limit)}` : ''));
+}
+
+export function getAudit(id) {
+  return get(`/api/audits/${encodeURIComponent(id)}`);
+}
+
+export function getAuditUsage() {
+  return get('/api/audits/usage');
+}
+
+export function deleteAudit(id) {
+  return request('DELETE', `/api/audits/${encodeURIComponent(id)}`);
+}
+
+/* Submit = multipart (manual fields + optional invoice file), so it can't
+   use the JSON request() helper. Mirrors its auth + error handling. */
+export async function submitAudit(formData) {
+  const opts = { method: 'POST', body: formData, headers: {} };
+  const token = getAuthToken();
+  if (token) opts.headers.Authorization = `Bearer ${token}`;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  opts.signal = ctrl.signal;
+  let res;
+  try {
+    res = await fetch(API_BASE_URL + '/api/audits', opts);
+  } catch (err) {
+    if (err && err.name === 'AbortError') {
+      throw new Error('Request timed out — please check your connection and try again.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+  let data = null;
+  try { data = await res.json(); } catch { data = null; }
+  if (!res.ok) {
+    const err = new Error((data && (data.message || data.error)) || `Request failed (${res.status})`);
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
 /* Contact form. */
 export function sendContact({ name, email, message }) {
   return post('/api/contact', { name, email, message });
