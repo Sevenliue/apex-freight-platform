@@ -1142,6 +1142,298 @@ upsertCarrier({
 });
 
 // ---------------------------------------------------------------------------
+// Minimax GO Direct — CWT hundredweight book (carrier_id 'minimax_ltl',
+// service "Minimax LTL"). Source: KAL_TIRE.xls, Minimax's account rate
+// proposal for Kal Tire (Rev A; Effective/Expires blank on the sheet),
+// loaded into the SHARED panel per Seven 2026-10-23 (proposal accepted /
+// active, NO expiry). Data tables are generated into minimax-ltl-data.js
+// by ~/workspace/tools/minimax-kaltire/generate_minimax_ltl_data.py — do
+// not hand-edit them. The existing 'minimax' skid flats and the
+// 'minimax_ottawa' CWT sheet are separate services and are NOT touched.
+//
+// Rating (per the workbook):
+//   - CWT: price = per-cwt rate x billable lb / 100, floored at the lane
+//     Min charge. Breaks (ceilings): LTL <=499, 500 <=999, 1000 <=1999,
+//     2000 <=4999, 5000 <=9999, 10000 <=19999, 20000 <=29999, 30000 open.
+//   - Deficit rating (Seven: YES): also price at every higher break's
+//     threshold weight with that break's rate; cheapest wins. The TL
+//     flat caps the lane price: base = min(deficit price, TL flat).
+//     (The TL cap is the one reading we coded on Seven's instruction.)
+//   - Dim weight: "10 lbs per cu ft" — per piece (LxWxH in)/172.8;
+//     billable = max(actual, dim), summed per package line.
+//   - Lanes priced (nothing else — the sheet says intercity movements
+//     are spot-quoted, and breadth policy does not invent lanes):
+//       * 8 printed directional lanes (Montreal<->Toronto, Ottawa<->
+//         Toronto, Cornwall<->Toronto, Ottawa<->Montreal); endpoints
+//         resolve exactly, via the sheet's TERMINAL RULES, or via the
+//         engine metros (Toronto/Montreal/Ottawa).
+//       * ex-AMARANTH: the 4 printed destinations (Montreal, Sherbrooke,
+//         Joliette, St-Augustin-de-Desmaures).
+//       * ex-KITCHENER rate-base system: any origin town the sheet's
+//         grouping tables assign to the KITCHENER grouping (102 ON
+//         towns incl. Kitchener/Waterloo) to any destination town that
+//         resolves to a grouping point with a printed base (68 grouping
+//         points; ON + eastbound QC). Price = the numbered grid row for
+//         that base. Destinations grouped to KITCHENER itself have no
+//         printed base -> no quote.
+//   - Town resolution follows the SHEETS' own grouping tables (ONT/QUE
+//     GROUPING POINTS) first, then TERMINAL RULES, then engine metros.
+//     A town that IS a grouping point keeps its own base (e.g. Stoneham
+//     = base 130, NOT Quebec City's 110 via the terminal rule).
+//   - Congestion (Seven: destination only): +$45.00 flat when the
+//     DESTINATION postal code's FSA is in the workbook's POSTAL CODES
+//     list (GTA + Greater Montreal). Added AFTER FSC — accessorials do
+//     not take FSC.
+//   - FSC: Minimax publishes NO numeric surcharge. Their site (Fees &
+//     Surcharges -> Accessorial Charges, minimaxexpress.com) states
+//     verbatim: "Per FCA recommended fuel surcharge. TL rate applied
+//     over 10000lbs or 20 feet of trailer." Per instructions we do NOT
+//     invent a %: the coded value is 0 and the live percent comes from
+//     the carrier_fsc override (Admin > Fuel surcharges, carrier
+//     'minimax_ltl', LTL/TL split) the moment one is set. TL class =
+//     billable weight over 10,000 lb OR over 20 ft of trailer (sheet
+//     wording); trailer feet use the engine footprint measure.
+// ---------------------------------------------------------------------------
+const MM_LTL_DATA = require('./minimax-ltl-data');
+const MM_ID = 'minimax_ltl';
+const MM_LABEL = 'Minimax GO Direct';
+const MM_SERVICE = 'Minimax LTL';
+// Break columns: [threshold lb (deficit), ceiling lb] per rates[] index.
+const MM_BREAKS = [
+  [0, 499], [500, 999], [1000, 1999], [2000, 4999],
+  [5000, 9999], [10000, 19999], [20000, 29999], [30000, Infinity],
+];
+const MM_BREAK_LABELS = ['LTL', '500', '1000', '2000', '5000', '10000', '20000', '30000'];
+const MM_TL_MIN_LB = 10000;
+const MM_TL_MIN_FT = 20;
+const MM_CONGESTION_CAD = 45;
+const MM_FSA_SET = new Set(MM_LTL_DATA.CONGESTION_FSAS);
+const MM_HUBS = new Set(['TORONTO', 'MONTREAL', 'OTTAWA', 'CORNWALL']);
+const MM_HUB_PROV = { TORONTO: 'ON', MONTREAL: 'QC', OTTAWA: 'ON', CORNWALL: 'ON', KITCHENER: 'ON', AMARANTH: 'ON' };
+
+// Canonical town key — MUST mirror canon() in the generator script:
+// uppercase, accent-folded, apostrophes dropped, other punctuation to
+// spaces, SAINT->ST / SAINTE->STE.
+function mmNorm(v) {
+  const s = String(v == null ? '' : v)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/['’]/g, '')
+    .replace(/[^A-Z0-9]+/g, ' ');
+  return s.split(' ').filter(Boolean)
+    .map((t) => (t === 'SAINT' ? 'ST' : t === 'SAINTE' ? 'STE' : t))
+    .join(' ');
+}
+
+// Town -> grouping point per the sheets' grouping tables (province tab
+// first), then TERMINAL RULES, then the engine metro hubs.
+function mmGroupingFor(city, prov) {
+  const c = mmNorm(city);
+  if (!c) return null;
+  const p = norm(prov);
+  const maps = p === 'QC'
+    ? [MM_LTL_DATA.QUE_TOWNS, MM_LTL_DATA.ONT_TOWNS]
+    : [MM_LTL_DATA.ONT_TOWNS, MM_LTL_DATA.QUE_TOWNS];
+  for (const m of maps) {
+    if (m[c]) return m[c];
+  }
+  if (MM_LTL_DATA.TERMINAL[c]) return MM_LTL_DATA.TERMINAL[c];
+  const metro = metroOf(city);
+  if (metro === 'KITCHENER' || MM_LTL_DATA.BASE_BY_GROUPING[metro] != null) return metro;
+  return null;
+}
+
+// Named-lane endpoint city (TORONTO/MONTREAL/OTTAWA/CORNWALL) or null.
+function mmEndpoint(city) {
+  const c = mmNorm(city);
+  if (MM_HUBS.has(c)) return c;
+  const t = MM_LTL_DATA.TERMINAL[c];
+  if (t && MM_HUBS.has(t)) return t;
+  const metro = metroOf(city);
+  if (MM_HUBS.has(metro)) return metro;
+  return null;
+}
+
+// Ex-Amaranth destination key in AMARANTH_LANES, or null. Montreal also
+// resolves via terminal rules / metro; the QC towns are exact-name only
+// (the printed lanes name the towns themselves).
+function mmAmaranthDest(city) {
+  const c = mmNorm(city);
+  if (MM_LTL_DATA.AMARANTH_LANES[c]) return c;
+  const t = MM_LTL_DATA.TERMINAL[c];
+  if (t && MM_LTL_DATA.AMARANTH_LANES[t]) return t;
+  const metro = metroOf(city);
+  if (MM_LTL_DATA.AMARANTH_LANES[metro]) return metro;
+  return null;
+}
+
+// Deficit-aware CWT pricing on one grid row { min, rates[8], tl }.
+function mmPriceGrid(grid, w) {
+  let own = MM_BREAKS.length - 1;
+  for (let i = 0; i < MM_BREAKS.length; i++) {
+    if (w <= MM_BREAKS[i][1]) { own = i; break; }
+  }
+  let best = Infinity;
+  let bestIdx = own;
+  for (let j = own; j < grid.rates.length; j++) {
+    const billW = Math.max(w, MM_BREAKS[j][0]);
+    const price = grid.rates[j] * billW / 100;
+    if (price < best) { best = price; bestIdx = j; }
+  }
+  let base = best;
+  let minApplied = false;
+  let tlCapped = false;
+  if (base < grid.min) { base = grid.min; minApplied = true; }
+  if (base > grid.tl) { base = grid.tl; tlCapped = true; }
+  return { base, cwt: grid.rates[bestIdx], breakIdx: bestIdx, ownIdx: own, minApplied, tlCapped };
+}
+
+// Billable weight for this book: per package line, max(line actual,
+// line dim at 10 lb/cu ft = (LxWxH in)/172.8 per piece); the shipment
+// billable is the greater of total actual and the summed line billables.
+function mmBillable(weightLbs, packages) {
+  const lines = Array.isArray(packages) ? packages : [];
+  const w = Number(weightLbs);
+  const actualTotal = Number.isFinite(w) && w > 0 ? w : 0;
+  if (!lines.length) return actualTotal;
+  let lineSum = 0;
+  for (const p of lines) {
+    const q = Math.max(1, Math.floor(Number(p.qty) || 1));
+    const lineW = Number(p.weight_lb);
+    const actual = Number.isFinite(lineW) && lineW > 0 ? lineW : 0;
+    const L = Number(p.length), W = Number(p.width), H = Number(p.height);
+    const dim = (L > 0 && W > 0 && H > 0) ? q * (L * W * H) / 172.8 : 0;
+    lineSum += Math.max(actual, dim);
+  }
+  return Math.max(actualTotal, lineSum);
+}
+
+function minimaxLtlFscPercent(tlClass) {
+  const ov = _fscOverrides.get(MM_ID);
+  if (ov && Number.isFinite(ov.ltl)) {
+    if (tlClass && ov.tl != null && Number.isFinite(ov.tl)) return ov.tl;
+    return ov.ltl;
+  }
+  return 0; // no numeric FSC published by Minimax — see header note
+}
+
+function minimaxLtlQuotes({ originCity, originProv, destCity, destProv, weightLbs, packages, destZip }) {
+  const wAct = Number(weightLbs);
+  if (!Number.isFinite(wAct) || wAct <= 0) return [];
+  const w = mmBillable(wAct, packages);
+  if (!(w > 0)) return [];
+
+  let grid = null;
+  let laneFrom = null;
+  let laneTo = null;
+  let laneFromProv = null;
+  let laneToProv = null;
+  let via = null;
+
+  const oEnd = mmEndpoint(originCity);
+  const dEnd = mmEndpoint(destCity);
+  if (oEnd && dEnd && MM_LTL_DATA.NAMED_LANES[`${oEnd}|${dEnd}`]) {
+    grid = MM_LTL_DATA.NAMED_LANES[`${oEnd}|${dEnd}`];
+    laneFrom = oEnd; laneTo = dEnd;
+    laneFromProv = MM_HUB_PROV[oEnd]; laneToProv = MM_HUB_PROV[dEnd];
+    via = `printed lane ${titleCase(oEnd)} to ${titleCase(dEnd)}`;
+  } else if (mmNorm(originCity) === 'AMARANTH' && (norm(originProv) === 'ON' || !norm(originProv))) {
+    const dA = mmAmaranthDest(destCity);
+    if (dA) {
+      grid = MM_LTL_DATA.AMARANTH_LANES[dA];
+      laneFrom = 'AMARANTH'; laneTo = dA;
+      laneFromProv = 'ON';
+      laneToProv = MM_HUB_PROV[dA] || (MM_LTL_DATA.QUE_TOWNS[mmNorm(destCity)] ? 'QC' : 'ON');
+      via = `printed lane Amaranth to ${titleCase(dA)}`;
+    }
+  }
+  if (!grid) {
+    if (mmGroupingFor(originCity, originProv) === 'KITCHENER') {
+      const dg = mmGroupingFor(destCity, destProv);
+      const base = dg ? MM_LTL_DATA.BASE_BY_GROUPING[dg] : null;
+      if (base != null && MM_LTL_DATA.GRID[String(base)]) {
+        grid = MM_LTL_DATA.GRID[String(base)];
+        laneFrom = 'KITCHENER'; laneTo = dg;
+        laneFromProv = 'ON';
+        laneToProv = MM_HUB_PROV[dg] || (MM_LTL_DATA.QUE_TOWNS[mmNorm(destCity)] === dg ? 'QC' : 'ON');
+        via = `Kitchener rate base ${base} (${titleCase(dg)})`;
+      }
+    }
+  }
+  if (!grid) return [];
+
+  const priced = mmPriceGrid(grid, w);
+  const base = priced.base;
+  let linFt = 0;
+  try { linFt = billableWeight(wAct, packages, 10).linear_ft || 0; } catch { linFt = 0; }
+  const tlClass = w > MM_TL_MIN_LB || linFt > MM_TL_MIN_FT;
+  const fscPercent = minimaxLtlFscPercent(tlClass);
+  const fsc = base * fscPercent / 100;
+  const fsa = String(destZip || '').trim().toUpperCase().slice(0, 3);
+  const congestion = MM_FSA_SET.has(fsa) ? MM_CONGESTION_CAD : 0;
+
+  const notes = [`Minimax LTL via ${via}`];
+  if (priced.breakIdx !== priced.ownIdx) {
+    notes.push(`Deficit rated at the ${MM_BREAK_LABELS[priced.breakIdx]} lb break`);
+  }
+  if (priced.tlCapped) notes.push('TL flat rate applies (caps the CWT price)');
+  if (congestion) notes.push('Includes $45.00 downtown/high-congestion accessorial (destination)');
+
+  return [{
+    carrier_id: MM_ID,
+    carrier_label: MM_LABEL,
+    service: MM_SERVICE,
+    weight_lbs: wAct,
+    billable_weight_lbs: r2(w),
+    density_pcf: null,
+    cube_ft: null,
+    linear_ft: r2(linFt),
+    floor_lb_per_cuft: 10,
+    dimensional_applied: w > wAct,
+    dimensional_rule: w > wAct ? 'cube' : 'actual',
+    dim_weight_enabled: true,
+    fsc_class: tlClass ? 'truckload' : 'ltl',
+    rate_basis: 'minimax_cwt',
+    rate_cwt_used: priced.cwt,
+    base_cad: r2(base),
+    fsc_percent: fscPercent,
+    fsc_cad: r2(fsc),
+    accessorial_price: congestion,
+    accessorials: congestion
+      ? [{ code: 'DNT', label: 'Downtown / high-congestion area (destination)', amount_cad: congestion }]
+      : [],
+    total_cad: r2(base + fsc + congestion),
+    min_charge_applied: priced.minApplied,
+    max_charge_applied: priced.tlCapped,
+    currency: 'CAD',
+    source: 'matrix',
+    lane_origin_city: laneFrom,
+    lane_origin_prov: laneFromProv,
+    lane_dest_city: laneTo,
+    lane_dest_prov: laneToProv,
+    metro_matched: laneFrom !== mmNorm(originCity) || laneTo !== mmNorm(destCity),
+    notes,
+  }];
+}
+// Register the carrier record so the standard FSC machinery applies:
+// listCarriers() shows it and Admin > Fuel surcharges can set the LTL/TL
+// percents (carrier_fsc override), which minimaxLtlFscPercent reads
+// first. fsc_percent stays 0 in code: Minimax publishes its surcharge
+// only as "Per FCA recommended fuel surcharge" — no numeric % exists to
+// code (checked the full minimaxexpress.com inventory 2026-10-23).
+// Cadence 'weekly' (the FCA bulletin is weekly) with no as-of date, so
+// the Admin board flags it as needing attention until a value is set.
+upsertCarrier({
+  carrier_id: MM_ID,
+  carrier_label: MM_LABEL,
+  fsc_percent: 0,
+  fsc_as_of: null,
+  fsc_cadence: 'weekly',
+  fsc_note: 'CWT book ex Kal Tire proposal Rev A — accepted/active per Seven 2026-10-23, no expiry. FSC per FCA: Minimax posts NO numeric % (site says "Per FCA recommended fuel surcharge. TL rate applied over 10000lbs or 20 feet of trailer."). Set LTL/TL % here when confirmed; quotes pick it up immediately. Do not hard-code an FCA value without a Minimax-published number.',
+});
+
+// ---------------------------------------------------------------------------
 // "May also serve this lane" coverage areas (Seven, 2026-10-19).
 //
 // Small regional carriers define a coverage area (town list). When a quote's
@@ -1899,7 +2191,7 @@ function dedupeQuotes(quotes) {
   return [...byKey.values()];
 }
 
-function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, skidCount, packages, pickupDateTime, originStreet, destStreet }) {
+function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, skidCount, packages, pickupDateTime, originStreet, destStreet, destZip }) {
   const st = ensureLoaded();
   const oCity = norm(originCity);
   const oProv = norm(originProv);
@@ -2289,6 +2581,12 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
   // Both ends must resolve to one of the 8 terminals via the standard
   // matrix place-matching (incl. metro collapsing).
   for (const q of teamsQuotes({ originCity: oCity, originProv: oProv, destCity: dCity, destProv: dProv, weightLbs: w, packages })) quotes.push(q);
+  // Minimax GO Direct CWT book ('minimax_ltl', service "Minimax LTL"):
+  // dedicated hundredweight rating — printed named lanes, ex-Amaranth
+  // lanes, and the ex-Kitchener rate-base system from the Kal Tire
+  // proposal workbook. destZip drives the destination congestion
+  // accessorial (FSA list); without it, no congestion charge applies.
+  for (const q of minimaxLtlQuotes({ originCity: oCity, originProv: oProv, destCity: dCity, destProv: dProv, weightLbs: w, packages, destZip })) quotes.push(q);
   quotes.sort((a, b) => a.total_cad - b.total_cad || a.carrier_id.localeCompare(b.carrier_id));
   return dedupeQuotes(quotes);
 }
@@ -2515,4 +2813,4 @@ function upsertCarrierRows(carrierId, rows) {
   return count;
 }
 
-module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, guilbaultBillableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides, primeTimeDeliveryQuotes, primeTimeAfterHoursQuote, primeTimeTruckQuote, primeTimeHotShotQuote, number8Quotes, doneDealQuotes, knrQuotes, teamsQuotes, mayServeLanes };
+module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, guilbaultBillableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides, primeTimeDeliveryQuotes, primeTimeAfterHoursQuote, primeTimeTruckQuote, primeTimeHotShotQuote, number8Quotes, doneDealQuotes, knrQuotes, teamsQuotes, minimaxLtlQuotes, mayServeLanes };

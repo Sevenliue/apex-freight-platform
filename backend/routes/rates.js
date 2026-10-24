@@ -353,6 +353,7 @@ router.post('/', async (req, res) => {
         packages,
         originStreet: origin.street1 || '',
         destStreet: destination.street1 || '',
+        destZip: destination.zip || '',
       });
     } catch (err) {
       return bad(res, 502, 'Rate matrix failed', err.message);
