@@ -24,7 +24,9 @@
  *   name/phone/email where the block has them) fills instantly — no Google call.
  * - An address-book pick for the shipper block also clears the consignee
  *   block, so the previous quote's consignee never carries over next to a
- *   freshly picked shipper.
+ *   freshly picked shipper. A Google Places pick for the shipper street
+ *   does the same — any fresh shipper selection starts the consignee
+ *   blank.
  * - Coexists with the offline postal auto-fill: after a suggestion is applied,
  *   window.SHIPRATE_postalFilled(zipName, fsa) is called when present so the
  *   postal auto-fill treats those fields as set and doesn't fight it.
@@ -282,6 +284,13 @@
         if (cEl) cEl.dataset.manual = '1';
         if (sEl) sEl.dataset.manual = '1';
       }
+      // A Google pick for the shipper block is a fresh shipper selection,
+      // same as an address-book pick: the previous quote's consignee must
+      // not carry over next to it. (Book picks clear above; Google picks
+      // originally skipped the clear, so whenever the book dropdown was
+      // empty or the Google row was chosen, the To panel kept the last
+      // quote's consignee — the exact carry-over reported on Oct 23.)
+      if (group === GROUPS[0]) clearConsigneeBlock();
     } catch (e) {
       /* details failed: street text the user saw stays, other fields untouched */
     }
