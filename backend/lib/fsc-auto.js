@@ -336,6 +336,115 @@ async function updateRockfallFsc() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Minimax GO Direct — direct FSC scrape (2026-10-23, per Seven's ruling
+// that Minimax posts its FSC on its website with an auto-pull like
+// Grimshaw/Rockfall).
+//
+// Minimax posts its current surcharge in a banner module on its homepage
+// (https://minimaxexpress.com/): "Fuel Surcharge / October 26th to
+// November 1st 2026 / LTL 45.7% TL 107.5%" — a dated weekly period with
+// both class percents in live page text. (The Fees & Surcharges page and
+// its Accessorial Charges PDF state the mechanism only — "Per FCA
+// recommended fuel surcharge. TL rate applied over 10000lbs or 20 feet
+// of trailer" — the numeric posting lives in the homepage banner;
+// minimaxgodirect.com shows the same values in its own banner.)
+// The banner posts the upcoming week's values in advance; the pull takes
+// whatever period/values are currently posted.
+//
+// fetchMinimaxFsc() returns { effective, fsc_ltl, fsc_tl } or null.
+// updateMinimaxFsc() writes the values to carrier_fsc ('minimax_ltl') +
+// the in-memory override, but ONLY when they differ from the stored
+// override — the server runs this daily plus once at boot, so most runs
+// are no-ops.
+// ---------------------------------------------------------------------------
+const MINIMAX_HOME_URL = 'https://minimaxexpress.com/';
+
+function parseMinimaxFsc(html) {
+  if (typeof html !== 'string' || !html) return null;
+  const decoded = html.replace(/\\u([0-9a-fA-F]{4})/g, (_, h) =>
+    String.fromCharCode(parseInt(h, 16)));
+  const text = decoded
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;/g, ' ')
+    .replace(/\s+/g, ' ');
+  const m = /Fuel Surcharge\s+([A-Za-z]+ \d+(?:st|nd|rd|th)\s+to\s+[A-Za-z]+ \d+(?:st|nd|rd|th)\s+\d{4})\s+LTL\s+([\d.]+)\s*%\s+TL\s+([\d.]+)\s*%/.exec(text);
+  if (!m) return null;
+  const fscLtl = Number(m[2]);
+  const fscTl = Number(m[3]);
+  if (!Number.isFinite(fscLtl) || !Number.isFinite(fscTl)) return null;
+  return { effective: m[1], fsc_ltl: fscLtl, fsc_tl: fscTl };
+}
+
+async function fetchMinimaxFsc() {
+  try {
+    const res = await fetch(MINIMAX_HOME_URL, {
+      headers: { 'User-Agent': 'ShipRate/1.0 (fuel-surcharge-monitor)' },
+    });
+    if (!res.ok) {
+      console.error('[fsc-auto] Minimax HTTP', res.status);
+      return null;
+    }
+    const html = await res.text();
+    const parsed = parseMinimaxFsc(html);
+    if (!parsed) console.error('[fsc-auto] Minimax parse failed: homepage FSC banner not found');
+    return parsed;
+  } catch (err) {
+    console.error('[fsc-auto] Minimax fetch failed:', err.message);
+    return null;
+  }
+}
+
+async function updateMinimaxFsc() {
+  if (!db.isEnabled()) {
+    console.log('[fsc-auto] Minimax: DB not enabled, skipping');
+    return { updated: false, reason: 'db-disabled' };
+  }
+  const fresh = await fetchMinimaxFsc();
+  if (!fresh) return { updated: false, reason: 'fetch-parse-failed' };
+  // Change-only: compare against the stored override, if any.
+  try {
+    const cur = await db.query(
+      'SELECT fsc_ltl_percent, fsc_tl_percent FROM carrier_fsc WHERE carrier_id = $1',
+      ['minimax_ltl']
+    );
+    const row = cur.rows[0];
+    if (
+      row &&
+      Number(row.fsc_ltl_percent) === fresh.fsc_ltl &&
+      Number(row.fsc_tl_percent) === fresh.fsc_tl
+    ) {
+      console.log(`[fsc-auto] Minimax: FSC unchanged (${fresh.fsc_ltl}% / ${fresh.fsc_tl}%, ${fresh.effective})`);
+      return { updated: false, reason: 'unchanged', ...fresh };
+    }
+  } catch (err) {
+    console.error('[fsc-auto] Minimax current-value check failed (continuing):', err.message);
+  }
+  try {
+    await db.query(
+      `INSERT INTO carrier_fsc (carrier_id, fsc_ltl_percent, fsc_tl_percent, updated_at)
+       VALUES ('minimax_ltl', $1, $2, now())
+       ON CONFLICT (carrier_id) DO UPDATE SET
+         fsc_ltl_percent = EXCLUDED.fsc_ltl_percent,
+         fsc_tl_percent = EXCLUDED.fsc_tl_percent,
+         updated_at = EXCLUDED.updated_at`,
+      [fresh.fsc_ltl, fresh.fsc_tl]
+    );
+    if (typeof matrix.setFscOverride === 'function') {
+      matrix.setFscOverride('minimax_ltl', {
+        ltl: fresh.fsc_ltl,
+        tl: fresh.fsc_tl,
+        updated_at: new Date().toISOString(),
+      });
+    }
+    console.log(`[fsc-auto] Minimax: FSC → ${fresh.fsc_ltl}% LTL / ${fresh.fsc_tl}% TL (${fresh.effective})`);
+    return { updated: true, ...fresh };
+  } catch (err) {
+    console.error('[fsc-auto] Minimax update failed:', err.message);
+    return { updated: false, reason: 'db-write-failed' };
+  }
+}
+
 async function updateAllCarrierFsc() {
   if (!db.isEnabled()) {
     console.log('[fsc-auto] DB not enabled, skipping');
@@ -404,5 +513,8 @@ module.exports = {
   fetchRockfallFsc,
   updateRockfallFsc,
   parseRockfallFsc,
+  fetchMinimaxFsc,
+  updateMinimaxFsc,
+  parseMinimaxFsc,
   CARRIER_FSC_TABLES,
 };

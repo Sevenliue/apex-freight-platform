@@ -1184,15 +1184,20 @@ upsertCarrier({
 //     DESTINATION postal code's FSA is in the workbook's POSTAL CODES
 //     list (GTA + Greater Montreal). Added AFTER FSC — accessorials do
 //     not take FSC.
-//   - FSC: Minimax publishes NO numeric surcharge. Their site (Fees &
-//     Surcharges -> Accessorial Charges, minimaxexpress.com) states
-//     verbatim: "Per FCA recommended fuel surcharge. TL rate applied
-//     over 10000lbs or 20 feet of trailer." Per instructions we do NOT
-//     invent a %: the coded value is 0 and the live percent comes from
-//     the carrier_fsc override (Admin > Fuel surcharges, carrier
-//     'minimax_ltl', LTL/TL split) the moment one is set. TL class =
-//     billable weight over 10,000 lb OR over 20 ft of trailer (sheet
-//     wording); trailer feet use the engine footprint measure.
+//   - FSC: Minimax posts its current surcharge in a banner on its
+//     homepage (minimaxexpress.com): a dated weekly period with both
+//     class percents ("Fuel Surcharge / October 26th to November 1st
+//     2026 / LTL 45.7% TL 107.5%", posted in advance; the Fees &
+//     Surcharges documents state the mechanism only — "Per FCA
+//     recommended fuel surcharge. TL rate applied over 10000lbs or
+//     20 feet of trailer"). Auto-pull is LIVE (lib/fsc-auto.js
+//     updateMinimaxFsc, daily + boot, change-only) and writes the
+//     carrier_fsc override for 'minimax_ltl', which wins over the
+//     coded starting values below (the values posted 2026-10-23).
+//     Admin > Fuel surcharges can also set the percents manually.
+//     TL class = billable weight over 10,000 lb OR over 20 ft of
+//     trailer (sheet wording); trailer feet use the engine footprint
+//     measure.
 // ---------------------------------------------------------------------------
 const MM_LTL_DATA = require('./minimax-ltl-data');
 const MM_ID = 'minimax_ltl';
@@ -1206,6 +1211,11 @@ const MM_BREAKS = [
 const MM_BREAK_LABELS = ['LTL', '500', '1000', '2000', '5000', '10000', '20000', '30000'];
 const MM_TL_MIN_LB = 10000;
 const MM_TL_MIN_FT = 20;
+// Posted on minimaxexpress.com 2026-10-23 (banner period October 26th
+// to November 1st 2026). The daily auto-pull refreshes these via the
+// carrier_fsc override; these are only the boot/fallback values.
+const MM_FSC_LTL = 45.7;
+const MM_FSC_TL = 107.5;
 const MM_CONGESTION_CAD = 45;
 const MM_FSA_SET = new Set(MM_LTL_DATA.CONGESTION_FSAS);
 const MM_HUBS = new Set(['TORONTO', 'MONTREAL', 'OTTAWA', 'CORNWALL']);
@@ -1315,7 +1325,7 @@ function minimaxLtlFscPercent(tlClass) {
     if (tlClass && ov.tl != null && Number.isFinite(ov.tl)) return ov.tl;
     return ov.ltl;
   }
-  return 0; // no numeric FSC published by Minimax — see header note
+  return tlClass ? MM_FSC_TL : MM_FSC_LTL;
 }
 
 function minimaxLtlQuotes({ originCity, originProv, destCity, destProv, weightLbs, packages, destZip }) {
@@ -1419,18 +1429,17 @@ function minimaxLtlQuotes({ originCity, originProv, destCity, destProv, weightLb
 // Register the carrier record so the standard FSC machinery applies:
 // listCarriers() shows it and Admin > Fuel surcharges can set the LTL/TL
 // percents (carrier_fsc override), which minimaxLtlFscPercent reads
-// first. fsc_percent stays 0 in code: Minimax publishes its surcharge
-// only as "Per FCA recommended fuel surcharge" — no numeric % exists to
-// code (checked the full minimaxexpress.com inventory 2026-10-23).
-// Cadence 'weekly' (the FCA bulletin is weekly) with no as-of date, so
-// the Admin board flags it as needing attention until a value is set.
+// first. The daily auto-pull (lib/fsc-auto.js) keeps the override at
+// the values posted in the minimaxexpress.com homepage banner; the
+// coded fsc_percent below is the starting value posted 2026-10-23
+// (banner period October 26th to November 1st 2026).
 upsertCarrier({
   carrier_id: MM_ID,
   carrier_label: MM_LABEL,
-  fsc_percent: 0,
-  fsc_as_of: null,
+  fsc_percent: 45.7, // LTL class as posted 2026-10-23; TL class 107.5% (MM_FSC_TL)
+  fsc_as_of: '2026-10-23',
   fsc_cadence: 'weekly',
-  fsc_note: 'CWT book ex Kal Tire proposal Rev A — accepted/active per Seven 2026-10-23, no expiry. FSC per FCA: Minimax posts NO numeric % (site says "Per FCA recommended fuel surcharge. TL rate applied over 10000lbs or 20 feet of trailer."). Set LTL/TL % here when confirmed; quotes pick it up immediately. Do not hard-code an FCA value without a Minimax-published number.',
+  fsc_note: 'CWT book ex Kal Tire proposal Rev A — accepted/active per Seven 2026-10-23, no expiry. FSC auto-pull LIVE from the minimaxexpress.com homepage banner (dated weekly period, LTL + TL percents; posted 2026-10-23: LTL 45.7% / TL 107.5% for Oct 26–Nov 1 2026). TL rate applies over 10,000 lb or 20 ft of trailer. Admin edits win until the next pull change.',
 });
 
 // ---------------------------------------------------------------------------

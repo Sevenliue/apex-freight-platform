@@ -369,6 +369,24 @@ if (require.main === module) {
     } catch (err) {
       console.error('[fsc-auto] Rockfall init failed (continuing):', err.message);
     }
+    // Minimax FSC auto-pull: Minimax publishes its current surcharge in a
+    // banner on its homepage (minimaxexpress.com) — a dated weekly period
+    // with LTL and TL percents, posted in advance (Seven, 2026-10-23).
+    // Pull once a day plus once at boot; the updater only writes when
+    // the values changed, so most runs are no-ops.
+    try {
+      const { updateMinimaxFsc } = require('./lib/fsc-auto');
+      const tickMinimax = () => {
+        if (config.siteProfile === 'platform2') return; // no carriers there
+        updateMinimaxFsc().catch((err) =>
+          console.error('[fsc-auto] Minimax tick failed (continuing):', err.message));
+      };
+      const t = setInterval(tickMinimax, 24 * 60 * 60 * 1000);
+      if (t.unref) t.unref();
+      setTimeout(tickMinimax, 40 * 1000); // boot pull, after DB init
+    } catch (err) {
+      console.error('[fsc-auto] Minimax init failed (continuing):', err.message);
+    }
     // Self-serve carrier lanes: merge approved upload lanes over the baked-in
     // matrix, refresh every 5 minutes in case of approval.
     try {
