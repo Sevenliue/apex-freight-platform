@@ -399,36 +399,36 @@
         <fieldset id="bill-to-block" hidden>
           <legend>Third-Party Billing</legend>
           <div class="form-grid">
-            <label>Company name <input name="b_name" type="text"></label>
-            <label>Street <input name="b_street" type="text"></label>
+            <label>Company name <input name="b_name" type="text" autocomplete="section-billing organization"></label>
+            <label>Street <input name="b_street" type="text" autocomplete="section-billing street-address"></label>
           </div>
           <div class="form-grid">
-            <label>City <input name="b_city" type="text"></label>
+            <label>City <input name="b_city" type="text" autocomplete="section-billing address-level2"></label>
             <div class="row-2">
-              <label>Province / State <input name="b_state" type="text" maxlength="10"></label>
-              <label>Postal code <input name="b_zip" type="text"></label>
+              <label>Province / State <input name="b_state" type="text" maxlength="10" autocomplete="section-billing address-level1"></label>
+              <label>Postal code <input name="b_zip" type="text" autocomplete="section-billing postal-code"></label>
             </div>
           </div>
-          <label class="inline">Country <input name="b_country" type="text" value="CA" maxlength="2" style="max-width:80px"></label>
+          <label class="inline">Country <input name="b_country" type="text" value="CA" maxlength="2" style="max-width:80px" autocomplete="section-billing country"></label>
         </fieldset>
         <div class="qq-addr">
           <section class="qq-panel">
             <h3 class="qq-head">Shipper / From</h3>
             <div class="qq-body">
-              <label>Company <input name="s_name" type="text"></label>
+              <label>Company <input name="s_name" type="text" autocomplete="section-shipper organization"></label>
               <div class="qq-row">
-                <label class="grow">Street / Ave <input name="o_street" type="text"></label>
+                <label class="grow">Street / Ave <input name="o_street" type="text" autocomplete="section-shipper street-address"></label>
                 <label class="check mini"><input type="checkbox" name="depot_dropoff"> Do not dispatch<br>drop off at depot</label>
               </div>
               <div class="qq-row">
-                <label class="grow">City <input name="o_city" type="text" required></label>
-                <label class="sm">Prov <input name="o_state" type="text" required maxlength="10"></label>
-                <label class="sm">Postal Code <input name="o_zip" type="text"></label>
-                <label class="xs">Country <input name="o_country" type="text" value="CA" maxlength="2"></label>
+                <label class="grow">City <input name="o_city" type="text" required autocomplete="section-shipper address-level2"></label>
+                <label class="sm">Prov <input name="o_state" type="text" required maxlength="10" autocomplete="section-shipper address-level1"></label>
+                <label class="sm">Postal Code <input name="o_zip" type="text" autocomplete="section-shipper postal-code"></label>
+                <label class="xs">Country <input name="o_country" type="text" value="CA" maxlength="2" autocomplete="section-shipper country"></label>
               </div>
               <div class="qq-row">
-                <label class="grow">Telephone <input name="o_phone" type="tel"></label>
-                <label class="grow">Email <input name="o_email" type="email"></label>
+                <label class="grow">Telephone <input name="o_phone" type="tel" autocomplete="section-shipper tel"></label>
+                <label class="grow">Email <input name="o_email" type="email" autocomplete="section-shipper email"></label>
               </div>
               <button type="button" class="btn small" data-save-addr="shipper">💾 Save shipper to address book</button>
             </div>
@@ -439,20 +439,20 @@
           <section class="qq-panel">
             <h3 class="qq-head">Consignee / To</h3>
             <div class="qq-body">
-              <label>Company <input name="c_name" type="text"></label>
+              <label>Company <input name="c_name" type="text" autocomplete="section-consignee organization"></label>
               <div class="qq-row">
-                <label class="grow">Street / Ave <input name="d_street" type="text"></label>
+                <label class="grow">Street / Ave <input name="d_street" type="text" autocomplete="section-consignee street-address"></label>
                 <label class="check mini"><input type="checkbox" name="depot_pickup"> Pick up at depot<br>no carrier delivery</label>
               </div>
               <div class="qq-row">
-                <label class="grow">City <input name="d_city" type="text" required></label>
-                <label class="sm">Prov <input name="d_state" type="text" required maxlength="10"></label>
-                <label class="sm">Postal Code <input name="d_zip" type="text"></label>
-                <label class="xs">Country <input name="d_country" type="text" value="CA" maxlength="2"></label>
+                <label class="grow">City <input name="d_city" type="text" required autocomplete="section-consignee address-level2"></label>
+                <label class="sm">Prov <input name="d_state" type="text" required maxlength="10" autocomplete="section-consignee address-level1"></label>
+                <label class="sm">Postal Code <input name="d_zip" type="text" autocomplete="section-consignee postal-code"></label>
+                <label class="xs">Country <input name="d_country" type="text" value="CA" maxlength="2" autocomplete="section-consignee country"></label>
               </div>
               <div class="qq-row">
-                <label class="grow">Telephone <input name="d_phone" type="tel"></label>
-                <label class="grow">Email <input name="d_email" type="email"></label>
+                <label class="grow">Telephone <input name="d_phone" type="tel" autocomplete="section-consignee tel"></label>
+                <label class="grow">Email <input name="d_email" type="email" autocomplete="section-consignee email"></label>
               </div>
               <button type="button" class="btn small" data-save-addr="consignee">💾 Save consignee to address book</button>
             </div>
