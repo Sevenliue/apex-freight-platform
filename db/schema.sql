@@ -702,3 +702,32 @@ CREATE TABLE IF NOT EXISTS invoice_audits (
 );
 CREATE INDEX IF NOT EXISTS idx_invoice_audits_user ON invoice_audits (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_invoice_audits_company ON invoice_audits (company_id, created_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- Shipper "My Rates" uploads (added 2026-10-24): a shipper's OWN carrier
+-- rate sheets, uploaded for admin review. Storage + review workflow
+-- only — the file lives on disk (uploads/shipper-rates/<user_id>/), only
+-- metadata is stored here, and uploaded data NEVER enters the shared
+-- rating panel. status: uploaded / reviewed / loaded / rejected (site
+-- admin only, with admin_note). Idempotent.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS shipper_rate_uploads (
+    id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id        uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    company_id     uuid REFERENCES companies(id) ON DELETE SET NULL,
+    carrier_name   varchar(160) NOT NULL,
+    service_note   varchar(255),
+    fsc_note       varchar(255),
+    effective_date date,
+    expiry_date    date,
+    file_name      varchar(255) NOT NULL,
+    file_path      text NOT NULL,
+    file_mime      varchar(120),
+    file_size      integer,
+    status         varchar(20) NOT NULL DEFAULT 'uploaded',
+    admin_note     text,
+    created_at     timestamptz NOT NULL DEFAULT now(),
+    updated_at     timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_shipper_rate_uploads_user ON shipper_rate_uploads (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_shipper_rate_uploads_company ON shipper_rate_uploads (company_id, created_at DESC);

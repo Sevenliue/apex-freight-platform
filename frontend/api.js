@@ -295,6 +295,52 @@ export async function submitAudit(formData) {
   return data;
 }
 
+/* Shipper "My Rates" — shippers upload their OWN carrier rate sheets
+   (account-private; reviewed by the site admin; never part of the shared
+   rate panel). Upload = multipart, mirroring submitAudit's handling. */
+export function listShipperRates(limit) {
+  return get('/api/shipper-rates' + (limit ? `?limit=${encodeURIComponent(limit)}` : ''));
+}
+
+export function deleteShipperRate(id) {
+  return request('DELETE', `/api/shipper-rates/${encodeURIComponent(id)}`);
+}
+
+export function setShipperRateStatus(id, status, adminNote) {
+  const body = { status };
+  if (adminNote !== undefined) body.admin_note = adminNote;
+  return request('PATCH', `/api/shipper-rates/${encodeURIComponent(id)}/status`, body);
+}
+
+export async function submitShipperRate(formData) {
+  const opts = { method: 'POST', body: formData, headers: {} };
+  const token = getAuthToken();
+  if (token) opts.headers.Authorization = `Bearer ${token}`;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  opts.signal = ctrl.signal;
+  let res;
+  try {
+    res = await fetch(API_BASE_URL + '/api/shipper-rates', opts);
+  } catch (err) {
+    if (err && err.name === 'AbortError') {
+      throw new Error('Request timed out — please check your connection and try again.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+  let data = null;
+  try { data = await res.json(); } catch { data = null; }
+  if (!res.ok) {
+    const err = new Error((data && (data.message || data.error)) || `Request failed (${res.status})`);
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
 /* Contact form. */
 export function sendContact({ name, email, message }) {
   return post('/api/contact', { name, email, message });

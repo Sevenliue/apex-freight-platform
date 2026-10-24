@@ -161,6 +161,14 @@ async function notify(event, order, opts = {}) {
         });
         break;
       }
+      case 'shipper_rate_uploaded': {
+        const up = opts.upload || {};
+        await sendEmail({
+          to: admin, event, subject: `New shipper rate upload — ${up.carrier_name || '?'}`,
+          text: `A shipper uploaded their own carrier rate sheet for review.\nShipper: ${up.user_name || '—'} (${up.user_email || '—'})\nCompany: ${up.company || '—'}\nCarrier: ${up.carrier_name || '—'}\nFile: ${up.file_name || '—'}\nUpload ID: ${up.id || '—'}\n\nReview it under My Rates while signed in as admin. The sheet stays private to the shipper's account and never enters the shared rate panel until you load it.`,
+        });
+        break;
+      }
       case 'carrier_requested': {
         const r = opts.request || {};
         await sendEmail({

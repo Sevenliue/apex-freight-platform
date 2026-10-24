@@ -50,6 +50,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>
           <span>Invoice Audit</span>
         </button>
+        <button class="tab" id="nav-myrates" data-tab="myrates" role="tab" aria-selected="false" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <span>My Rates</span>
+        </button>
         <div class="nav-group" data-group="package">
           <button class="tab group-toggle" aria-expanded="false">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
@@ -1311,6 +1315,34 @@
       <h2 style="margin-top:22px">Your audits</h2>
       <div id="audit-list"><div class="card empty">Sign in to see your audits.</div></div>
     </section>
+
+    <!-- MY RATES (shipper's own carrier rate sheets) -->
+    <section id="tab-myrates" class="panel" role="tabpanel">
+      <h1>My Rates</h1>
+      <p class="lede">Have your own account rates with a carrier? Upload the rate sheet here — it stays private to your account, and we'll review it and load your rates from it. Your uploaded sheets are never shared with other customers.</p>
+      <div class="card">
+        <h3>Upload a rate sheet</h3>
+        <form id="myrates-form">
+          <div class="form-grid">
+            <label>Carrier * <input id="mr-carrier" type="text" placeholder="e.g. Rosenau Transport"></label>
+            <label>Service (optional) <input id="mr-service" type="text" placeholder="e.g. LTL, TL, parcel"></label>
+            <label>Fuel surcharge note (optional) <input id="mr-fsc" type="text" placeholder="e.g. FSC 30%, updated monthly"></label>
+          </div>
+          <div class="form-grid">
+            <label>Effective date <input id="mr-effective" type="date"></label>
+            <label>Expiry date <input id="mr-expiry" type="date"></label>
+            <label>Rate sheet file * <input id="mr-file" type="file" accept=".pdf,.xls,.xlsx,.csv,.jpg,.jpeg,.png,.webp"></label>
+          </div>
+          <div id="mr-error" class="card warn hidden" style="margin-top:10px"></div>
+          <div class="actions" style="margin-top:12px">
+            <button type="submit" class="btn primary" id="mr-submit">Upload rate sheet</button>
+          </div>
+          <p class="note">PDF, Excel, CSV, or a clear photo of the sheet. Uploads are private to your account — only you, your company admin, and the ShipRate admin can see them.</p>
+        </form>
+      </div>
+      <h2 style="margin-top:22px">Uploaded rate sheets</h2>
+      <div id="myrates-list"><div class="card empty">Sign in to see your uploaded rate sheets.</div></div>
+    </section>
     <section id="tab-admin" class="panel" role="tabpanel">
       <h1>Admin overview</h1>
       <p class="lede">Platform activity at a glance.</p>
@@ -1598,6 +1630,7 @@
       if (btn.dataset.tab === 'inventory') loadInventory();
       if (btn.dataset.tab === 'mycompany') loadMyCompany();
       if (btn.dataset.tab === 'audit') loadAudits();
+      if (btn.dataset.tab === 'myrates') loadShipperRates();
       if (btn.dataset.tab === 'pricing') loadBillingCenter();
       if (btn.dataset.tab === 'pickups') loadPickups();
       closeSidebar();
@@ -4430,6 +4463,120 @@
       }
     }
 
+    /* My Rates — the shipper's own uploaded carrier rate sheets
+       (account-private; site admin reviews them here). */
+    function rateStatusBadge(u) {
+      if (u.status === 'loaded') return '<span class="badge ok">Loaded</span>';
+      if (u.status === 'reviewed') return '<span class="badge staff">Reviewed</span>';
+      if (u.status === 'rejected') return '<span class="badge warn">Rejected</span>';
+      return '<span class="badge warn">Uploaded</span>';
+    }
+
+    async function loadShipperRates() {
+      const list = $('#myrates-list');
+      if (!list) return;
+      if (!currentUser) {
+        list.innerHTML = '<div class="card empty">Sign in to see your uploaded rate sheets.</div>';
+        return;
+      }
+      list.innerHTML = '<div class="card empty">Loading rate sheets…</div>';
+      try {
+        const { uploads } = await api.listShipperRates();
+        renderShipperRates(uploads || []);
+      } catch (err) {
+        list.innerHTML = '<div class="card empty">Could not load your rate sheets (' + esc(err.message) + ').</div>';
+      }
+    }
+
+    function renderShipperRates(uploads) {
+      const list = $('#myrates-list');
+      if (!list) return;
+      const isAdmin = !!(billingState && billingState.is_admin);
+      const showUploader = isAdmin || (currentUser && currentUser.role === 'company_admin');
+      if (!uploads.length) {
+        list.innerHTML = '<div class="card empty">No rate sheets yet — upload your first one above.</div>';
+        return;
+      }
+      const sizeStr = (n) => (n == null ? '' : n < 1024 ? n + ' B' : n < 1048576 ? Math.round(n / 1024) + ' KB' : (n / 1048576).toFixed(1) + ' MB');
+      list.innerHTML =
+        `<div class="table-wrap"><table class="data"><thead><tr>
+          <th>Carrier</th><th>File</th><th>Dates</th>${showUploader ? '<th>Uploaded by</th>' : ''}<th>Status</th><th></th>
+        </tr></thead><tbody>${uploads.map((u) => {
+          const dates = [u.effective_date ? 'from ' + esc(u.effective_date) : '', u.expiry_date ? 'to ' + esc(u.expiry_date) : ''].filter(Boolean).join(' ') || '—';
+          const notes = [u.service_note, u.fsc_note].filter(Boolean).map(esc).join(' · ');
+          return `<tr>
+            <td><strong>${esc(u.carrier_name)}</strong>${notes ? '<br><span class="muted">' + notes + '</span>' : ''}<br><span class="muted">${esc(dateStr(u.created_at))}</span></td>
+            <td><a href="${esc(u.file.download_url)}" download>${esc(u.file.name)}</a>${u.file.size_bytes != null ? '<br><span class="muted">' + sizeStr(u.file.size_bytes) + '</span>' : ''}</td>
+            <td>${dates}</td>
+            ${showUploader ? `<td>${esc(u.uploaded_by || '')}${u.company ? '<br><span class="muted">' + esc(u.company) + '</span>' : ''}</td>` : ''}
+            <td>${rateStatusBadge(u)}${u.admin_note ? '<br><span class="muted">' + esc(u.admin_note) + '</span>' : ''}</td>
+            <td>${isAdmin ? `<select data-mr-status="${esc(u.id)}">${['uploaded', 'reviewed', 'loaded', 'rejected'].map((s) => `<option value="${s}"${s === u.status ? ' selected' : ''}>${s}</option>`).join('')}</select> <button type="button" class="btn small" data-mr-note="${esc(u.id)}">Note</button> ` : ''}<button type="button" class="btn small danger" data-mr-del="${esc(u.id)}">Delete</button></td>
+          </tr>`;
+        }).join('')}</tbody></table></div>`;
+      list.querySelectorAll('[data-mr-del]').forEach((b) =>
+        b.addEventListener('click', async () => {
+          if (!window.confirm('Delete this uploaded rate sheet?')) return;
+          try {
+            await api.deleteShipperRate(b.dataset.mrDel);
+            loadShipperRates();
+          } catch (err) { showAlert(err.message); }
+        }));
+      list.querySelectorAll('[data-mr-status]').forEach((sel) =>
+        sel.addEventListener('change', async () => {
+          try {
+            await api.setShipperRateStatus(sel.dataset.mrStatus, sel.value);
+            loadShipperRates();
+          } catch (err) { showAlert(err.message); loadShipperRates(); }
+        }));
+      list.querySelectorAll('[data-mr-note]').forEach((b) =>
+        b.addEventListener('click', async () => {
+          const row = uploads.find((x) => x.id === b.dataset.mrNote);
+          const note = window.prompt('Admin note for this upload:', row && row.admin_note ? row.admin_note : '');
+          if (note === null) return;
+          try {
+            await api.setShipperRateStatus(b.dataset.mrNote, row ? row.status : 'uploaded', note);
+            loadShipperRates();
+          } catch (err) { showAlert(err.message); }
+        }));
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const form = $('#myrates-form');
+      if (!form) return;
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errBox = $('#mr-error');
+        const btn = $('#mr-submit');
+        const showErr = (m) => {
+          errBox.textContent = m;
+          errBox.classList.remove('hidden');
+        };
+        errBox.classList.add('hidden');
+        if (!$('#mr-carrier').value.trim()) { showErr('Enter the carrier this rate sheet belongs to.'); return; }
+        const file = $('#mr-file').files && $('#mr-file').files[0];
+        if (!file) { showErr('Choose the rate sheet file to upload.'); return; }
+        const fd = new FormData();
+        fd.append('carrier_name', $('#mr-carrier').value.trim());
+        fd.append('service_note', $('#mr-service').value.trim());
+        fd.append('fsc_note', $('#mr-fsc').value.trim());
+        fd.append('effective_date', $('#mr-effective').value || '');
+        fd.append('expiry_date', $('#mr-expiry').value || '');
+        fd.append('rate_file', file);
+        btn.disabled = true;
+        btn.textContent = 'Uploading…';
+        try {
+          await api.submitShipperRate(fd);
+          form.reset();
+          loadShipperRates();
+        } catch (err) {
+          showErr(err.message || 'Could not upload the rate sheet.');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Upload rate sheet';
+        }
+      });
+    });
+
     document.addEventListener('DOMContentLoaded', () => {
       const form = $('#audit-form');
       if (!form) return;
@@ -5792,6 +5939,25 @@
       }
     }
 
+    /* Sidebar: show My Rates to signed-in shipper-side accounts
+       (shipper, company_admin, site admin) — never to carrier-role
+       accounts, and never on the employer profile (not part of the
+       handover bundle). Mirrors syncAuditNav; the API enforces the
+       same rules. */
+    function syncMyRatesNav() {
+      const btn = $('#nav-myrates');
+      if (!btn) return;
+      const show = !!(
+        currentUser &&
+        SITE_PROFILE !== 'employer' &&
+        (currentUser.role !== 'carrier' || (billingState && billingState.is_admin))
+      );
+      btn.style.display = show ? '' : 'none';
+      if (!show && $('#tab-myrates') && $('#tab-myrates').classList.contains('active')) {
+        showTab('dashboard');
+      }
+    }
+
     /* Phase-one quote-only mode: for non-admin accounts, hide every sidebar
        item and dashboard card that goes beyond the freight quote (quote form,
        address book, saved quotes, tracking). Admins keep the full site so
@@ -5816,6 +5982,7 @@
       document.querySelectorAll('.dash-card').forEach((c) => { c.style.display = ''; });
       syncMyCompanyNav();
       syncAuditNav();
+      syncMyRatesNav();
       if (SITE_MODE !== 'quote-only' || qoIsAdmin()) return;
       document.body.classList.add('quote-only');
       const labelOf = (btn) => (btn.textContent || '').trim().replace(/\s+/g, ' ');
@@ -5838,6 +6005,7 @@
       // Final word on the My Company item (role-based, not label-based).
       syncMyCompanyNav();
       syncAuditNav();
+      syncMyRatesNav();
     }
 
     /* Phase one: every Create Shipment button stays visible, but for

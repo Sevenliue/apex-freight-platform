@@ -220,6 +220,12 @@ app.use('/api/company-admin', requireApprovedAccount, require('./routes/company-
 // employer handover bundle); gated off on platform2, whose database holds
 // no carrier rate data to re-rate against.
 app.use('/api/audits', platform2Blocked, requireApprovedAccount, require('./routes/audits'));
+// Shipper "My Rates": shippers upload their OWN carrier rate sheets for
+// admin review (account-private; never enters the shared rate panel).
+// Ships in the full + platform2 profiles; NOT part of the employer
+// handover bundle, so the employer profile answers 404 via employerBlocked
+// (and a belt-and-suspenders gate in the router itself).
+app.use('/api/shipper-rates', employerBlocked, requireApprovedAccount, require('./routes/shipper-rates'));
 app.use('/api/store', employerBlocked, requireApprovedAccount, require('./routes/store'));
 app.use('/api/inventory', employerBlocked, requireApprovedAccount, require('./routes/inventory'));
 
