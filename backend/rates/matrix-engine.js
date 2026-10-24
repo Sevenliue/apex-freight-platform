@@ -88,13 +88,18 @@ const METRO = {
   KELOWNA: ['WEST KELOWNA', 'WESTBANK', 'PEACHLAND'],
   HALIFAX: ['DARTMOUTH', 'BEDFORD', 'SACKVILLE'],
 };
+// Metro keys are canonical town names (mmNorm: SAINT->ST / SAINTE->STE,
+// punctuation to spaces, accents folded), so a lane filed as
+// ST-AUGUSTIN-DE-DESMAURES matches a quote for Saint-Augustin-de-Desmaures,
+// St. Augustin, etc. mmNorm is defined below; as a function declaration it
+// hoists, so calling it here is safe.
 const _cityToMetro = new Map();
 for (const [hub, cities] of Object.entries(METRO)) {
-  _cityToMetro.set(hub, hub);
-  for (const c of cities) _cityToMetro.set(c, hub);
+  _cityToMetro.set(mmNorm(hub), mmNorm(hub));
+  for (const c of cities) _cityToMetro.set(mmNorm(c), mmNorm(hub));
 }
 function metroOf(city) {
-  const c = norm(city);
+  const c = mmNorm(city);
   return _cityToMetro.get(c) || c;
 }
 const laneKey = (carrierId, city, prov, dCity, dProv) =>
