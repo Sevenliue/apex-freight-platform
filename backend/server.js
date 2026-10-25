@@ -307,6 +307,25 @@ if (require.main === module) {
         console.error('[db] schema setup failed (continuing):', err.message);
       }
     }
+    // One-off rate-table sync (Northline lift, Oct 2026): runs ONLY when
+    // RUN_RATE_SYNC=1 and SOURCE_DATABASE_URL are set on this service.
+    // Copies the four carrier-rate tables from the source DB, emails the
+    // report to the admin address, then boots normally. The vars are
+    // removed after the run, so normal boots skip this entirely. A failure
+    // is logged + emailed and never stops the server.
+    if (process.env.RUN_RATE_SYNC === '1' && process.env.SOURCE_DATABASE_URL) {
+      try {
+        const { runRateSync } = require('./scripts/sync-rates-from-source');
+        const syncReport = await runRateSync();
+        console.log('[rate-sync] done', JSON.stringify(syncReport));
+      } catch (err) {
+        console.error('[rate-sync] FAILED (continuing boot):', err.message);
+        try {
+          const { sendEmail, adminEmail } = require('./lib/notify');
+          await sendEmail({ to: adminEmail(), subject: 'Northline rate sync FAILED', text: `Rate sync failed: ${err.message}` });
+        } catch (_) { /* best-effort */ }
+      }
+    }
     app.listen(config.port, () => {
       console.log(
         `ShipRate backend listening on :${config.port} ` +
