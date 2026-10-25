@@ -1588,6 +1588,39 @@
       return html;
     };
 
+    // Per-row billed weight (dim transparency, Oct 2026): what THIS carrier
+    // actually rated on, shown only when dimensional weight raised the
+    // billable weight above actual. Rows billed at actual get no line —
+    // there is nothing to explain. Rule wording mirrors the engine's
+    // dimensional_rule values (matrix-engine.js billableWeight +
+    // Guilbault tariff functions); thresholds are tariff facts, not
+    // savings promises — an exact "repack and save $Y" figure needs a
+    // re-rate with the new dims, which this line deliberately does not fake.
+    const billedWeightLine = (r) => {
+      const bw = Number(r.billable_weight_lbs || 0);
+      const aw = Number(r.weight_lbs || 0);
+      if (!r.dimensional_applied || !(bw > aw)) return '';
+      const lb = (n) => Number(n || 0).toLocaleString('en-CA');
+      const rule = String(r.dimensional_rule || 'actual');
+      let ruleTxt;
+      if (rule === 'cube') {
+        ruleTxt = (r.floor_lb_per_cuft != null && r.cube_ft != null)
+          ? `cube rule (${lb(r.cube_ft)} cu ft × ${lb(r.floor_lb_per_cuft)} lb/cu ft)`
+          : `cube rule (dims × 10 lb/cu ft)`;
+      } else if (rule === 'linear_foot') {
+        ruleTxt = `trailer-foot rule (${lb(r.linear_ft)} ft × 1,000 lb/ft) — under 10 ft avoids this rule`;
+      } else if (rule === 'guilbault_linear_foot') {
+        ruleTxt = `trailer-foot rule (${lb(r.linear_ft)} ft × 1,000 lb/ft) — under 12 ft avoids this rule`;
+      } else if (rule === 'guilbault_pallet_space') {
+        ruleTxt = `pallet-space rule (${lb(r.pallet_count)} pallets × 640 lb)`;
+      } else if (rule === 'guilbault_loose_footprint') {
+        ruleTxt = `trailer-footprint rule`;
+      } else {
+        ruleTxt = `dimensional rule`;
+      }
+      return `<br><span class="note">⚖ Bills at ${lb(bw)} lb (actual ${lb(aw)} lb — ${ruleTxt})</span>`;
+    };
+
     const dateStr = (d) => (d ? new Date(d).toLocaleDateString('en-CA') : '—');
 
     /* ---------- tabs ---------- */
@@ -2640,7 +2673,7 @@
         .map(
           (r, i) => `<tr>
             <td class="chk"><input type="radio" name="rate-pick" value="${esc(r.rate_id)}"${i === 0 ? ' checked' : ''}></td>
-            <td>${esc(r.carrier)}${r.carrier_id ? `<br><span class="carrier-score" data-carrier-id="${esc(r.carrier_id)}"></span>` : ''}${r.service ? '<br><span class="note">' + esc(r.service) + '</span>' : ''}${metroNote(r)} ${sourceBadge(r.source)}${rateCheckedLine(r)}</td>
+            <td>${esc(r.carrier)}${r.carrier_id ? `<br><span class="carrier-score" data-carrier-id="${esc(r.carrier_id)}"></span>` : ''}${r.service ? '<br><span class="note">' + esc(r.service) + '</span>' : ''}${billedWeightLine(r)}${metroNote(r)} ${sourceBadge(r.source)}${rateCheckedLine(r)}</td>
             <td>${r.delivery_days != null ? esc(String(r.delivery_days)) : '—'}${r.est_delivery_date ? `<br><span class="note">≈ ${esc(fmtEstDate(r.est_delivery_date))}</span>` : ''}</td>
             <td class="num"><strong>${cad(r.retail_cad)}</strong>${r.insurance_cad ? `<br><span class="note">incl. ${cad(r.insurance_cad)} insurance</span>` : ''}</td>
           </tr>`
