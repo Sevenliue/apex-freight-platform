@@ -139,6 +139,17 @@ function employerBlocked(req, res, next) {
   return next();
 }
 
+// We Buy + shipping-line hub: Northline Freight only. The old platform2
+// gate is gone (Northline runs 'full' like shiprate.ca), so this gates on
+// the deployment brand instead. Any other brand, or the employer profile,
+// answers 404 exactly like an unknown route.
+function northlineOnly(req, res, next) {
+  if (config.brandName !== 'Northline Freight' || config.siteProfile === 'employer') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  return next();
+}
+
 // Platform separation — platform2 route gates. Platform2 starts with zero
 // carrier rate data, so features that need the production rate book (the
 // invoice audit's re-rate, below) answer 404 there exactly like an unknown
@@ -226,6 +237,8 @@ app.use('/api/audits', platform2Blocked, requireApprovedAccount, require('./rout
 // handover bundle, so the employer profile answers 404 via employerBlocked
 // (and a belt-and-suspenders gate in the router itself).
 app.use('/api/shipper-rates', employerBlocked, requireApprovedAccount, require('./routes/shipper-rates'));
+app.use('/api/webuy', northlineOnly, requireApprovedAccount, require('./routes/webuy'));
+app.use('/api/shipping-lines', northlineOnly, requireApprovedAccount, require('./routes/shipping-lines'));
 app.use('/api/store', employerBlocked, requireApprovedAccount, require('./routes/store'));
 app.use('/api/inventory', employerBlocked, requireApprovedAccount, require('./routes/inventory'));
 

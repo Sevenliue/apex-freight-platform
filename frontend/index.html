@@ -154,6 +154,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
           <span>Inventory</span>
         </button>
+        <button class="tab" id="nav-webuy" data-tab="webuy" role="tab" aria-selected="false" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+          <span>We Buy</span>
+        </button>
         <button class="tab" id="nav-mycompany" data-tab="mycompany" role="tab" aria-selected="false" style="display:none">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16"/><path d="M10 7h1M13 7h1M10 11h1M13 11h1M10 15h1M13 15h1"/></svg>
           <span>My Company</span>
@@ -1408,6 +1412,54 @@
         <div id="carrier-list-admin" style="margin-top:8px"></div>
       </div>
     </section>
+    <section id="tab-webuy" class="panel" role="tabpanel">
+      <h1>We Buy</h1>
+      <p class="lede">Group buying: buy together, pay less per unit. Container buys are import buys — the unit price is all-in (freight, broker fee, import fees, duties all covered by the seller). Local buys let the buyer pick delivery, pickup, or shipping, each with its own cost. Money is held per buyer until receipt is confirmed.</p>
+      <p class="note">Payments: card checkout is not connected yet, so claims are recorded in the ledger as held until Stripe goes live — no card is charged in this version.</p>
+      <div class="actions" style="margin-bottom:10px">
+        <button type="button" class="btn small primary" data-wb-filter="all">All</button>
+        <button type="button" class="btn small" data-wb-filter="container">Container</button>
+        <button type="button" class="btn small" data-wb-filter="local">Local</button>
+        <button type="button" class="btn small" id="webuy-refresh">Refresh</button>
+      </div>
+      <h2>Post a group buy</h2>
+      <form id="webuy-form" class="card" style="margin-bottom:16px">
+        <div class="actions" style="flex-wrap:wrap">
+          <label class="note">Type
+            <select id="wb-type">
+              <option value="container">Container (import, all-in price)</option>
+              <option value="local">Local</option>
+            </select>
+          </label>
+          <label class="note">Title <input id="wb-title" maxlength="200" required></label>
+          <label class="note">Unit price (CAD, all-in for container) <input id="wb-price" type="number" min="0.01" step="0.01" required></label>
+          <label class="note">Target quantity <input id="wb-target" type="number" min="1" step="1" required></label>
+          <label class="note">Deadline <input id="wb-deadline" type="date"></label>
+          <label class="note">Origin <input id="wb-origin" maxlength="160" required></label>
+          <label class="note">Video URL (optional) <input id="wb-video" type="url" maxlength="500"></label>
+        </div>
+        <label class="note">Description <textarea id="wb-desc" rows="2" style="width:100%"></textarea></label>
+        <div id="wb-local-costs" style="display:none;margin-top:8px">
+          <p class="note">Local fulfillment costs (flat per claim — leave blank for options you do not offer; at least one required):</p>
+          <div class="actions" style="flex-wrap:wrap">
+            <label class="note">Delivery cost <input id="wb-delivery" type="number" min="0" step="0.01"></label>
+            <label class="note">Pickup cost <input id="wb-pickup" type="number" min="0" step="0.01"></label>
+            <label class="note">Shipping cost <input id="wb-shipping" type="number" min="0" step="0.01"></label>
+          </div>
+        </div>
+        <div class="actions" style="margin-top:8px">
+          <button type="submit" class="btn primary">Post group buy</button>
+          <span class="note" id="webuy-form-msg"></span>
+        </div>
+      </form>
+      <div id="webuy-admin" style="display:none"></div>
+      <h2>Group buys</h2>
+      <div id="webuy-list"></div>
+      <h2 style="margin-top:24px">Shipping line rate hub</h2>
+      <p class="lede">Ocean container rates plus freight and customs brokers, built from scratch — no rates on file yet. Admins add lines, port-to-port rates, and brokers here; sellers use them to build all-in container prices.</p>
+      <div id="hub-content"></div>
+      <div id="hub-admin-forms" style="display:none"></div>
+    </section>
       </main>
     </div><!-- /.content -->
   </div><!-- /.app -->
@@ -1710,6 +1762,7 @@
       if (btn.dataset.tab === 'myrates') loadShipperRates();
       if (btn.dataset.tab === 'pricing') loadBillingCenter();
       if (btn.dataset.tab === 'pickups') loadPickups();
+      if (btn.dataset.tab === 'webuy') loadWeBuy();
       closeSidebar();
       const target = btn.dataset.scroll ? document.getElementById(btn.dataset.scroll) : null;
       if (target) {
@@ -1726,6 +1779,13 @@
     $$('.tab[data-tab]').forEach((btn) => {
       btn.addEventListener('click', () => activateTab(btn));
     });
+
+    // Invite links (#webuy-<id>) open the We Buy tab on load; the card
+    // scrolls into view once the listings render.
+    if (location.hash.startsWith('#webuy-')) {
+      const wbBtn = document.querySelector('[data-tab="webuy"]');
+      if (wbBtn) wbBtn.click();
+    }
 
     /* Marketing homepage: the Home tab is always visible. Signed-out
        visitors land on it; signed-in users land on the dashboard as before. */
@@ -2984,6 +3044,9 @@
         if (stats[1]) stats[1].innerHTML = '<strong>0</strong><span>Canadian carriers live — onboarding now</span>';
       }
       document.body.classList.toggle('profile-employer', SITE_PROFILE === 'employer');
+      // We Buy: Northline Freight only (the matching APIs 404 elsewhere).
+      const wbNav = document.querySelector('#nav-webuy');
+      if (wbNav) wbNav.style.display = (BRAND_NAME === 'Northline Freight' && SITE_PROFILE !== 'employer') ? '' : 'none';
       if (SITE_PROFILE === 'employer' && !document.getElementById('profile-gate-style')) {
         const st = document.createElement('style');
         st.id = 'profile-gate-style';
@@ -7489,6 +7552,324 @@
         // Not an admin (or DB off): hide the section silently.
         box.innerHTML = '';
       }
+    }
+
+    /* We Buy group buying (Northline only; nav + APIs are gated).
+       Local fulfillment: the BUYER picks delivery, pickup, or shipping at
+       claim time, and each option's cost (set by the seller, flat per
+       claim) populates the claim total live. Container buys are all-in:
+       no fulfillment options — the price already includes everything. */
+    let webuyFilter = 'all';
+    let webuyCache = [];
+    let hubCache = null;
+    const wbMoney = (n) => (n == null ? '—' : Number(n).toLocaleString('en-CA', { style: 'currency', currency: 'CAD' }));
+    const wbDate = (iso) => (iso ? new Date(iso).toLocaleDateString('en-CA') : '—');
+    function webuyVideo(url) {
+      if (!url) return '';
+      if (/\.(mp4|webm|mov)(\?.*)?$/i.test(url)) {
+        return `<div style="margin-top:8px"><video controls preload="none" style="max-width:100%;max-height:300px" src="${esc(url)}"></video></div>`;
+      }
+      return `<div style="margin-top:8px"><a href="${esc(url)}" target="_blank" rel="noopener">Watch video</a></div>`;
+    }
+    function webuyCard(l) {
+      const claimed = Number(l.claimed_qty || 0);
+      const target = Number(l.target_qty || 0);
+      const pct = target > 0 ? Math.min(100, Math.round((claimed / target) * 100)) : 0;
+      const isContainer = l.buy_type === 'container';
+      const mine = l.my_claim;
+      const isSeller = !!(currentUser && (currentUser.id === l.seller_id || currentUser.email === l.seller_email));
+      const optNames = ['delivery', 'pickup', 'shipping'];
+      const opts = !isContainer ? optNames.map((o) => {
+        const v = l[o + '_cost_cad'];
+        return v == null ? '' : `<option value="${o}" data-cost="${v}">${o} — ${wbMoney(v)}</option>`;
+      }).filter(Boolean).join('') : '';
+      const firstCost = !isContainer ? (optNames.map((o) => l[o + '_cost_cad']).find((v) => v != null) || 0) : 0;
+      const canClaim = l.status === 'open' && !mine && !isSeller;
+      let actions = '';
+      if (canClaim) {
+        actions += `<div class="actions" style="flex-wrap:wrap">
+          <label class="note">Qty <input type="number" min="1" step="1" value="1" data-wb-qty="${esc(l.id)}" style="width:80px"></label>
+          ${isContainer ? '' : `<label class="note">Fulfillment <select data-wb-fulfill="${esc(l.id)}">${opts}</select></label>`}
+          <span class="note" data-wb-total="${esc(l.id)}">Total: ${wbMoney(Number(l.price_per_unit_cad) + Number(firstCost))}</span>
+          <button type="button" class="btn small primary" data-wb-claim="${esc(l.id)}">Claim</button>
+        </div>`;
+      }
+      if (mine) {
+        actions += `<p class="note">Your claim: ${mine.qty} unit(s) · ${esc(mine.fulfillment)} · ${wbMoney(mine.amount_cad)} · ${esc(mine.status)}</p>`;
+        if (mine.status === 'held' && l.status === 'shipped') actions += `<button type="button" class="btn small primary" data-wb-confirm="${esc(mine.id)}">Confirm receipt</button> `;
+        if (mine.status === 'held' && l.status === 'open') actions += `<button type="button" class="btn small" data-wb-cancel-claim="${esc(mine.id)}">Cancel my claim</button> `;
+        if (mine.status === 'held' || mine.status === 'released') actions += `<button type="button" class="btn small" data-wb-dispute="${esc(mine.id)}">Dispute</button> `;
+      }
+      if (isSeller && l.status === 'full') actions += `<button type="button" class="btn small primary" data-wb-ship="${esc(l.id)}">Mark shipped — group is full</button> `;
+      if (isSeller && l.status === 'open') actions += `<button type="button" class="btn small danger" data-wb-cancel-listing="${esc(l.id)}">Cancel group buy</button> `;
+      if (l.status === 'open' || l.status === 'full') actions += `<button type="button" class="btn small" data-wb-invite="${esc(l.id)}">Copy invite link</button>`;
+      return `<div class="card" id="webuy-${esc(l.id)}" style="margin-bottom:12px">
+        <h3 style="margin:0">${esc(l.title)}</h3>
+        <p class="note">${isContainer ? 'Container' : 'Local'} · ${esc(l.status)} · from ${esc(l.origin)} · ends ${wbDate(l.deadline)}</p>
+        <p>${esc(l.description || '')}</p>
+        ${webuyVideo(l.video_url)}
+        <p>${isContainer ? `<strong>${wbMoney(l.price_per_unit_cad)}</strong> / unit, all-in (freight, broker fee, import fees, duties included)` : `<strong>${wbMoney(l.price_per_unit_cad)}</strong> / unit`}</p>
+        ${!isContainer && opts ? `<p class="note">Fulfillment costs: ${optNames.map((o) => l[o + '_cost_cad'] == null ? null : `${o} ${wbMoney(l[o + '_cost_cad'])}`).filter(Boolean).join(' · ')}</p>` : ''}
+        <p class="note">${claimed} / ${target} claimed · seller ${esc(l.seller_email || '')}</p>
+        <div style="background:#eee;height:10px;border-radius:5px"><div style="width:${pct}%;background:#1a7f4b;height:10px;border-radius:5px"></div></div>
+        ${actions ? `<div class="actions" style="margin-top:8px;flex-wrap:wrap">${actions}</div>` : ''}
+      </div>`;
+    }
+    function renderWeBuy() {
+      const box = document.querySelector('#webuy-list');
+      if (!box) return;
+      const list = webuyCache.filter((l) => webuyFilter === 'all' || l.buy_type === webuyFilter);
+      box.innerHTML = list.length
+        ? list.map(webuyCard).join('')
+        : '<div class="card empty">No group buys yet — post the first one above.</div>';
+      if (location.hash.startsWith('#webuy-')) {
+        const el = document.getElementById(location.hash.slice(1));
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+    function wbUpdateTotal(listingId) {
+      const l = webuyCache.find((x) => x.id === listingId);
+      const qtyEl = document.querySelector(`[data-wb-qty="${listingId}"]`);
+      const selEl = document.querySelector(`[data-wb-fulfill="${listingId}"]`);
+      const totEl = document.querySelector(`[data-wb-total="${listingId}"]`);
+      if (!l || !qtyEl || !totEl) return;
+      const qty = Math.max(1, parseInt(qtyEl.value, 10) || 1);
+      let cost = 0;
+      if (selEl && selEl.selectedOptions[0]) cost = Number(selEl.selectedOptions[0].dataset.cost || 0);
+      totEl.textContent = 'Total: ' + wbMoney(qty * Number(l.price_per_unit_cad) + cost);
+    }
+    async function loadWeBuy() {
+      const box = document.querySelector('#webuy-list');
+      if (!box) return;
+      box.innerHTML = '<div class="card empty">Loading group buys…</div>';
+      try {
+        const data = await api.listWeBuy();
+        webuyCache = data.listings || [];
+        renderWeBuy();
+      } catch {
+        box.innerHTML = '<div class="card empty">Could not load group buys — sign in on the Northline site and try again.</div>';
+      }
+      loadWeBuyAdmin();
+      loadHub();
+    }
+    async function loadWeBuyAdmin() {
+      const box = document.querySelector('#webuy-admin');
+      const hubForms = document.querySelector('#hub-admin-forms');
+      if (!box) return;
+      try {
+        const data = await api.getWeBuyAdmin();
+        const lc = data.listings || {};
+        const money = data.money || {};
+        const countLine = Object.keys(lc).map((s) => `${esc(s)}: ${lc[s]}`).join(' · ') || 'No groups yet';
+        const moneyLine = Object.keys(money).map((s) => `${esc(s)}: ${wbMoney(money[s].total_cad)} (${money[s].claims} claims)`).join(' · ') || 'No money yet';
+        box.innerHTML = `<div class="card"><h3 style="margin:0">Admin overview</h3><p class="note">${countLine}</p><p class="note">${moneyLine}</p></div>`;
+        box.style.display = '';
+        renderHubAdminForms();
+        if (hubForms) hubForms.style.display = '';
+      } catch {
+        box.innerHTML = '';
+        box.style.display = 'none';
+        if (hubForms) { hubForms.innerHTML = ''; hubForms.style.display = 'none'; }
+      }
+    }
+    async function loadHub() {
+      const box = document.querySelector('#hub-content');
+      if (!box) return;
+      try {
+        const data = await api.listShippingLines();
+        hubCache = data;
+        const lines = data.lines || [];
+        const brokers = data.brokers || [];
+        let html = '';
+        if (!lines.length) {
+          html += '<div class="card empty">No shipping lines yet — the hub starts empty. Admins add the first line below.</div>';
+        } else {
+          for (const line of lines) {
+            const rows = (line.rates || []).map((r) => `<tr><td>${esc(r.origin_port)} → ${esc(r.dest_port)}</td><td>${esc(r.container_size)}</td><td>${wbMoney(r.rate_cad)}</td><td>${wbDate(r.valid_from)} – ${wbDate(r.valid_to)}</td><td>${esc(r.notes || '')}</td></tr>`).join('');
+            html += `<div class="card"><h3 style="margin:0">${esc(line.name)}</h3><p class="note">${esc(line.website || '')} ${esc(line.phone || '')} ${esc(line.notes || '')}</p>${rows ? `<div class="table-wrap"><table><thead><tr><th>Route</th><th>Container</th><th>Rate</th><th>Valid</th><th>Notes</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="note">No rates yet.</p>'}</div>`;
+          }
+        }
+        const bRows = brokers.map((b) => `<tr><td>${esc(b.broker_type)}</td><td>${esc(b.name)}</td><td>${esc(b.phone || '')}</td><td>${esc(b.email || '')}</td><td>${b.fee_cad == null ? '—' : wbMoney(b.fee_cad)}</td><td>${esc(b.fee_note || '')}</td></tr>`).join('');
+        html += `<h3>Brokers</h3>${bRows ? `<div class="table-wrap"><table><thead><tr><th>Type</th><th>Name</th><th>Phone</th><th>Email</th><th>Fee</th><th>Notes</th></tr></thead><tbody>${bRows}</tbody></table></div>` : '<div class="card empty">No brokers yet — freight brokers and import/export customs brokers go here.</div>'}`;
+        box.innerHTML = html;
+        const hf = document.querySelector('#hub-admin-forms');
+        if (hf && hf.style.display !== 'none') renderHubAdminForms();
+      } catch {
+        box.innerHTML = '<div class="card empty">Could not load the shipping line hub.</div>';
+      }
+    }
+    function renderHubAdminForms() {
+      const box = document.querySelector('#hub-admin-forms');
+      if (!box) return;
+      const lines = (hubCache && hubCache.lines) || [];
+      const lineOpts = lines.map((l) => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('');
+      box.innerHTML = `<h3>Add to the hub (admin)</h3>
+        <form class="card" data-hub-form="line" style="margin-bottom:12px">
+          <h4 style="margin:0 0 8px">Shipping line</h4>
+          <div class="actions" style="flex-wrap:wrap">
+            <label class="note">Name <input name="name" required></label>
+            <label class="note">Website <input name="website"></label>
+            <label class="note">Phone <input name="phone"></label>
+          </div>
+          <button type="submit" class="btn small primary">Add line</button>
+        </form>
+        <form class="card" data-hub-form="rate" style="margin-bottom:12px">
+          <h4 style="margin:0 0 8px">Container rate</h4>
+          <div class="actions" style="flex-wrap:wrap">
+            <label class="note">Line <select name="line_id" required>${lineOpts || '<option value="">Add a line first</option>'}</select></label>
+            <label class="note">Origin port <input name="origin_port" required></label>
+            <label class="note">Destination port <input name="dest_port" required></label>
+            <label class="note">Container <select name="container_size"><option>20ft</option><option>40ft</option><option>40ft HC</option></select></label>
+            <label class="note">Rate (CAD) <input name="rate_cad" type="number" min="0.01" step="0.01" required></label>
+            <label class="note">Valid from <input name="valid_from" type="date"></label>
+            <label class="note">Valid to <input name="valid_to" type="date"></label>
+          </div>
+          <button type="submit" class="btn small primary">Add rate</button>
+        </form>
+        <form class="card" data-hub-form="broker" style="margin-bottom:12px">
+          <h4 style="margin:0 0 8px">Broker</h4>
+          <div class="actions" style="flex-wrap:wrap">
+            <label class="note">Type <select name="broker_type"><option value="freight">Freight broker</option><option value="customs">Import/export customs broker</option></select></label>
+            <label class="note">Name <input name="name" required></label>
+            <label class="note">Phone <input name="phone"></label>
+            <label class="note">Email <input name="email" type="email"></label>
+            <label class="note">Fee (CAD) <input name="fee_cad" type="number" min="0" step="0.01"></label>
+          </div>
+          <label class="note">Fee note <input name="fee_note" style="width:100%"></label>
+          <div style="margin-top:8px"><button type="submit" class="btn small primary">Add broker</button></div>
+        </form>`;
+    }
+    const wbPanel = document.querySelector('#tab-webuy');
+    if (wbPanel) {
+      wbPanel.addEventListener('click', async (e) => {
+        const fBtn = e.target.closest('[data-wb-filter]');
+        if (fBtn) {
+          webuyFilter = fBtn.dataset.wbFilter;
+          document.querySelectorAll('[data-wb-filter]').forEach((b) => b.classList.toggle('primary', b === fBtn));
+          renderWeBuy();
+          return;
+        }
+        if (e.target.id === 'webuy-refresh') { loadWeBuy(); return; }
+        const claimBtn = e.target.closest('[data-wb-claim]');
+        if (claimBtn) {
+          const id = claimBtn.dataset.wbClaim;
+          const qtyEl = document.querySelector(`[data-wb-qty="${id}"]`);
+          const selEl = document.querySelector(`[data-wb-fulfill="${id}"]`);
+          const body = { qty: Math.max(1, parseInt(qtyEl?.value, 10) || 1) };
+          if (selEl) body.fulfillment = selEl.value;
+          try {
+            const r = await api.claimWeBuy(id, body);
+            if (r.group_full) alert('Group is now full — the seller can now mark it shipped.');
+            loadWeBuy();
+          } catch (err) { alert(err.message || 'Claim failed.'); }
+          return;
+        }
+        const invBtn = e.target.closest('[data-wb-invite]');
+        if (invBtn) {
+          const link = location.origin + location.pathname + '#webuy-' + invBtn.dataset.wbInvite;
+          try {
+            await navigator.clipboard.writeText(link);
+          } catch {
+            const ta = document.createElement('textarea');
+            ta.value = link; document.body.appendChild(ta); ta.select();
+            document.execCommand('copy'); ta.remove();
+          }
+          invBtn.textContent = 'Link copied!';
+          return;
+        }
+        const shipBtn = e.target.closest('[data-wb-ship]');
+        if (shipBtn) {
+          try { await api.shipWeBuy(shipBtn.dataset.wbShip); loadWeBuy(); }
+          catch (err) { alert(err.message || 'Could not mark shipped.'); }
+          return;
+        }
+        const confirmBtn = e.target.closest('[data-wb-confirm]');
+        if (confirmBtn) {
+          try { await api.confirmWeBuyClaim(confirmBtn.dataset.wbConfirm); loadWeBuy(); }
+          catch (err) { alert(err.message || 'Could not confirm receipt.'); }
+          return;
+        }
+        const cancelClaimBtn = e.target.closest('[data-wb-cancel-claim]');
+        if (cancelClaimBtn) {
+          try { await api.cancelWeBuyClaim(cancelClaimBtn.dataset.wbCancelClaim); loadWeBuy(); }
+          catch (err) { alert(err.message || 'Could not cancel claim.'); }
+          return;
+        }
+        const disputeBtn = e.target.closest('[data-wb-dispute]');
+        if (disputeBtn) {
+          try { await api.disputeWeBuyClaim(disputeBtn.dataset.wbDispute); loadWeBuy(); }
+          catch (err) { alert(err.message || 'Could not dispute claim.'); }
+          return;
+        }
+        const cancelListingBtn = e.target.closest('[data-wb-cancel-listing]');
+        if (cancelListingBtn) {
+          try { await api.cancelWeBuy(cancelListingBtn.dataset.wbCancelListing); loadWeBuy(); }
+          catch (err) { alert(err.message || 'Could not cancel group buy.'); }
+          return;
+        }
+      });
+      wbPanel.addEventListener('change', (e) => {
+        if (e.target.id === 'wb-type') {
+          document.querySelector('#wb-local-costs').style.display = e.target.value === 'local' ? '' : 'none';
+          return;
+        }
+        const qtyEl = e.target.closest('[data-wb-qty]');
+        if (qtyEl) { wbUpdateTotal(qtyEl.dataset.wbQty); return; }
+        const selEl = e.target.closest('[data-wb-fulfill]');
+        if (selEl) wbUpdateTotal(selEl.dataset.wbFulfill);
+      });
+      wbPanel.addEventListener('input', (e) => {
+        const qtyEl = e.target.closest('[data-wb-qty]');
+        if (qtyEl) wbUpdateTotal(qtyEl.dataset.wbQty);
+      });
+      wbPanel.addEventListener('submit', async (e) => {
+        const form = e.target.closest('form');
+        if (!form) return;
+        if (form.id === 'webuy-form') {
+          e.preventDefault();
+          const msg = document.querySelector('#webuy-form-msg');
+          const body = {
+            buy_type: document.querySelector('#wb-type').value,
+            title: document.querySelector('#wb-title').value.trim(),
+            price_per_unit_cad: Number(document.querySelector('#wb-price').value),
+            target_qty: parseInt(document.querySelector('#wb-target').value, 10),
+            deadline: document.querySelector('#wb-deadline').value || undefined,
+            origin: document.querySelector('#wb-origin').value.trim(),
+            video_url: document.querySelector('#wb-video').value.trim() || undefined,
+            description: document.querySelector('#wb-desc').value,
+          };
+          if (body.buy_type === 'local') {
+            const dv = document.querySelector('#wb-delivery').value;
+            const pk = document.querySelector('#wb-pickup').value;
+            const sh = document.querySelector('#wb-shipping').value;
+            if (dv !== '') body.delivery_cost_cad = Number(dv);
+            if (pk !== '') body.pickup_cost_cad = Number(pk);
+            if (sh !== '') body.shipping_cost_cad = Number(sh);
+          }
+          try {
+            await api.createWeBuy(body);
+            msg.textContent = 'Posted.';
+            form.reset();
+            document.querySelector('#wb-local-costs').style.display = 'none';
+            loadWeBuy();
+          } catch (err) { msg.textContent = err.message || 'Could not post.'; }
+          return;
+        }
+        const hubForm = form.dataset.hubForm;
+        if (hubForm) {
+          e.preventDefault();
+          const fd = new FormData(form);
+          const body = {};
+          fd.forEach((v, k) => { body[k] = v; });
+          try {
+            if (hubForm === 'line') await api.createShippingLine(body);
+            if (hubForm === 'rate') await api.createShippingRate(body);
+            if (hubForm === 'broker') await api.createShippingBroker(body);
+            form.reset();
+            loadHub();
+          } catch (err) { alert(err.message || 'Could not save.'); }
+        }
+      });
     }
 
     async function loadFscAdmin() {

@@ -921,3 +921,46 @@ export function listPickupQueue() {
 export function setPickupStatus(id, status) {
   return request('PATCH', `/api/pickups/${encodeURIComponent(id)}`, { status });
 }
+
+/* We Buy group buying (Northline only; server 404s elsewhere). */
+export function listWeBuy() {
+  return get('/api/webuy');
+}
+export function createWeBuy(body) {
+  return post('/api/webuy', body);
+}
+export function claimWeBuy(id, body) {
+  return post(`/api/webuy/${encodeURIComponent(id)}/claims`, body);
+}
+export function shipWeBuy(id) {
+  return post(`/api/webuy/${encodeURIComponent(id)}/ship`, {});
+}
+export function cancelWeBuy(id) {
+  return post(`/api/webuy/${encodeURIComponent(id)}/cancel`, {});
+}
+export function confirmWeBuyClaim(id) {
+  return post(`/api/webuy/claims/${encodeURIComponent(id)}/confirm`, {});
+}
+export function cancelWeBuyClaim(id) {
+  return post(`/api/webuy/claims/${encodeURIComponent(id)}/cancel`, {});
+}
+export function disputeWeBuyClaim(id) {
+  return post(`/api/webuy/claims/${encodeURIComponent(id)}/dispute`, {});
+}
+export function getWeBuyAdmin() {
+  return get('/api/webuy/admin/overview');
+}
+
+/* Shipping line rate hub (Northline only; server 404s elsewhere). */
+export function listShippingLines() {
+  return get('/api/shipping-lines');
+}
+export function createShippingLine(body) {
+  return post('/api/shipping-lines/lines', body);
+}
+export function createShippingRate(body) {
+  return post('/api/shipping-lines/rates', body);
+}
+export function createShippingBroker(body) {
+  return post('/api/shipping-lines/brokers', body);
+}
