@@ -1349,61 +1349,62 @@
       <p class="lede">Platform activity at a glance.</p>
       <div class="actions">
         <button type="button" class="btn primary" id="admin-refresh">Refresh</button>
+        <button type="button" class="btn" id="admin-export-all">Export all to Excel</button>
       </div>
       <div style="margin-top:16px">
-        <button type="button" class="btn small" data-sec-toggle="admin-overview-body" data-sec-name="Overview" aria-expanded="true">▾ Overview</button>
+        <div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn small" data-sec-toggle="admin-overview-body" data-sec-name="Overview" aria-expanded="true">▾ Overview</button><button type="button" class="btn small" data-sec-export="admin-overview-body" title="Export this section to Excel">Excel</button></div>
         <div id="admin-overview-body" style="margin-top:8px"><div id="admin-cards" class="cards"></div><div id="admin-note"></div></div>
       </div>
       <div style="margin-top:16px">
-        <button type="button" class="btn small" data-sec-toggle="account-queue" data-sec-name="Account approvals" aria-expanded="true">▾ Account approvals</button>
+        <div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn small" data-sec-toggle="account-queue" data-sec-name="Account approvals" aria-expanded="true">▾ Account approvals</button><button type="button" class="btn small" data-sec-export="account-queue" title="Export this section to Excel">Excel</button></div>
         <div id="account-queue" style="margin-top:8px"></div>
       </div>
       <div style="margin-top:16px">
-        <button type="button" class="btn small" data-sec-toggle="plan-upgrades" data-sec-name="Plan upgrades" aria-expanded="true">▾ Plan upgrades</button>
+        <div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn small" data-sec-toggle="plan-upgrades" data-sec-name="Plan upgrades" aria-expanded="true">▾ Plan upgrades</button><button type="button" class="btn small" data-sec-export="plan-upgrades" title="Export this section to Excel">Excel</button></div>
         <div id="plan-upgrades" style="margin-top:8px"></div>
       </div>
       <div style="margin-top:16px">
-        <button type="button" class="btn small" data-sec-toggle="tender-queue" data-sec-name="Tender queue" aria-expanded="true">▾ Tender queue</button>
+        <div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn small" data-sec-toggle="tender-queue" data-sec-name="Tender queue" aria-expanded="true">▾ Tender queue</button><button type="button" class="btn small" data-sec-export="tender-queue" title="Export this section to Excel">Excel</button></div>
         <div id="tender-queue" style="margin-top:8px"></div>
       </div>
       <div style="margin-top:16px">
-        <button type="button" class="btn small" data-sec-toggle="dg-queue" data-sec-name="Dangerous goods review" aria-expanded="true">▾ Dangerous goods review</button>
+        <div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn small" data-sec-toggle="dg-queue" data-sec-name="Dangerous goods review" aria-expanded="true">▾ Dangerous goods review</button><button type="button" class="btn small" data-sec-export="dg-queue" title="Export this section to Excel">Excel</button></div>
         <div id="dg-queue" style="margin-top:8px"></div>
       </div>
       <div style="margin-top:16px">
-        <button type="button" class="btn small" data-sec-toggle="pickup-queue" data-sec-name="Pickup requests" aria-expanded="true">▾ Pickup requests</button>
+        <div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn small" data-sec-toggle="pickup-queue" data-sec-name="Pickup requests" aria-expanded="true">▾ Pickup requests</button><button type="button" class="btn small" data-sec-export="pickup-queue" title="Export this section to Excel">Excel</button></div>
         <div id="pickup-queue" style="margin-top:8px"></div>
       </div>
       <div style="margin-top:16px">
-        <button type="button" class="btn small" data-sec-toggle="store-admin" data-sec-name="Store orders" aria-expanded="true">▾ Store orders</button>
+        <div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn small" data-sec-toggle="store-admin" data-sec-name="Store orders" aria-expanded="true">▾ Store orders</button><button type="button" class="btn small" data-sec-export="store-admin" title="Export this section to Excel">Excel</button></div>
         <div id="store-admin" style="margin-top:8px"></div>
       </div>
       <div style="margin-top:16px">
-        <button type="button" class="btn small" data-sec-toggle="quote-log" data-sec-name="Quote log" aria-expanded="false">▸ Quote log</button>
+        <div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn small" data-sec-toggle="quote-log" data-sec-name="Quote log" aria-expanded="false">▸ Quote log</button><button type="button" class="btn small" data-sec-export="quote-log" title="Export this section to Excel">Excel</button></div>
         <div id="quote-log" style="margin-top:8px;display:none"></div>
       </div>
       <div style="margin-top:16px">
-        <button type="button" class="btn small" data-sec-toggle="quote-analytics" data-sec-name="Quote analytics" aria-expanded="true">▾ Quote analytics</button>
+        <div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn small" data-sec-toggle="quote-analytics" data-sec-name="Quote analytics" aria-expanded="true">▾ Quote analytics</button><button type="button" class="btn small" data-sec-export="quote-analytics" title="Export this section to Excel">Excel</button></div>
         <div id="quote-analytics" style="margin-top:8px"></div>
       </div>
       <div style="margin-top:16px">
-        <button type="button" class="btn small" data-sec-toggle="fsc-admin" data-sec-name="Fuel surcharges" aria-expanded="true">▾ Fuel surcharges</button>
+        <div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn small" data-sec-toggle="fsc-admin" data-sec-name="Fuel surcharges" aria-expanded="true">▾ Fuel surcharges</button><button type="button" class="btn small" data-sec-export="fsc-admin" title="Export this section to Excel">Excel</button></div>
         <div id="fsc-admin" style="margin-top:8px"></div>
       </div>
       <div style="margin-top:16px">
-        <button type="button" class="btn small" data-sec-toggle="density-admin" data-sec-name="Density floors" aria-expanded="true">▾ Density floors</button>
+        <div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn small" data-sec-toggle="density-admin" data-sec-name="Density floors" aria-expanded="true">▾ Density floors</button><button type="button" class="btn small" data-sec-export="density-admin" title="Export this section to Excel">Excel</button></div>
         <div id="density-admin" style="margin-top:8px"></div>
       </div>
       <div style="margin-top:16px">
-        <button type="button" class="btn small" data-sec-toggle="carrier-uploads-admin" data-sec-name="Carrier rate uploads" aria-expanded="true">▾ Carrier rate uploads</button>
+        <div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn small" data-sec-toggle="carrier-uploads-admin" data-sec-name="Carrier rate uploads" aria-expanded="true">▾ Carrier rate uploads</button><button type="button" class="btn small" data-sec-export="carrier-uploads-admin" title="Export this section to Excel">Excel</button></div>
         <div id="carrier-uploads-admin" style="margin-top:8px"></div>
       </div>
       <div style="margin-top:16px">
-        <button type="button" class="btn small" data-sec-toggle="carrier-ratings-admin" data-sec-name="Carrier ratings" aria-expanded="true">▾ Carrier ratings</button>
+        <div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn small" data-sec-toggle="carrier-ratings-admin" data-sec-name="Carrier ratings" aria-expanded="true">▾ Carrier ratings</button><button type="button" class="btn small" data-sec-export="carrier-ratings-admin" title="Export this section to Excel">Excel</button></div>
         <div id="carrier-ratings-admin" style="margin-top:8px"></div>
       </div>
       <div style="margin-top:16px">
-        <button type="button" class="btn small" data-sec-toggle="carrier-list-admin" data-sec-name="Carrier list" aria-expanded="true">▾ Carrier list</button>
+        <div style="display:flex;gap:8px;align-items:center"><button type="button" class="btn small" data-sec-toggle="carrier-list-admin" data-sec-name="Carrier list" aria-expanded="true">▾ Carrier list</button><button type="button" class="btn small" data-sec-export="carrier-list-admin" title="Export this section to Excel">Excel</button></div>
         <div id="carrier-list-admin" style="margin-top:8px"></div>
       </div>
     </section>
@@ -3751,6 +3752,250 @@
       btn.setAttribute('aria-expanded', willExpand ? 'true' : 'false');
       btn.textContent = (willExpand ? '▾ ' : '▸ ') + btn.getAttribute('data-sec-name');
     });
+
+    /* Admin Excel export: every section exports from what is on screen, so
+       collapsed sections export too, and FSC/density edits export at their
+       current input values. No dependency: a minimal .xlsx writer (STORE
+       zip + inline strings) builds the workbook in the browser. */
+    const ADMIN_EXPORT_SECTIONS = [
+      ['admin-overview-body', 'Overview'],
+      ['account-queue', 'Account approvals'],
+      ['plan-upgrades', 'Plan upgrades'],
+      ['tender-queue', 'Tender queue'],
+      ['dg-queue', 'Dangerous goods review'],
+      ['pickup-queue', 'Pickup requests'],
+      ['store-admin', 'Store orders'],
+      ['quote-log', 'Quote log'],
+      ['quote-analytics', 'Quote analytics'],
+      ['fsc-admin', 'Fuel surcharges'],
+      ['density-admin', 'Density floors'],
+      ['carrier-uploads-admin', 'Carrier rate uploads'],
+      ['carrier-ratings-admin', 'Carrier ratings'],
+      ['carrier-list-admin', 'Carrier list'],
+    ];
+    function xlsxCrc32(bytes) {
+      let table = xlsxCrc32.table;
+      if (!table) {
+        table = [];
+        for (let n = 0; n < 256; n++) {
+          let c = n;
+          for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+          table[n] = c >>> 0;
+        }
+        xlsxCrc32.table = table;
+      }
+      let crc = 0xFFFFFFFF;
+      for (let i = 0; i < bytes.length; i++) crc = table[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+      return (crc ^ 0xFFFFFFFF) >>> 0;
+    }
+    function xlsxUtf8(str) { return new TextEncoder().encode(str); }
+    function xlsxConcat(parts) {
+      let len = 0; for (const p of parts) len += p.length;
+      const out = new Uint8Array(len); let o = 0;
+      for (const p of parts) { out.set(p, o); o += p.length; }
+      return out;
+    }
+    function xlsxZip(files) {
+      const chunks = [];
+      const central = [];
+      let offset = 0;
+      const push = (arr) => { chunks.push(arr); offset += arr.length; };
+      const u16 = (n) => { const a = new Uint8Array(2); new DataView(a.buffer).setUint16(0, n, true); return a; };
+      const u32 = (n) => { const a = new Uint8Array(4); new DataView(a.buffer).setUint32(0, n >>> 0, true); return a; };
+      for (const f of files) {
+        const nameBytes = xlsxUtf8(f.name);
+        const crc = xlsxCrc32(f.data);
+        const localOffset = offset;
+        push(xlsxConcat([u32(0x04034b50), u16(20), u16(0x0800), u16(0), u16(0), u16(33), u32(crc), u32(f.data.length), u32(f.data.length), u16(nameBytes.length), u16(0)]));
+        push(nameBytes); push(f.data);
+        central.push({ nameBytes, crc, size: f.data.length, offset: localOffset });
+      }
+      const centralStart = offset;
+      for (const c of central) {
+        push(xlsxConcat([u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(33), u32(c.crc), u32(c.size), u32(c.size), u16(c.nameBytes.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(c.offset)]));
+        push(c.nameBytes);
+      }
+      const centralSize = offset - centralStart;
+      push(xlsxConcat([u32(0x06054b50), u16(0), u16(0), u16(central.length), u16(central.length), u32(centralSize), u32(centralStart), u16(0)]));
+      return new Blob(chunks, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    }
+    function xlsxEscape(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    function xlsxColLetter(i) { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+    function xlsxSheetXml(rows) {
+      const maxCols = rows.reduce((m, r) => Math.max(m, r.cells.length), 0);
+      const widths = [];
+      for (let c = 0; c < maxCols; c++) {
+        let w = 8;
+        for (const r of rows) { const cell = r.cells[c]; if (cell) w = Math.max(w, Math.min(50, String(cell.v).length + 2)); }
+        widths.push(w);
+      }
+      let xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols>';
+      widths.forEach((w, i) => { xml += `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`; });
+      xml += '</cols><sheetData>';
+      rows.forEach((r, ri) => {
+        xml += `<row r="${ri + 1}">`;
+        r.cells.forEach((cell, ci) => {
+          if (cell.v === '' || cell.v == null) return;
+          const ref = xlsxColLetter(ci) + (ri + 1);
+          const style = cell.bold ? ' s="1"' : '';
+          if (cell.num) xml += `<c r="${ref}"${style}><v>${cell.v}</v></c>`;
+          else xml += `<c r="${ref}" t="inlineStr"${style}><is><t xml:space="preserve">${xlsxEscape(cell.v)}</t></is></c>`;
+        });
+        xml += '</row>';
+      });
+      xml += '</sheetData></worksheet>';
+      return xml;
+    }
+    const XLSX_STYLES = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders><border/></borders><cellStyleXfs><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+    function adminBuildXlsx(sheets) {
+      const escAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      const files = [];
+      let contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>';
+      let workbookRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
+      let workbookSheets = '';
+      sheets.forEach((sh, i) => {
+        const n = i + 1;
+        const safeName = sh.name.replace(/[\[\]:*?\/\\]/g, '').slice(0, 31) || ('Sheet' + n);
+        files.push({ name: 'xl/worksheets/sheet' + n + '.xml', data: xlsxUtf8(xlsxSheetXml(sh.rows)) });
+        contentTypes += `<Override PartName="/xl/worksheets/sheet${n}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`;
+        workbookRels += `<Relationship Id="rId${n}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${n}.xml"/>`;
+        workbookSheets += `<sheet name="${escAttr(safeName)}" sheetId="${n}" r:id="rId${n}"/>`;
+      });
+      contentTypes += '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>';
+      workbookRels += `<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`;
+      const workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' + workbookSheets + '</sheets></workbook>';
+      const rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
+      files.push({ name: '[Content_Types].xml', data: xlsxUtf8(contentTypes) });
+      files.push({ name: '_rels/.rels', data: xlsxUtf8(rels) });
+      files.push({ name: 'xl/workbook.xml', data: xlsxUtf8(workbook) });
+      files.push({ name: 'xl/_rels/workbook.xml.rels', data: xlsxUtf8(workbookRels) });
+      files.push({ name: 'xl/styles.xml', data: xlsxUtf8(XLSX_STYLES) });
+      return xlsxZip(files);
+    }
+    function adminCellText(cell) {
+      const clone = cell.cloneNode(true);
+      clone.querySelectorAll('button').forEach((b) => b.remove());
+      clone.querySelectorAll('input, select, textarea').forEach((el) => {
+        const val = (el.type === 'checkbox' || el.type === 'radio') ? (el.checked ? 'Yes' : '') : (el.value || '');
+        el.replaceWith(document.createTextNode(val));
+      });
+      clone.querySelectorAll('br').forEach((br) => br.replaceWith(document.createTextNode('\n')));
+      return clone.textContent.split('\n').map((s) => s.trim()).filter((s) => s !== '').join('\n');
+    }
+    function adminCellValue(text) {
+      const t = String(text == null ? '' : text).trim();
+      if (!t) return { v: '', num: false };
+      const cleaned = t.replace(/^\$/, '').replace(/,/g, '');
+      if (/^-?\d+(\.\d+)?$/.test(cleaned) && !/^0\d/.test(cleaned) && cleaned.replace(/[-.]/g, '').length <= 15) return { v: cleaned, num: true };
+      return { v: t, num: false };
+    }
+    function adminTableRows(table) {
+      const out = [];
+      const spans = {};
+      const head = table.querySelector('thead');
+      if (head) head.querySelectorAll('tr').forEach((tr) => {
+        out.push({ cells: [...tr.children].map((c) => ({ ...adminCellValue(adminCellText(c)), bold: true })) });
+      });
+      const bodyRows = table.querySelectorAll('tbody tr').length ? table.querySelectorAll('tbody tr') : table.querySelectorAll('tr');
+      bodyRows.forEach((tr) => {
+        const cells = [];
+        let col = 0;
+        const takeSpan = () => {
+          while (spans[col] && spans[col].left > 0) {
+            cells.push(spans[col].v);
+            spans[col].left--;
+            if (!spans[col].left) delete spans[col];
+            col++;
+          }
+        };
+        takeSpan();
+        [...tr.children].forEach((c) => {
+          const cs = parseInt(c.getAttribute('colspan') || '1', 10) || 1;
+          const rs = parseInt(c.getAttribute('rowspan') || '1', 10) || 1;
+          const val = adminCellValue(adminCellText(c));
+          cells.push(val);
+          if (rs > 1) spans[col] = { v: val, left: rs - 1 };
+          for (let k = 1; k < cs; k++) cells.push({ v: '', num: false });
+          col += cs;
+          takeSpan();
+        });
+        takeSpan();
+        out.push({ cells });
+      });
+      return out;
+    }
+    function adminSectionRows(sectionId) {
+      const body = document.getElementById(sectionId);
+      const rows = [];
+      if (!body) return rows;
+      const walk = (el) => {
+        for (const child of el.children) {
+          if (child.classList.contains('actions')) continue;
+          if (child.tagName === 'TABLE') {
+            rows.push(...adminTableRows(child), { cells: [] });
+          } else if (child.classList.contains('table-wrap')) {
+            const t = child.querySelector('table');
+            if (t) rows.push(...adminTableRows(t), { cells: [] });
+          } else if (child.tagName === 'H2' || child.tagName === 'H3') {
+            const t = child.textContent.trim();
+            if (t) rows.push({ cells: [{ v: t, num: false, bold: true }] });
+          } else if (child.tagName === 'P') {
+            const t = child.textContent.trim();
+            if (t) rows.push({ cells: [{ v: t, num: false }] });
+          } else if (child.classList.contains('card')) {
+            if (child.classList.contains('empty')) {
+              const t = child.textContent.trim();
+              if (t) rows.push({ cells: [{ v: t, num: false }] });
+            } else {
+              rows.push({ cells: [...child.children].map((c) => adminCellValue(c.textContent.trim())) });
+            }
+          } else if (child.classList.contains('cards')) {
+            child.querySelectorAll(':scope > .card').forEach((card) => {
+              if (card.classList.contains('empty')) return;
+              rows.push({ cells: [...card.children].map((c) => adminCellValue(c.textContent.trim())) });
+            });
+          } else if (child.children.length) {
+            walk(child);
+          } else {
+            const t = child.textContent.trim();
+            if (t) rows.push({ cells: [{ v: t, num: false }] });
+          }
+        }
+      };
+      try { walk(body); } catch (err) { rows.push({ cells: [{ v: 'Could not export this section: ' + err.message, num: false }] }); }
+      if (!rows.length) rows.push({ cells: [{ v: 'No data', num: false }] });
+      return rows;
+    }
+    function adminDownloadXlsx(blob, filename) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    }
+    function adminExportDate() {
+      return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' });
+    }
+    function adminExportAll() {
+      try {
+        const sheets = ADMIN_EXPORT_SECTIONS.map(([id, name]) => ({ name, rows: adminSectionRows(id) }));
+        adminDownloadXlsx(adminBuildXlsx(sheets), 'shiprate-admin-export-' + adminExportDate() + '.xlsx');
+      } catch (err) { alert('Export failed: ' + err.message); }
+    }
+    function adminExportSection(id) {
+      try {
+        const found = ADMIN_EXPORT_SECTIONS.find((s) => s[0] === id);
+        const name = found ? found[1] : id;
+        adminDownloadXlsx(adminBuildXlsx([{ name, rows: adminSectionRows(id) }]), 'shiprate-admin-' + id + '-' + adminExportDate() + '.xlsx');
+      } catch (err) { alert('Export failed: ' + err.message); }
+    }
+    document.querySelector('#tab-admin').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-sec-export]');
+      if (!btn) return;
+      adminExportSection(btn.getAttribute('data-sec-export'));
+    });
+    $('#admin-export-all').addEventListener('click', adminExportAll);
 
     async function loadAdmin() {
       const cards = $('#admin-cards');
