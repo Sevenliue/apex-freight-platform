@@ -182,6 +182,7 @@
             <button class="tab sub" data-tab="admin" data-scroll="density-admin" role="tab" aria-selected="false"><span>Density floors</span></button>
             <button class="tab sub" data-tab="admin" data-scroll="carrier-uploads-admin" role="tab" aria-selected="false"><span>Carrier rate uploads</span></button>
             <button class="tab sub" data-tab="admin" data-scroll="carrier-ratings-admin" role="tab" aria-selected="false"><span>Carrier ratings</span></button>
+            <button class="tab sub" data-tab="admin" data-scroll="carrier-list-admin" role="tab" aria-selected="false"><span>Carrier list</span></button>
           </div>
         </div>
       </nav>
@@ -1349,20 +1350,62 @@
       <div class="actions">
         <button type="button" class="btn primary" id="admin-refresh">Refresh</button>
       </div>
-      <div id="admin-cards" class="cards"></div>
-      <div id="admin-note"></div>
-      <div id="account-queue" style="margin-top:16px"></div>
-      <div id="plan-upgrades" style="margin-top:16px"></div>
-      <div id="tender-queue" style="margin-top:16px"></div>
-      <div id="dg-queue" style="margin-top:16px"></div>
-      <div id="pickup-queue" style="margin-top:16px"></div>
-      <div id="store-admin" style="margin-top:16px"></div>
-      <div id="quote-log" style="margin-top:16px"></div>
-      <div id="quote-analytics" style="margin-top:16px"></div>
-      <div id="fsc-admin" style="margin-top:16px"></div>
-      <div id="density-admin" style="margin-top:16px"></div>
-      <div id="carrier-uploads-admin" style="margin-top:16px"></div>
-      <div id="carrier-ratings-admin" style="margin-top:16px"></div>
+      <div style="margin-top:16px">
+        <button type="button" class="btn small" data-sec-toggle="admin-overview-body" data-sec-name="Overview" aria-expanded="true">▾ Overview</button>
+        <div id="admin-overview-body" style="margin-top:8px"><div id="admin-cards" class="cards"></div><div id="admin-note"></div></div>
+      </div>
+      <div style="margin-top:16px">
+        <button type="button" class="btn small" data-sec-toggle="account-queue" data-sec-name="Account approvals" aria-expanded="true">▾ Account approvals</button>
+        <div id="account-queue" style="margin-top:8px"></div>
+      </div>
+      <div style="margin-top:16px">
+        <button type="button" class="btn small" data-sec-toggle="plan-upgrades" data-sec-name="Plan upgrades" aria-expanded="true">▾ Plan upgrades</button>
+        <div id="plan-upgrades" style="margin-top:8px"></div>
+      </div>
+      <div style="margin-top:16px">
+        <button type="button" class="btn small" data-sec-toggle="tender-queue" data-sec-name="Tender queue" aria-expanded="true">▾ Tender queue</button>
+        <div id="tender-queue" style="margin-top:8px"></div>
+      </div>
+      <div style="margin-top:16px">
+        <button type="button" class="btn small" data-sec-toggle="dg-queue" data-sec-name="Dangerous goods review" aria-expanded="true">▾ Dangerous goods review</button>
+        <div id="dg-queue" style="margin-top:8px"></div>
+      </div>
+      <div style="margin-top:16px">
+        <button type="button" class="btn small" data-sec-toggle="pickup-queue" data-sec-name="Pickup requests" aria-expanded="true">▾ Pickup requests</button>
+        <div id="pickup-queue" style="margin-top:8px"></div>
+      </div>
+      <div style="margin-top:16px">
+        <button type="button" class="btn small" data-sec-toggle="store-admin" data-sec-name="Store orders" aria-expanded="true">▾ Store orders</button>
+        <div id="store-admin" style="margin-top:8px"></div>
+      </div>
+      <div style="margin-top:16px">
+        <button type="button" class="btn small" data-sec-toggle="quote-log" data-sec-name="Quote log" aria-expanded="false">▸ Quote log</button>
+        <div id="quote-log" style="margin-top:8px;display:none"></div>
+      </div>
+      <div style="margin-top:16px">
+        <button type="button" class="btn small" data-sec-toggle="quote-analytics" data-sec-name="Quote analytics" aria-expanded="true">▾ Quote analytics</button>
+        <div id="quote-analytics" style="margin-top:8px"></div>
+      </div>
+      <div style="margin-top:16px">
+        <button type="button" class="btn small" data-sec-toggle="fsc-admin" data-sec-name="Fuel surcharges" aria-expanded="true">▾ Fuel surcharges</button>
+        <div id="fsc-admin" style="margin-top:8px"></div>
+      </div>
+      <div style="margin-top:16px">
+        <button type="button" class="btn small" data-sec-toggle="density-admin" data-sec-name="Density floors" aria-expanded="true">▾ Density floors</button>
+        <div id="density-admin" style="margin-top:8px"></div>
+      </div>
+      <div style="margin-top:16px">
+        <button type="button" class="btn small" data-sec-toggle="carrier-uploads-admin" data-sec-name="Carrier rate uploads" aria-expanded="true">▾ Carrier rate uploads</button>
+        <div id="carrier-uploads-admin" style="margin-top:8px"></div>
+      </div>
+      <div style="margin-top:16px">
+        <button type="button" class="btn small" data-sec-toggle="carrier-ratings-admin" data-sec-name="Carrier ratings" aria-expanded="true">▾ Carrier ratings</button>
+        <div id="carrier-ratings-admin" style="margin-top:8px"></div>
+      </div>
+      <div style="margin-top:16px">
+        <button type="button" class="btn small" data-sec-toggle="carrier-list-admin" data-sec-name="Carrier list" aria-expanded="true">▾ Carrier list</button>
+        <div id="carrier-list-admin" style="margin-top:8px"></div>
+      </div>
     </section>
       </main>
     </div><!-- /.content -->
@@ -1668,7 +1711,15 @@
       if (btn.dataset.tab === 'pickups') loadPickups();
       closeSidebar();
       const target = btn.dataset.scroll ? document.getElementById(btn.dataset.scroll) : null;
-      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (target) {
+        // A collapsed admin section has no box to scroll to: expand it first.
+        if (target.style.display === 'none') {
+          target.style.display = '';
+          const tgl = document.querySelector('[data-sec-toggle="' + target.id + '"]');
+          if (tgl) { tgl.setAttribute('aria-expanded', 'true'); tgl.textContent = '▾ ' + tgl.getAttribute('data-sec-name'); }
+        }
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
       else window.scrollTo({ top: 0, behavior: 'smooth' });
     }
     $$('.tab[data-tab]').forEach((btn) => {
@@ -3686,6 +3737,21 @@
     /* ---------- ADMIN ---------- */
     $('#admin-refresh').addEventListener('click', loadAdmin);
 
+    /* Admin sections: collapse/expand. The toggle buttons live in wrappers
+       outside the loader-filled divs, so they survive refreshes; toggling
+       only hides the body, it never unloads the data. Quote log starts
+       collapsed. */
+    document.querySelector('#tab-admin').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-sec-toggle]');
+      if (!btn) return;
+      const body = document.getElementById(btn.getAttribute('data-sec-toggle'));
+      if (!body) return;
+      const willExpand = body.style.display === 'none';
+      body.style.display = willExpand ? '' : 'none';
+      btn.setAttribute('aria-expanded', willExpand ? 'true' : 'false');
+      btn.textContent = (willExpand ? '▾ ' : '▸ ') + btn.getAttribute('data-sec-name');
+    });
+
     async function loadAdmin() {
       const cards = $('#admin-cards');
       const note = $('#admin-note');
@@ -3721,6 +3787,7 @@
       loadDensityAdmin();
       loadCarrierUploadsAdmin();
       loadCarrierRatingsAdmin();
+      loadCarrierListAdmin();
     }
 
     /* Pickup requests: customer-booked carrier pickups awaiting admin confirmation. */
@@ -7113,6 +7180,44 @@
     /* Fuel surcharges: per-carrier admin overrides. When a carrier changes
        its fuel surcharge, update it here — quotes use the new value
        immediately. Clearing the LTL value restores the rate-sheet value. */
+    /* Carrier list: every carrier that can quote, from the engine registry
+       (the same Admin > Fuel surcharges data) plus Prime Time Courier, which
+       quotes via a dedicated Edmonton path and is intentionally kept out of
+       the FSC machinery (its FSC is always 0), so it is appended here rather
+       than registered in the engine. Read-only: FSC edits stay on the Fuel
+       surcharges page. */
+    async function loadCarrierListAdmin() {
+      const box = $('#carrier-list-admin');
+      if (!box) return;
+      box.innerHTML = '<div class="card empty">Loading carriers…</div>';
+      const pct = (n) => (n == null || !Number.isFinite(Number(n)) ? '—' : Number(n).toFixed(2) + '%');
+      try {
+        const { carriers } = await api.getFsc();
+        const rows = (carriers || []).slice();
+        rows.push({ carrier_id: 'primetime', carrier_label: 'Prime Time Courier', lane_count: null, fsc_ltl_percent: 0, fsc_tl_percent: null, fsc_overridden: false, fsc_as_of: null, dedicated: true });
+        rows.sort((a, b) => String(a.carrier_label).localeCompare(String(b.carrier_label)));
+        if (!rows.length) {
+          box.innerHTML = '<h2>Carrier list</h2><div class="card empty">No quoting carriers found.</div>';
+          return;
+        }
+        box.innerHTML =
+          '<h2>Carrier list</h2><p class="lede">Every carrier that can quote on the platform, from the rate engine registry. Lanes = matrix lane rows; grid-rated carriers (flat/zone pricing) show 0 lanes because they do not use lane rows. Read-only — fuel surcharges are edited on the Fuel surcharges page.</p>' +
+          '<div class="table-wrap"><table class="data"><thead><tr>' +
+          '<th>Carrier</th><th class="num">Lanes</th><th class="num">Current LTL</th><th class="num">Current TL</th><th>Last updated</th>' +
+          '</tr></thead><tbody>' +
+          rows.map((c) => {
+            const asOf = c.fsc_as_of ? new Date(c.fsc_as_of).toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' }) : '—';
+            const note = c.dedicated ? ' <span class="note">dedicated Edmonton path; FSC always 0</span>' : (c.fsc_overridden ? ' <span class="badge">custom</span>' : '');
+            const lanes = c.lane_count == null ? '—' : esc(String(c.lane_count));
+            return `<tr><td><strong>${esc(c.carrier_label)}</strong>${note}</td><td class="num">${lanes}</td><td class="num">${pct(c.fsc_ltl_percent)}</td><td class="num">${pct(c.fsc_tl_percent)}</td><td>${esc(asOf)}</td></tr>`;
+          }).join('') +
+          '</tbody></table></div>';
+      } catch (err) {
+        // Not an admin (or DB off): hide the section silently.
+        box.innerHTML = '';
+      }
+    }
+
     async function loadFscAdmin() {
       const box = $('#fsc-admin');
       if (!box) return;
