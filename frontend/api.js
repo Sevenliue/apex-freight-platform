@@ -950,6 +950,9 @@ export function disputeWeBuyClaim(id) {
 export function getWeBuyAdmin() {
   return get('/api/webuy/admin/overview');
 }
+export function setWeBuySeller(body) {
+  return post('/api/webuy/admin/sellers', body);
+}
 
 /* Shipping line rate hub (Northline only; server 404s elsewhere). */
 export function listShippingLines() {

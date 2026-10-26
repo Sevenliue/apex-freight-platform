@@ -1431,6 +1431,13 @@
               <option value="local">Local</option>
             </select>
           </label>
+          <label class="note" id="wb-size-row">Container size
+            <select id="wb-size">
+              <option value="20ft">20ft</option>
+              <option value="40ft">40ft</option>
+              <option value="40ft HC">40ft HC</option>
+            </select>
+          </label>
           <label class="note">Title <input id="wb-title" maxlength="200" required></label>
           <label class="note">Unit price (CAD, all-in for container) <input id="wb-price" type="number" min="0.01" step="0.01" required></label>
           <label class="note">Target quantity <input id="wb-target" type="number" min="1" step="1" required></label>
@@ -7584,21 +7591,23 @@
         return v == null ? '' : `<option value="${o}" data-cost="${v}">${o} — ${wbMoney(v)}</option>`;
       }).filter(Boolean).join('') : '';
       const firstCost = !isContainer ? (optNames.map((o) => l[o + '_cost_cad']).find((v) => v != null) || 0) : 0;
-      const canClaim = l.status === 'open' && !mine && !isSeller;
+      const canClaim = (l.status === 'open' || l.status === 'full') && !mine && !isSeller;
       let actions = '';
       if (canClaim) {
-        actions += `<div class="actions" style="flex-wrap:wrap">
+        actions += `${l.status === 'full' ? '<p class="note">Group is full — new claims join the waiting list.</p>' : ''}
+        <div class="actions" style="flex-wrap:wrap">
           <label class="note">Qty <input type="number" min="1" step="1" value="1" data-wb-qty="${esc(l.id)}" style="width:80px"></label>
           ${isContainer ? '' : `<label class="note">Fulfillment <select data-wb-fulfill="${esc(l.id)}">${opts}</select></label>`}
           <span class="note" data-wb-total="${esc(l.id)}">Total: ${wbMoney(Number(l.price_per_unit_cad) + Number(firstCost))}</span>
           <label class="note"><input type="checkbox" data-wb-agree="${esc(l.id)}"> I agree: if I cancel, I get at most 85% of my claim back.</label>
-          <button type="button" class="btn small primary" data-wb-claim="${esc(l.id)}">Claim</button>
+          <button type="button" class="btn small primary" data-wb-claim="${esc(l.id)}">${l.status === 'full' ? 'Join waiting list' : 'Claim'}</button>
         </div>`;
       }
       if (mine) {
         actions += `<p class="note">Your claim: ${mine.qty} unit(s) · ${esc(mine.fulfillment)} · ${wbMoney(mine.amount_cad)} · ${esc(mine.status)}</p>`;
+        if (mine.status === 'waitlisted') actions += `<p class="note">You're on the waiting list — position ${mine.waitlist_position || '?'}. You'll be promoted automatically if units free up.</p>`;
         if (mine.status === 'held' && l.status === 'shipped') actions += `<button type="button" class="btn small primary" data-wb-confirm="${esc(mine.id)}">Confirm receipt</button> `;
-        if (mine.status === 'held' && l.status === 'open') actions += `<button type="button" class="btn small" data-wb-cancel-claim="${esc(mine.id)}">Cancel my claim</button> `;
+        if ((mine.status === 'held' || mine.status === 'waitlisted') && (l.status === 'open' || l.status === 'full')) actions += `<button type="button" class="btn small" data-wb-cancel-claim="${esc(mine.id)}">Cancel my claim</button> `;
         if (mine.status === 'held' || mine.status === 'released') actions += `<button type="button" class="btn small" data-wb-dispute="${esc(mine.id)}">Dispute</button> `;
       }
       if (isSeller && l.status === 'full') actions += `<button type="button" class="btn small primary" data-wb-ship="${esc(l.id)}">Mark shipped — group is full</button> `;
@@ -7606,7 +7615,7 @@
       if (l.status === 'open' || l.status === 'full') actions += `<button type="button" class="btn small" data-wb-invite="${esc(l.id)}">Copy invite link</button>`;
       return `<div class="card" id="webuy-${esc(l.id)}" style="margin-bottom:12px">
         <h3 style="margin:0">${esc(l.title)}</h3>
-        <p class="note">${isContainer ? 'Container' : 'Local'} · ${esc(l.status)} · from ${esc(l.origin)} · ends ${wbDate(l.deadline)}</p>
+        <p class="note">${isContainer ? 'Container' : 'Local'}${isContainer && l.container_size ? ` · ${esc(l.container_size)}` : ''} · ${esc(l.status)} · from ${esc(l.origin)} · ends ${wbDate(l.deadline)}</p>
         <p>${esc(l.description || '')}</p>
         ${webuyVideo(l.video_url)}
         <p>${isContainer ? `<strong>${wbMoney(l.price_per_unit_cad)}</strong> / unit, all-in (freight, broker fee, import fees, duties included)` : `<strong>${wbMoney(l.price_per_unit_cad)}</strong> / unit`}</p>
@@ -7665,7 +7674,12 @@
         const money = data.money || {};
         const countLine = Object.keys(lc).map((s) => `${esc(s)}: ${lc[s]}`).join(' · ') || 'No groups yet';
         const moneyLine = Object.keys(money).map((s) => `${esc(s)}: ${wbMoney(money[s].total_cad)} (${money[s].claims} claims)`).join(' · ') || 'No money yet';
-        box.innerHTML = `<div class="card"><h3 style="margin:0">Admin overview</h3><p class="note">${countLine}</p><p class="note">${moneyLine}</p></div>`;
+        const sellers = data.sellers || [];
+        const sellerRows = sellers.map((s) => `<li>${esc(s.email)} <button type="button" class="btn small" data-wb-revoke-seller="${esc(s.id)}">Revoke</button></li>`).join('');
+        box.innerHTML = `<div class="card"><h3 style="margin:0">Admin overview</h3><p class="note">${countLine}</p><p class="note">${moneyLine}</p>
+        <h4>Approved sellers</h4>
+        <form data-seller-form style="margin-bottom:8px"><label class="note">Approve seller by email <input name="email" type="email" required></label> <button type="submit" class="btn small primary">Approve</button></form>
+        ${sellerRows ? `<ul>${sellerRows}</ul>` : '<p class="note">No approved sellers yet — admins can always post.</p>'}</div>`;
         box.style.display = '';
         renderHubAdminForms();
         if (hubForms) hubForms.style.display = '';
@@ -7764,7 +7778,8 @@
           if (selEl) body.fulfillment = selEl.value;
           try {
             const r = await api.claimWeBuy(id, body);
-            if (r.group_full) alert('Group is now full — the seller can now mark it shipped.');
+            if (r.waitlisted) alert('Group is full — you are on the waiting list. You will be promoted automatically if units free up.');
+            else if (r.group_full) alert('Group is now full — the seller can now mark it shipped.');
             loadWeBuy();
           } catch (err) { alert(err.message || 'Claim failed.'); }
           return;
@@ -7810,6 +7825,12 @@
           catch (err) { alert(err.message || 'Could not dispute claim.'); }
           return;
         }
+        const revokeBtn = e.target.closest('[data-wb-revoke-seller]');
+        if (revokeBtn) {
+          try { await api.setWeBuySeller({ user_id: revokeBtn.dataset.wbRevokeSeller, approved: false }); loadWeBuyAdmin(); }
+          catch (err) { alert(err.message || 'Could not revoke seller.'); }
+          return;
+        }
         const cancelListingBtn = e.target.closest('[data-wb-cancel-listing]');
         if (cancelListingBtn) {
           try { await api.cancelWeBuy(cancelListingBtn.dataset.wbCancelListing); loadWeBuy(); }
@@ -7820,6 +7841,7 @@
       wbPanel.addEventListener('change', (e) => {
         if (e.target.id === 'wb-type') {
           document.querySelector('#wb-local-costs').style.display = e.target.value === 'local' ? '' : 'none';
+          document.querySelector('#wb-size-row').style.display = e.target.value === 'container' ? '' : 'none';
           return;
         }
         const qtyEl = e.target.closest('[data-wb-qty]');
@@ -7854,14 +7876,27 @@
             if (dv !== '') body.delivery_cost_cad = Number(dv);
             if (pk !== '') body.pickup_cost_cad = Number(pk);
             if (sh !== '') body.shipping_cost_cad = Number(sh);
+          } else {
+            body.container_size = document.querySelector('#wb-size').value;
           }
           try {
             await api.createWeBuy(body);
             msg.textContent = 'Posted.';
             form.reset();
             document.querySelector('#wb-local-costs').style.display = 'none';
+            document.querySelector('#wb-size-row').style.display = '';
             loadWeBuy();
           } catch (err) { msg.textContent = err.message || 'Could not post.'; }
+          return;
+        }
+        if (form.dataset.sellerForm !== undefined) {
+          e.preventDefault();
+          const fd = new FormData(form);
+          try {
+            await api.setWeBuySeller({ email: fd.get('email'), approved: true });
+            form.reset();
+            loadWeBuyAdmin();
+          } catch (err) { alert(err.message || 'Could not approve seller.'); }
           return;
         }
         const hubForm = form.dataset.hubForm;

@@ -48,6 +48,22 @@ const SHIP_WINDOW_DAYS = 7;
 const AUTO_RELEASE_DAYS = 7;
 const CANCEL_REFUND_RATE = 0.85;
 
+// Decided rules (Seven, Oct 25 — spec Q6–Q9):
+//   Q6: admin-approved sellers only. Only accounts flagged by admin (or
+//       admins themselves) can post listings — not any approved account.
+//   Q7: container listings offer all container sizes (20ft / 40ft / 40ft HC),
+//       chosen by the seller at listing.
+//   Q8: claims beyond the target go on a waiting list (status 'waitlisted'),
+//       in queue order. When units free up (a cancel), waitlisted claims
+//       promote to held in order, each only if its FULL quantity fits —
+//       strict FIFO, no skipping, no partial promotion. If the container
+//       ships with buyers still waiting, those waitlisted claims refund in
+//       full (they never held a unit). A buyer-initiated cancel — held or
+//       waitlisted — refunds at the claim's 85% rate.
+//   Q9: seller payout is Stripe Connect (recorded; no code until Stripe
+//       connects — same deferred state as checkout).
+const CONTAINER_SIZES = ['20ft', '40ft', '40ft HC'];
+
 async function ensureSchema() {
   if (!db.isEnabled()) return;
   await db.query(`
@@ -66,6 +82,7 @@ async function ensureSchema() {
       delivery_cost_cad  numeric(12, 2),
       pickup_cost_cad    numeric(12, 2),
       shipping_cost_cad  numeric(12, 2),
+      container_size     varchar(20),
       status             varchar(20) NOT NULL DEFAULT 'open',
       full_at            timestamptz,
       shipped_at         timestamptz,
@@ -98,6 +115,8 @@ async function ensureSchema() {
   await db.query(`ALTER TABLE webuy_claims ADD COLUMN IF NOT EXISTS cancel_refund_rate numeric(4, 3) NOT NULL DEFAULT 0.85`);
   await db.query(`ALTER TABLE webuy_claims ADD COLUMN IF NOT EXISTS refunded_cad numeric(12, 2)`);
   await db.query(`ALTER TABLE webuy_claims ADD COLUMN IF NOT EXISTS retained_cad numeric(12, 2)`);
+  await db.query(`ALTER TABLE webuy_listings ADD COLUMN IF NOT EXISTS container_size varchar(20)`);
+  await db.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS webuy_seller_approved boolean NOT NULL DEFAULT false`);
 }
 ensureSchema().catch(() => {});
 
@@ -139,7 +158,7 @@ async function sweepTimed() {
   if (!db.isEnabled()) return;
   await db.query(
     `UPDATE webuy_claims SET status='refunded', refunded_cad=amount_cad, retained_cad=0
-     WHERE status='held' AND listing_id IN
+     WHERE status IN ('held', 'waitlisted') AND listing_id IN
        (SELECT id FROM webuy_listings WHERE status='open' AND deadline < now())`
   );
   await db.query(
@@ -148,7 +167,7 @@ async function sweepTimed() {
   );
   await db.query(
     `UPDATE webuy_claims SET status='refunded', refunded_cad=amount_cad, retained_cad=0
-     WHERE status='held' AND listing_id IN
+     WHERE status IN ('held', 'waitlisted') AND listing_id IN
        (SELECT id FROM webuy_listings WHERE status='full'
         AND COALESCE(full_at, updated_at) < now() - interval '${SHIP_WINDOW_DAYS} days')`
   );
@@ -171,12 +190,52 @@ async function sweepTimed() {
 }
 
 async function claimedQty(listingId) {
+  // Units occupying the container: held, released, and disputed. Refunded
+  // claims free their units; waitlisted claims never occupied any.
   const r = await db.query(
     `SELECT COALESCE(SUM(qty), 0) AS n FROM webuy_claims
-     WHERE listing_id = $1 AND status IN ('held', 'released')`,
+     WHERE listing_id = $1 AND status IN ('held', 'released', 'disputed')`,
     [listingId]
   );
   return Number(r.rows[0].n);
+}
+
+// After units free up (a cancel, or a dispute resolved to refunded):
+// promote waitlisted claims in queue order while each full quantity fits,
+// then reopen the listing if it is still below target.
+async function reconcileAfterFree(listingId) {
+  const lr = await db.query('SELECT * FROM webuy_listings WHERE id = $1', [listingId]);
+  if (!lr.rows.length) return;
+  const listing = lr.rows[0];
+  if (listing.status !== 'open' && listing.status !== 'full') return;
+  for (;;) {
+    const claimed = await claimedQty(listingId);
+    const space = listing.target_qty - claimed;
+    if (space <= 0) break;
+    const w = await db.query(
+      `SELECT * FROM webuy_claims WHERE listing_id = $1 AND status='waitlisted'
+       ORDER BY created_at ASC, id ASC LIMIT 1`,
+      [listingId]
+    );
+    if (!w.rows.length) break;
+    if (w.rows[0].qty > space) break; // strict FIFO: no skipping, no partial
+    await db.query(`UPDATE webuy_claims SET status='held' WHERE id = $1`, [w.rows[0].id]);
+  }
+  const claimed = await claimedQty(listingId);
+  const newStatus = claimed >= listing.target_qty ? 'full' : 'open';
+  if (newStatus !== listing.status) {
+    if (newStatus === 'full') {
+      await db.query(
+        `UPDATE webuy_listings SET status='full', full_at=now(), updated_at=now() WHERE id = $1`,
+        [listingId]
+      );
+    } else {
+      await db.query(
+        `UPDATE webuy_listings SET status='open', updated_at=now() WHERE id = $1`,
+        [listingId]
+      );
+    }
+  }
 }
 
 // A shipped listing completes once no claim is still held or disputed.
@@ -212,6 +271,7 @@ function listingRow(r) {
     delivery_cost_cad: r.delivery_cost_cad == null ? null : Number(r.delivery_cost_cad),
     pickup_cost_cad: r.pickup_cost_cad == null ? null : Number(r.pickup_cost_cad),
     shipping_cost_cad: r.shipping_cost_cad == null ? null : Number(r.shipping_cost_cad),
+    container_size: r.container_size || null,
     status: r.status,
     full_at: r.full_at,
     shipped_at: r.shipped_at,
@@ -223,6 +283,7 @@ function listingRow(r) {
           status: r.my_claim_status,
           fulfillment: r.my_claim_fulfillment,
           amount_cad: Number(r.my_claim_amount),
+          waitlist_position: r.my_claim_status === 'waitlisted' ? Number(r.my_waitlist_pos || 0) : null,
         }
       : null,
   };
@@ -237,12 +298,14 @@ router.get('/', async (req, res) => {
     const r = await db.query(
       `SELECT l.*,
         COALESCE((SELECT SUM(qty) FROM webuy_claims c
-          WHERE c.listing_id = l.id AND c.status IN ('held', 'released')), 0) AS claimed_qty,
+          WHERE c.listing_id = l.id AND c.status IN ('held', 'released', 'disputed')), 0) AS claimed_qty,
         mc.id AS my_claim_id, mc.qty AS my_claim_qty, mc.status AS my_claim_status,
-        mc.fulfillment AS my_claim_fulfillment, mc.amount_cad AS my_claim_amount
+        mc.fulfillment AS my_claim_fulfillment, mc.amount_cad AS my_claim_amount,
+        (SELECT COUNT(*) FROM webuy_claims w WHERE w.listing_id = l.id AND w.status='waitlisted'
+          AND (w.created_at < mc.created_at OR (w.created_at = mc.created_at AND w.id < mc.id))) + 1 AS my_waitlist_pos
        FROM webuy_listings l
        LEFT JOIN webuy_claims mc ON mc.listing_id = l.id AND mc.buyer_id = $1
-         AND mc.status IN ('held', 'released', 'disputed')
+         AND mc.status IN ('held', 'released', 'disputed', 'waitlisted')
        ORDER BY l.created_at DESC`,
       [userId]
     );
@@ -257,6 +320,13 @@ router.post('/', async (req, res) => {
   if (needDb(res)) return;
   if (!req.user) return res.status(401).json({ error: 'Sign in to post a group buy.' });
   try {
+    // Q6: admin-approved sellers only (admins always pass).
+    if (!isAdminReq(req)) {
+      const sr = await db.query('SELECT webuy_seller_approved FROM users WHERE id = $1', [req.user.id]);
+      if (!sr.rows.length || !sr.rows[0].webuy_seller_approved) {
+        return res.status(403).json({ error: 'Only admin-approved sellers can post group buys.' });
+      }
+    }
     const b = req.body || {};
     const buyType = String(b.buy_type || '');
     if (buyType !== 'container' && buyType !== 'local') {
@@ -290,6 +360,14 @@ router.post('/', async (req, res) => {
     if (videoUrl && !/^https?:\/\//.test(videoUrl)) {
       return res.status(400).json({ error: 'Video URL must start with http:// or https://.' });
     }
+    // Q7: container listings choose a size; local listings carry none.
+    let containerSize = null;
+    if (buyType === 'container') {
+      if (!CONTAINER_SIZES.includes(String(b.container_size || ''))) {
+        return res.status(400).json({ error: 'Container listings need a container size (20ft, 40ft, or 40ft HC).' });
+      }
+      containerSize = b.container_size;
+    }
     let delivery = null;
     let pickup = null;
     let shipping = null;
@@ -310,13 +388,13 @@ router.post('/', async (req, res) => {
       `INSERT INTO webuy_listings
         (seller_id, seller_email, buy_type, title, description, video_url,
          price_per_unit_cad, target_qty, deadline, origin,
-         delivery_cost_cad, pickup_cost_cad, shipping_cost_cad, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'open')
+         delivery_cost_cad, pickup_cost_cad, shipping_cost_cad, container_size, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'open')
        RETURNING *`,
       [
         req.user.id, req.user.email || '', buyType, title.slice(0, 200),
         String(b.description || ''), videoUrl || null, r2(price), targetQty,
-        deadline.toISOString(), origin.slice(0, 160), delivery, pickup, shipping,
+        deadline.toISOString(), origin.slice(0, 160), delivery, pickup, shipping, containerSize,
       ]
     );
     const row = r.rows[0];
@@ -374,7 +452,10 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/webuy/:id/claims — buyer claims units (hard stop at target).
+// POST /api/webuy/:id/claims — buyer claims units. Q8: claims that do not
+// fit in the remaining space go on the waiting list instead of being
+// rejected — the whole claim waits (no partial fills, keeps one claim per
+// buyer and FIFO promotion clean).
 router.post('/:id/claims', async (req, res) => {
   if (needDb(res)) return;
   if (!req.user) return res.status(401).json({ error: 'Sign in to claim.' });
@@ -382,8 +463,8 @@ router.post('/:id/claims', async (req, res) => {
     const r = await db.query('SELECT * FROM webuy_listings WHERE id = $1', [req.params.id]);
     if (!r.rows.length) return res.status(404).json({ error: 'Listing not found.' });
     const listing = r.rows[0];
-    if (listing.status !== 'open') {
-      return res.status(400).json({ error: 'This group buy is no longer open (status: ' + listing.status + ').' });
+    if (listing.status !== 'open' && listing.status !== 'full') {
+      return res.status(400).json({ error: 'This group buy is no longer accepting claims (status: ' + listing.status + ').' });
     }
     if (listing.seller_id === req.user.id) {
       return res.status(400).json({ error: 'Sellers cannot claim their own listing.' });
@@ -397,7 +478,7 @@ router.post('/:id/claims', async (req, res) => {
     // this also keeps the list query's buyer join to a single row.
     const existing = await db.query(
       `SELECT id FROM webuy_claims WHERE listing_id = $1 AND buyer_id = $2
-       AND status IN ('held', 'released', 'disputed') LIMIT 1`,
+       AND status IN ('held', 'released', 'disputed', 'waitlisted') LIMIT 1`,
       [listing.id, req.user.id]
     );
     if (existing.rows.length) {
@@ -423,11 +504,8 @@ router.post('/:id/claims', async (req, res) => {
       optionCost = Number(listing[costField]);
     }
     const claimed = await claimedQty(listing.id);
-    if (claimed + qty > listing.target_qty) {
-      return res.status(400).json({
-        error: 'Only ' + (listing.target_qty - claimed) + ' unit(s) left before this group fills.',
-      });
-    }
+    const space = listing.target_qty - claimed;
+    const claimStatus = listing.status === 'open' && qty <= space ? 'held' : 'waitlisted';
     const unitPrice = Number(listing.price_per_unit_cad);
     const amount = r2(qty * unitPrice + optionCost);
     const cr = await db.query(
@@ -435,15 +513,17 @@ router.post('/:id/claims', async (req, res) => {
         (listing_id, buyer_id, buyer_email, qty, unit_price_cad, fulfillment,
          fulfillment_cost_cad, amount_cad, status, payment_reference,
          cancel_terms_agreed, cancel_refund_rate)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'held', NULL, true, $9)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, true, $10)
        RETURNING *`,
-      [listing.id, req.user.id, req.user.email || '', qty, unitPrice, fulfillment, optionCost, amount, CANCEL_REFUND_RATE]
+      [listing.id, req.user.id, req.user.email || '', qty, unitPrice, fulfillment, optionCost, amount, claimStatus, CANCEL_REFUND_RATE]
     );
-    if (claimed + qty >= listing.target_qty) {
+    let groupFull = listing.status === 'full';
+    if (claimStatus === 'held' && claimed + qty >= listing.target_qty) {
       await db.query(
         `UPDATE webuy_listings SET status='full', full_at=now(), updated_at=now() WHERE id = $1`,
         [listing.id]
       );
+      groupFull = true;
     }
     return res.json({
       claim: {
@@ -454,7 +534,8 @@ router.post('/:id/claims', async (req, res) => {
         amount_cad: Number(cr.rows[0].amount_cad),
         status: cr.rows[0].status,
       },
-      group_full: claimed + qty >= listing.target_qty,
+      group_full: groupFull,
+      waitlisted: claimStatus === 'waitlisted',
     });
   } catch (err) {
     return res.status(502).json({ error: 'Could not claim: ' + err.message });
@@ -479,6 +560,13 @@ router.post('/:id/ship', async (req, res) => {
       `UPDATE webuy_listings SET status='shipped', shipped_at=now(), updated_at=now() WHERE id = $1`,
       [listing.id]
     );
+    // Q8: buyers still waiting when the container ships never held a unit —
+    // refund them in full.
+    await db.query(
+      `UPDATE webuy_claims SET status='refunded', refunded_cad=amount_cad, retained_cad=0
+       WHERE listing_id = $1 AND status='waitlisted'`,
+      [listing.id]
+    );
     return res.json({ ok: true, status: 'shipped' });
   } catch (err) {
     return res.status(502).json({ error: 'Could not mark shipped: ' + err.message });
@@ -499,7 +587,7 @@ router.post('/:id/cancel', async (req, res) => {
     if (listing.status !== 'open') {
       return res.status(400).json({ error: 'Only an open group can be cancelled.' });
     }
-    await db.query(`UPDATE webuy_claims SET status='refunded', refunded_cad=amount_cad, retained_cad=0 WHERE listing_id = $1 AND status='held'`, [listing.id]);
+    await db.query(`UPDATE webuy_claims SET status='refunded', refunded_cad=amount_cad, retained_cad=0 WHERE listing_id = $1 AND status IN ('held', 'waitlisted')`, [listing.id]);
     await db.query(`UPDATE webuy_listings SET status='cancelled', updated_at=now() WHERE id = $1`, [listing.id]);
     return res.json({ ok: true, status: 'cancelled' });
   } catch (err) {
@@ -536,7 +624,9 @@ router.post('/claims/:id/confirm', async (req, res) => {
   }
 });
 
-// POST /api/webuy/claims/:id/cancel — buyer cancels a held claim on an open group.
+// POST /api/webuy/claims/:id/cancel — buyer cancels. Held claims free units
+// (waitlist promotes, listing may reopen); waitlisted claims just leave the
+// queue. Either way Q5 applies: at most 85% back on a change of mind.
 router.post('/claims/:id/cancel', async (req, res) => {
   if (needDb(res)) return;
   if (!req.user) return res.status(401).json({ error: 'Sign in.' });
@@ -551,8 +641,11 @@ router.post('/claims/:id/cancel', async (req, res) => {
     if (claim.buyer_id !== req.user.id) {
       return res.status(403).json({ error: 'Only the buyer can cancel this claim.' });
     }
-    if (claim.status !== 'held' || claim.listing_status !== 'open') {
-      return res.status(400).json({ error: 'Only a held claim on an open group can be cancelled.' });
+    const cancellable =
+      (claim.status === 'held' || claim.status === 'waitlisted') &&
+      (claim.listing_status === 'open' || claim.listing_status === 'full');
+    if (!cancellable) {
+      return res.status(400).json({ error: 'This claim can no longer be cancelled.' });
     }
     // Q5: change-of-mind cancel refunds at most 85% (the claim's own rate).
     const rate = Number(claim.cancel_refund_rate != null ? claim.cancel_refund_rate : CANCEL_REFUND_RATE);
@@ -562,6 +655,7 @@ router.post('/claims/:id/cancel', async (req, res) => {
       `UPDATE webuy_claims SET status='refunded', refunded_cad=$1, retained_cad=$2 WHERE id = $3`,
       [refunded, retained, claim.id]
     );
+    if (claim.status === 'held') await reconcileAfterFree(claim.listing_id);
     return res.json({ ok: true, status: 'refunded', refunded_cad: refunded, retained_cad: retained });
   } catch (err) {
     return res.status(502).json({ error: 'Could not cancel claim: ' + err.message });
@@ -612,6 +706,7 @@ router.post('/claims/:id/resolve', async (req, res) => {
       await db.query(`UPDATE webuy_claims SET status=$1 WHERE id = $2`, [to, req.params.id]);
     }
     if (to === 'released') await maybeComplete(r.rows[0].listing_id);
+    if (to === 'refunded') await reconcileAfterFree(r.rows[0].listing_id);
     return res.json({ ok: true, status: to });
   } catch (err) {
     return res.status(502).json({ error: 'Could not resolve dispute: ' + err.message });
@@ -636,9 +731,55 @@ router.get('/admin/overview', async (req, res) => {
     for (const row of mc.rows) {
       money[row.status] = { total_cad: Number(row.total), claims: Number(row.n) };
     }
-    return res.json({ listings, money });
+    const sc = await db.query(
+      'SELECT id, email FROM users WHERE webuy_seller_approved = true ORDER BY email ASC'
+    );
+    return res.json({ listings, money, sellers: sc.rows });
   } catch (err) {
     return res.status(502).json({ error: 'Could not load overview: ' + err.message });
+  }
+});
+
+// GET /api/webuy/admin/sellers — approved sellers (admin only).
+router.get('/admin/sellers', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const r = await db.query(
+      'SELECT id, email FROM users WHERE webuy_seller_approved = true ORDER BY email ASC'
+    );
+    return res.json({ sellers: r.rows });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not load sellers: ' + err.message });
+  }
+});
+
+// POST /api/webuy/admin/sellers — Q6: approve or revoke a seller, by email
+// or user id. Admins themselves can always post without this flag.
+router.post('/admin/sellers', async (req, res) => {
+  if (needDb(res)) return;
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const b = req.body || {};
+    const approved = b.approved !== false;
+    let r;
+    if (b.user_id) {
+      r = await db.query(
+        'UPDATE users SET webuy_seller_approved = $1 WHERE id = $2 RETURNING id, email',
+        [approved, b.user_id]
+      );
+    } else if (b.email) {
+      r = await db.query(
+        'UPDATE users SET webuy_seller_approved = $1 WHERE LOWER(email) = LOWER($2) RETURNING id, email',
+        [approved, String(b.email).trim()]
+      );
+    } else {
+      return res.status(400).json({ error: 'Provide an email or user id.' });
+    }
+    if (!r.rows.length) return res.status(404).json({ error: 'Account not found.' });
+    return res.json({ seller: r.rows[0], approved });
+  } catch (err) {
+    return res.status(502).json({ error: 'Could not update seller: ' + err.message });
   }
 });
 
