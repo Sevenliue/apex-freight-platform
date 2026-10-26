@@ -445,6 +445,111 @@ async function updateMinimaxFsc() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Groupe Morneau — direct FSC scrape (2026-10-26, Seven asked for auto-pull).
+//
+// Morneau publishes its current surcharge on its public fuel-surcharge page
+// (https://www.groupemorneau.com/en/fuel-surcharge): a weekly table with
+// an "Upcoming week" row (N/A until posted), a "Current week" row (date +
+// LTL % + TL %), and "Previous weeks" rows. The parser anchors on
+// "Current week" so the N/A upcoming row is never picked up.
+//
+// fetchMorneauFsc() returns { effective, fsc_ltl, fsc_tl } or null.
+// updateMorneauFsc() writes the values to carrier_fsc ('morneau') + the
+// in-memory override, but ONLY when they differ from the stored override —
+// the server runs this weekly plus once at boot, so most runs are no-ops.
+// ---------------------------------------------------------------------------
+const MORNEAU_FSC_URL = 'https://www.groupemorneau.com/en/fuel-surcharge';
+
+function parseMorneauFsc(html) {
+  if (typeof html !== 'string' || !html) return null;
+  const text = html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;/g, ' ')
+    .replace(/\s+/g, ' ');
+  // Anchor on "Current week" so the "Upcoming week" (N/A) row above it and
+  // the "Previous weeks" rows below it are never picked up.
+  const anchor = text.indexOf('Current week');
+  if (anchor < 0) return null;
+  const seg = text.slice(anchor, anchor + 200);
+  const m = /Current week\s*,?\s*(\d{4}-\d{2}-\d{2})\s*,?\s*([\d.]+)\s*%\s*,?\s*([\d.]+)\s*%/.exec(seg);
+  if (!m) return null;
+  const fscLtl = Number(m[2]);
+  const fscTl = Number(m[3]);
+  if (!Number.isFinite(fscLtl) || !Number.isFinite(fscTl)) return null;
+  if (fscLtl <= 0 || fscLtl >= 300 || fscTl <= 0 || fscTl >= 300) return null;
+  return { effective: m[1], fsc_ltl: fscLtl, fsc_tl: fscTl };
+}
+
+async function fetchMorneauFsc() {
+  try {
+    const res = await fetch(MORNEAU_FSC_URL, {
+      headers: { 'User-Agent': 'ShipRate/1.0 (fuel-surcharge-monitor)' },
+    });
+    if (!res.ok) {
+      console.error('[fsc-auto] Morneau HTTP', res.status);
+      return null;
+    }
+    const html = await res.text();
+    const parsed = parseMorneauFsc(html);
+    if (!parsed) console.error('[fsc-auto] Morneau parse failed: current-week row not found');
+    return parsed;
+  } catch (err) {
+    console.error('[fsc-auto] Morneau fetch failed:', err.message);
+    return null;
+  }
+}
+
+async function updateMorneauFsc() {
+  if (!db.isEnabled()) {
+    console.log('[fsc-auto] Morneau: DB not enabled, skipping');
+    return { updated: false, reason: 'db-disabled' };
+  }
+  const fresh = await fetchMorneauFsc();
+  if (!fresh) return { updated: false, reason: 'fetch-parse-failed' };
+  // Change-only: compare against the stored override, if any.
+  try {
+    const cur = await db.query(
+      'SELECT fsc_ltl_percent, fsc_tl_percent FROM carrier_fsc WHERE carrier_id = $1',
+      ['morneau']
+    );
+    const row = cur.rows[0];
+    if (
+      row &&
+      Number(row.fsc_ltl_percent) === fresh.fsc_ltl &&
+      Number(row.fsc_tl_percent) === fresh.fsc_tl
+    ) {
+      console.log(`[fsc-auto] Morneau: FSC unchanged (${fresh.fsc_ltl}% / ${fresh.fsc_tl}%, eff. ${fresh.effective})`);
+      return { updated: false, reason: 'unchanged', ...fresh };
+    }
+  } catch (err) {
+    console.error('[fsc-auto] Morneau current-value check failed (continuing):', err.message);
+  }
+  try {
+    await db.query(
+      `INSERT INTO carrier_fsc (carrier_id, fsc_ltl_percent, fsc_tl_percent, updated_at)
+       VALUES ('morneau', $1, $2, now())
+       ON CONFLICT (carrier_id) DO UPDATE SET
+         fsc_ltl_percent = EXCLUDED.fsc_ltl_percent,
+         fsc_tl_percent = EXCLUDED.fsc_tl_percent,
+         updated_at = EXCLUDED.updated_at`,
+      [fresh.fsc_ltl, fresh.fsc_tl]
+    );
+    if (typeof matrix.setFscOverride === 'function') {
+      matrix.setFscOverride('morneau', {
+        ltl: fresh.fsc_ltl,
+        tl: fresh.fsc_tl,
+        updated_at: new Date().toISOString(),
+      });
+    }
+    console.log(`[fsc-auto] Morneau: FSC → ${fresh.fsc_ltl}% LTL / ${fresh.fsc_tl}% TL (eff. ${fresh.effective})`);
+    return { updated: true, ...fresh };
+  } catch (err) {
+    console.error('[fsc-auto] Morneau update failed:', err.message);
+    return { updated: false, reason: 'db-write-failed' };
+  }
+}
+
 async function updateAllCarrierFsc() {
   if (!db.isEnabled()) {
     console.log('[fsc-auto] DB not enabled, skipping');
@@ -516,5 +621,8 @@ module.exports = {
   fetchMinimaxFsc,
   updateMinimaxFsc,
   parseMinimaxFsc,
+  fetchMorneauFsc,
+  updateMorneauFsc,
+  parseMorneauFsc,
   CARRIER_FSC_TABLES,
 };

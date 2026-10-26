@@ -419,6 +419,23 @@ if (require.main === module) {
     } catch (err) {
       console.error('[fsc-auto] Minimax init failed (continuing):', err.message);
     }
+    // Morneau FSC auto-pull: Morneau publishes its current surcharge in a
+    // weekly table on its public fuel-surcharge page (Seven asked for the
+    // pull, 2026-10-26). Pull once a week plus once at boot; the updater
+    // only writes when the values changed, so most runs are no-ops.
+    try {
+      const { updateMorneauFsc } = require('./lib/fsc-auto');
+      const tickMorneau = () => {
+        if (config.siteProfile === 'platform2') return; // no carriers there
+        updateMorneauFsc().catch((err) =>
+          console.error('[fsc-auto] Morneau tick failed (continuing):', err.message));
+      };
+      const t = setInterval(tickMorneau, 7 * 24 * 60 * 60 * 1000);
+      if (t.unref) t.unref();
+      setTimeout(tickMorneau, 45 * 1000); // boot pull, after DB init
+    } catch (err) {
+      console.error('[fsc-auto] Morneau init failed (continuing):', err.message);
+    }
     // Self-serve carrier lanes: merge approved upload lanes over the baked-in
     // matrix, refresh every 5 minutes in case of approval.
     try {
