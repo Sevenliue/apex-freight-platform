@@ -7425,6 +7425,30 @@
     /* Fuel surcharges: per-carrier admin overrides. When a carrier changes
        its fuel surcharge, update it here — quotes use the new value
        immediately. Clearing the LTL value restores the rate-sheet value. */
+    /* Carrier contacts: phone + head office, filled in as the info arrives.
+       Blank renders as a dash. Company numbers/addresses only. */
+    const CARRIER_CONTACTS = {};
+    /* FSC update mechanism, from the repo: auto-pull exists only for
+       Grimshaw, Rockfall and Minimax LTL (backend/lib/fsc-auto.js); the
+       auto-pull writes a DB override, so it is checked before the override
+       flag. J&R Hall's page needs a login; Number 8 and KNR send email. */
+    const FSC_AUTO_PULL = new Set(['grimshaw', 'rockfall', 'minimax_ltl']);
+    const FSC_MANUAL_NOTES = {
+      jrhall: 'Manual — carrier page (login)',
+      number8: 'Manual — carrier email',
+      knr: 'Manual — carrier email',
+    };
+    function fscUpdateText(c) {
+      if (c.dedicated) return 'None — FSC always 0';
+      if (FSC_AUTO_PULL.has(c.carrier_id)) {
+        const cad = c.fsc_cadence_label && c.fsc_cadence_label !== '—' ? ' · ' + c.fsc_cadence_label : '';
+        return 'Auto-pull' + cad;
+      }
+      if (c.fsc_overridden) return 'Admin override';
+      if (FSC_MANUAL_NOTES[c.carrier_id]) return FSC_MANUAL_NOTES[c.carrier_id];
+      const cad = c.fsc_cadence_label && c.fsc_cadence_label !== '—' ? ' · ' + c.fsc_cadence_label : '';
+      return 'Manual' + cad;
+    }
     /* Carrier list: every carrier that can quote, from the engine registry
        (the same Admin > Fuel surcharges data) plus Prime Time Courier, which
        quotes via a dedicated Edmonton path and is intentionally kept out of
@@ -7446,15 +7470,16 @@
           return;
         }
         box.innerHTML =
-          '<h2>Carrier list</h2><p class="lede">Every carrier that can quote on the platform, from the rate engine registry. Lanes = matrix lane rows; grid-rated carriers (flat/zone pricing) show 0 lanes because they do not use lane rows. Read-only — fuel surcharges are edited on the Fuel surcharges page.</p>' +
+          '<h2>Carrier list</h2><p class="lede">Every carrier that can quote on the platform, from the rate engine registry. Lanes = matrix lane rows; grid-rated carriers (flat/zone pricing) show 0 lanes because they do not use lane rows. Read-only — fuel surcharges are edited on the Fuel surcharges page. Phone and head office are blank until that info is added.</p>' +
           '<div class="table-wrap"><table class="data"><thead><tr>' +
-          '<th>Carrier</th><th class="num">Lanes</th><th class="num">Current LTL</th><th class="num">Current TL</th><th>Last updated</th>' +
+          '<th>Carrier</th><th class="num">Lanes</th><th class="num">Current LTL</th><th class="num">Current TL</th><th>FSC updates</th><th>Last updated</th><th>Phone</th><th>Head office</th>' +
           '</tr></thead><tbody>' +
           rows.map((c) => {
             const asOf = c.fsc_as_of ? new Date(c.fsc_as_of).toLocaleDateString('en-CA', { timeZone: 'America/Edmonton' }) : '—';
             const note = c.dedicated ? ' <span class="note">dedicated Edmonton path; FSC always 0</span>' : (c.fsc_overridden ? ' <span class="badge">custom</span>' : '');
             const lanes = c.lane_count == null ? '—' : esc(String(c.lane_count));
-            return `<tr><td><strong>${esc(c.carrier_label)}</strong>${note}</td><td class="num">${lanes}</td><td class="num">${pct(c.fsc_ltl_percent)}</td><td class="num">${pct(c.fsc_tl_percent)}</td><td>${esc(asOf)}</td></tr>`;
+            const contact = CARRIER_CONTACTS[c.carrier_id] || {};
+            return `<tr><td><strong>${esc(c.carrier_label)}</strong>${note}</td><td class="num">${lanes}</td><td class="num">${pct(c.fsc_ltl_percent)}</td><td class="num">${pct(c.fsc_tl_percent)}</td><td>${esc(fscUpdateText(c))}</td><td>${esc(asOf)}</td><td>${esc(contact.phone || '—')}</td><td>${esc(contact.hq || '—')}</td></tr>`;
           }).join('') +
           '</tbody></table></div>';
       } catch (err) {
