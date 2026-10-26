@@ -1414,7 +1414,7 @@
     </section>
     <section id="tab-webuy" class="panel" role="tabpanel">
       <h1>We Buy</h1>
-      <p class="lede">Group buying: buy together, pay less per unit. Container buys are import buys — the unit price is all-in (freight, broker fee, import fees, duties all covered by the seller). Local buys let the buyer pick delivery, pickup, or shipping, each with its own cost. Money is held per buyer until receipt is confirmed.</p>
+      <p class="lede">Group buying: buy together, pay less per unit. Container buys are import buys — the unit price is all-in (freight, broker fee, import fees, duties all covered by the seller). Local buys let the buyer pick delivery, pickup, or shipping, each with its own cost. Money is held per buyer until receipt is confirmed, or auto-released 7 days after shipping if nobody complains. Cancelling before the group fills refunds at most 85% — you agree to that when you claim.</p>
       <p class="note">Payments: card checkout is not connected yet, so claims are recorded in the ledger as held until Stripe goes live — no card is charged in this version.</p>
       <div class="actions" style="margin-bottom:10px">
         <button type="button" class="btn small primary" data-wb-filter="all">All</button>
@@ -7591,6 +7591,7 @@
           <label class="note">Qty <input type="number" min="1" step="1" value="1" data-wb-qty="${esc(l.id)}" style="width:80px"></label>
           ${isContainer ? '' : `<label class="note">Fulfillment <select data-wb-fulfill="${esc(l.id)}">${opts}</select></label>`}
           <span class="note" data-wb-total="${esc(l.id)}">Total: ${wbMoney(Number(l.price_per_unit_cad) + Number(firstCost))}</span>
+          <label class="note"><input type="checkbox" data-wb-agree="${esc(l.id)}"> I agree: if I cancel, I get at most 85% of my claim back.</label>
           <button type="button" class="btn small primary" data-wb-claim="${esc(l.id)}">Claim</button>
         </div>`;
       }
@@ -7611,6 +7612,8 @@
         <p>${isContainer ? `<strong>${wbMoney(l.price_per_unit_cad)}</strong> / unit, all-in (freight, broker fee, import fees, duties included)` : `<strong>${wbMoney(l.price_per_unit_cad)}</strong> / unit`}</p>
         ${!isContainer && opts ? `<p class="note">Fulfillment costs: ${optNames.map((o) => l[o + '_cost_cad'] == null ? null : `${o} ${wbMoney(l[o + '_cost_cad'])}`).filter(Boolean).join(' · ')}</p>` : ''}
         <p class="note">${claimed} / ${target} claimed · seller ${esc(l.seller_email || '')}</p>
+        ${l.status === 'full' && l.full_at ? `<p class="note">Seller must ship by ${wbDate(new Date(new Date(l.full_at).getTime() + 7 * 864e5).toISOString())} — otherwise buyers are refunded in full.</p>` : ''}
+        ${l.status === 'shipped' && l.shipped_at ? `<p class="note">No complaint by ${wbDate(new Date(new Date(l.shipped_at).getTime() + 7 * 864e5).toISOString())} → payments auto-release.</p>` : ''}
         <div style="background:#eee;height:10px;border-radius:5px"><div style="width:${pct}%;background:#1a7f4b;height:10px;border-radius:5px"></div></div>
         ${actions ? `<div class="actions" style="margin-top:8px;flex-wrap:wrap">${actions}</div>` : ''}
       </div>`;
@@ -7753,9 +7756,11 @@
         const claimBtn = e.target.closest('[data-wb-claim]');
         if (claimBtn) {
           const id = claimBtn.dataset.wbClaim;
+          const agreeEl = document.querySelector(`[data-wb-agree="${id}"]`);
+          if (!agreeEl || !agreeEl.checked) { alert('Please agree to the cancellation terms first: if you cancel, you get at most 85% back.'); return; }
           const qtyEl = document.querySelector(`[data-wb-qty="${id}"]`);
           const selEl = document.querySelector(`[data-wb-fulfill="${id}"]`);
-          const body = { qty: Math.max(1, parseInt(qtyEl?.value, 10) || 1) };
+          const body = { qty: Math.max(1, parseInt(qtyEl?.value, 10) || 1), cancel_terms_agreed: true };
           if (selEl) body.fulfillment = selEl.value;
           try {
             const r = await api.claimWeBuy(id, body);
@@ -7791,7 +7796,11 @@
         }
         const cancelClaimBtn = e.target.closest('[data-wb-cancel-claim]');
         if (cancelClaimBtn) {
-          try { await api.cancelWeBuyClaim(cancelClaimBtn.dataset.wbCancelClaim); loadWeBuy(); }
+          try {
+            const r = await api.cancelWeBuyClaim(cancelClaimBtn.dataset.wbCancelClaim);
+            alert(`Cancelled. Refund: ${wbMoney(r.refunded_cad)} (85% of your claim).`);
+            loadWeBuy();
+          }
           catch (err) { alert(err.message || 'Could not cancel claim.'); }
           return;
         }

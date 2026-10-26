@@ -32,6 +32,22 @@ const LISTING_STATUSES = ['open', 'full', 'shipped', 'completed', 'refunded', 'c
 const CLAIM_STATUSES = ['held', 'released', 'refunded', 'disputed'];
 const LOCAL_OPTIONS = ['delivery', 'pickup', 'shipping'];
 
+// Decided rules (Seven, Oct 25 — spec Q2–Q5):
+//   Q2: group deadline defaults to 30 days; the seller can change it at listing.
+//   Q3: seller must ship within 7 days of the group filling; missing the
+//       window refunds every buyer in full (spec: seller failure = full refund).
+//   Q4: 7 days after the seller marks shipped with no complaint, held
+//       payments auto-release. Clock starts at shipped_at — there is no
+//       separate delivery date tracked yet. Disputes block auto-release.
+//   Q5: a buyer who cancels before the group fills gets at most 85% back.
+//       The buyer must sign off on that term when claiming (checkbox on the
+//       claim form, enforced server-side). The rate is stored per claim, so
+//       a later policy change never rewrites an old claim's terms.
+const DEADLINE_DEFAULT_DAYS = 30;
+const SHIP_WINDOW_DAYS = 7;
+const AUTO_RELEASE_DAYS = 7;
+const CANCEL_REFUND_RATE = 0.85;
+
 async function ensureSchema() {
   if (!db.isEnabled()) return;
   await db.query(`
@@ -51,6 +67,8 @@ async function ensureSchema() {
       pickup_cost_cad    numeric(12, 2),
       shipping_cost_cad  numeric(12, 2),
       status             varchar(20) NOT NULL DEFAULT 'open',
+      full_at            timestamptz,
+      shipped_at         timestamptz,
       created_at         timestamptz NOT NULL DEFAULT now(),
       updated_at         timestamptz NOT NULL DEFAULT now()
     )`);
@@ -67,8 +85,19 @@ async function ensureSchema() {
       amount_cad         numeric(12, 2) NOT NULL,
       status             varchar(20) NOT NULL DEFAULT 'held',
       payment_reference  text,
+      cancel_terms_agreed boolean NOT NULL DEFAULT false,
+      cancel_refund_rate numeric(4, 3) NOT NULL DEFAULT 0.85,
+      refunded_cad       numeric(12, 2),
+      retained_cad       numeric(12, 2),
       created_at         timestamptz NOT NULL DEFAULT now()
     )`);
+  // Existing tables (created by the first deploy) gain the new columns.
+  await db.query(`ALTER TABLE webuy_listings ADD COLUMN IF NOT EXISTS full_at timestamptz`);
+  await db.query(`ALTER TABLE webuy_listings ADD COLUMN IF NOT EXISTS shipped_at timestamptz`);
+  await db.query(`ALTER TABLE webuy_claims ADD COLUMN IF NOT EXISTS cancel_terms_agreed boolean NOT NULL DEFAULT false`);
+  await db.query(`ALTER TABLE webuy_claims ADD COLUMN IF NOT EXISTS cancel_refund_rate numeric(4, 3) NOT NULL DEFAULT 0.85`);
+  await db.query(`ALTER TABLE webuy_claims ADD COLUMN IF NOT EXISTS refunded_cad numeric(12, 2)`);
+  await db.query(`ALTER TABLE webuy_claims ADD COLUMN IF NOT EXISTS retained_cad numeric(12, 2)`);
 }
 ensureSchema().catch(() => {});
 
@@ -99,18 +128,45 @@ function numOrNull(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-// Expired open groups refund themselves on read: held claims -> refunded,
-// listing -> refunded. No cron needed for v1 correctness.
-async function sweepExpired() {
+// Timed transitions, applied lazily on read (no cron needed for v1):
+//   1. Open group past its deadline -> every buyer refunded in full.
+//   2. Full group whose seller missed the 7-day ship window -> full refund.
+//   3. Shipped 7+ days ago with no complaint -> held payments auto-release,
+//      and the listing completes once nothing is held or disputed.
+// Refunds from rules 1–2 are 100% (refunded_cad = amount, retained 0);
+// the 85% rate applies ONLY to a buyer's own change-of-mind cancel.
+async function sweepTimed() {
   if (!db.isEnabled()) return;
   await db.query(
-    `UPDATE webuy_claims SET status='refunded'
+    `UPDATE webuy_claims SET status='refunded', refunded_cad=amount_cad, retained_cad=0
      WHERE status='held' AND listing_id IN
        (SELECT id FROM webuy_listings WHERE status='open' AND deadline < now())`
   );
   await db.query(
     `UPDATE webuy_listings SET status='refunded', updated_at=now()
      WHERE status='open' AND deadline < now()`
+  );
+  await db.query(
+    `UPDATE webuy_claims SET status='refunded', refunded_cad=amount_cad, retained_cad=0
+     WHERE status='held' AND listing_id IN
+       (SELECT id FROM webuy_listings WHERE status='full'
+        AND COALESCE(full_at, updated_at) < now() - interval '${SHIP_WINDOW_DAYS} days')`
+  );
+  await db.query(
+    `UPDATE webuy_listings SET status='refunded', updated_at=now()
+     WHERE status='full' AND COALESCE(full_at, updated_at) < now() - interval '${SHIP_WINDOW_DAYS} days'`
+  );
+  await db.query(
+    `UPDATE webuy_claims SET status='released'
+     WHERE status='held' AND listing_id IN
+       (SELECT id FROM webuy_listings WHERE status='shipped'
+        AND shipped_at IS NOT NULL AND shipped_at < now() - interval '${AUTO_RELEASE_DAYS} days')`
+  );
+  await db.query(
+    `UPDATE webuy_listings SET status='completed', updated_at=now()
+     WHERE status='shipped' AND NOT EXISTS
+       (SELECT 1 FROM webuy_claims WHERE listing_id = webuy_listings.id
+        AND status IN ('held', 'disputed'))`
   );
 }
 
@@ -157,6 +213,8 @@ function listingRow(r) {
     pickup_cost_cad: r.pickup_cost_cad == null ? null : Number(r.pickup_cost_cad),
     shipping_cost_cad: r.shipping_cost_cad == null ? null : Number(r.shipping_cost_cad),
     status: r.status,
+    full_at: r.full_at,
+    shipped_at: r.shipped_at,
     created_at: r.created_at,
     my_claim: r.my_claim_id
       ? {
@@ -174,7 +232,7 @@ function listingRow(r) {
 router.get('/', async (req, res) => {
   if (needDb(res)) return;
   try {
-    await sweepExpired();
+    await sweepTimed();
     const userId = req.user ? req.user.id : null;
     const r = await db.query(
       `SELECT l.*,
@@ -184,6 +242,7 @@ router.get('/', async (req, res) => {
         mc.fulfillment AS my_claim_fulfillment, mc.amount_cad AS my_claim_amount
        FROM webuy_listings l
        LEFT JOIN webuy_claims mc ON mc.listing_id = l.id AND mc.buyer_id = $1
+         AND mc.status IN ('held', 'released', 'disputed')
        ORDER BY l.created_at DESC`,
       [userId]
     );
@@ -225,7 +284,7 @@ router.post('/', async (req, res) => {
         return res.status(400).json({ error: 'Deadline must be in the future.' });
       }
     } else {
-      deadline = new Date(Date.now() + 30 * 864e5);
+      deadline = new Date(Date.now() + DEADLINE_DEFAULT_DAYS * 864e5);
     }
     const videoUrl = String(b.video_url || '').trim();
     if (videoUrl && !/^https?:\/\//.test(videoUrl)) {
@@ -272,7 +331,7 @@ router.post('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   if (needDb(res)) return;
   try {
-    await sweepExpired();
+    await sweepTimed();
     const r = await db.query('SELECT * FROM webuy_listings WHERE id = $1', [req.params.id]);
     if (!r.rows.length) return res.status(404).json({ error: 'Listing not found.' });
     const listing = r.rows[0];
@@ -304,6 +363,9 @@ router.get('/:id', async (req, res) => {
         fulfillment_cost_cad: Number(c.fulfillment_cost_cad),
         amount_cad: Number(c.amount_cad),
         status: c.status,
+        cancel_terms_agreed: !!c.cancel_terms_agreed,
+        refunded_cad: c.refunded_cad == null ? null : Number(c.refunded_cad),
+        retained_cad: c.retained_cad == null ? null : Number(c.retained_cad),
         created_at: c.created_at,
       })),
     });
@@ -325,6 +387,11 @@ router.post('/:id/claims', async (req, res) => {
     }
     if (listing.seller_id === req.user.id) {
       return res.status(400).json({ error: 'Sellers cannot claim their own listing.' });
+    }
+    // Q5: the buyer must sign off on the cancellation terms when claiming —
+    // a change-of-mind cancel refunds at most 85%.
+    if ((req.body || {}).cancel_terms_agreed !== true) {
+      return res.status(400).json({ error: 'You must agree to the cancellation terms (at most 85% back on cancel) to claim.' });
     }
     // One active claim per buyer per listing (cancel it to change quantity);
     // this also keeps the list query's buyer join to a single row.
@@ -366,14 +433,15 @@ router.post('/:id/claims', async (req, res) => {
     const cr = await db.query(
       `INSERT INTO webuy_claims
         (listing_id, buyer_id, buyer_email, qty, unit_price_cad, fulfillment,
-         fulfillment_cost_cad, amount_cad, status, payment_reference)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'held', NULL)
+         fulfillment_cost_cad, amount_cad, status, payment_reference,
+         cancel_terms_agreed, cancel_refund_rate)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'held', NULL, true, $9)
        RETURNING *`,
-      [listing.id, req.user.id, req.user.email || '', qty, unitPrice, fulfillment, optionCost, amount]
+      [listing.id, req.user.id, req.user.email || '', qty, unitPrice, fulfillment, optionCost, amount, CANCEL_REFUND_RATE]
     );
     if (claimed + qty >= listing.target_qty) {
       await db.query(
-        `UPDATE webuy_listings SET status='full', updated_at=now() WHERE id = $1`,
+        `UPDATE webuy_listings SET status='full', full_at=now(), updated_at=now() WHERE id = $1`,
         [listing.id]
       );
     }
@@ -408,7 +476,7 @@ router.post('/:id/ship', async (req, res) => {
       return res.status(400).json({ error: 'Only a full group can be marked shipped.' });
     }
     await db.query(
-      `UPDATE webuy_listings SET status='shipped', updated_at=now() WHERE id = $1`,
+      `UPDATE webuy_listings SET status='shipped', shipped_at=now(), updated_at=now() WHERE id = $1`,
       [listing.id]
     );
     return res.json({ ok: true, status: 'shipped' });
@@ -431,7 +499,7 @@ router.post('/:id/cancel', async (req, res) => {
     if (listing.status !== 'open') {
       return res.status(400).json({ error: 'Only an open group can be cancelled.' });
     }
-    await db.query(`UPDATE webuy_claims SET status='refunded' WHERE listing_id = $1 AND status='held'`, [listing.id]);
+    await db.query(`UPDATE webuy_claims SET status='refunded', refunded_cad=amount_cad, retained_cad=0 WHERE listing_id = $1 AND status='held'`, [listing.id]);
     await db.query(`UPDATE webuy_listings SET status='cancelled', updated_at=now() WHERE id = $1`, [listing.id]);
     return res.json({ ok: true, status: 'cancelled' });
   } catch (err) {
@@ -486,8 +554,15 @@ router.post('/claims/:id/cancel', async (req, res) => {
     if (claim.status !== 'held' || claim.listing_status !== 'open') {
       return res.status(400).json({ error: 'Only a held claim on an open group can be cancelled.' });
     }
-    await db.query(`UPDATE webuy_claims SET status='refunded' WHERE id = $1`, [claim.id]);
-    return res.json({ ok: true, status: 'refunded' });
+    // Q5: change-of-mind cancel refunds at most 85% (the claim's own rate).
+    const rate = Number(claim.cancel_refund_rate != null ? claim.cancel_refund_rate : CANCEL_REFUND_RATE);
+    const refunded = r2(Number(claim.amount_cad) * rate);
+    const retained = r2(Number(claim.amount_cad) - refunded);
+    await db.query(
+      `UPDATE webuy_claims SET status='refunded', refunded_cad=$1, retained_cad=$2 WHERE id = $3`,
+      [refunded, retained, claim.id]
+    );
+    return res.json({ ok: true, status: 'refunded', refunded_cad: refunded, retained_cad: retained });
   } catch (err) {
     return res.status(502).json({ error: 'Could not cancel claim: ' + err.message });
   }
@@ -528,7 +603,14 @@ router.post('/claims/:id/resolve', async (req, res) => {
     if (r.rows[0].status !== 'disputed') {
       return res.status(400).json({ error: 'Only a disputed claim can be resolved.' });
     }
-    await db.query(`UPDATE webuy_claims SET status=$1 WHERE id = $2`, [to, req.params.id]);
+    if (to === 'refunded') {
+      await db.query(
+        `UPDATE webuy_claims SET status='refunded', refunded_cad=amount_cad, retained_cad=0 WHERE id = $1`,
+        [req.params.id]
+      );
+    } else {
+      await db.query(`UPDATE webuy_claims SET status=$1 WHERE id = $2`, [to, req.params.id]);
+    }
     if (to === 'released') await maybeComplete(r.rows[0].listing_id);
     return res.json({ ok: true, status: to });
   } catch (err) {
