@@ -367,6 +367,7 @@ function billableWeight(actualLbs, packages, floorLbPerCuFt) {
 // footprint method at 1,200 lb per engine-foot (footprint/8 ft) — the factor
 // that reproduces the reconciled probills exactly (23.33 engine-ft -> 28 ft).
 const GUILBAULT_ID = 'guilbault';
+const CKJ_ID = 'ckj';
 const GUILBAULT_LF_THRESHOLD_FT = 12;
 const GUILBAULT_LB_PER_FT = 1000;
 const GUILBAULT_LB_PER_PALLET_SPACE = 640; // 64 cu ft x 10 lb/cu ft
@@ -2679,7 +2680,10 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
     const dim = lane.carrier_id === GUILBAULT_ID
       ? guilbaultBillableWeight(w, packages, densityFloorFor(lane.carrier_id))
       : billableWeight(w, packages, densityFloorFor(lane.carrier_id));
-    const dimOn = dimWeightEnabledFor(lane.carrier_id);
+    // CKJ Truckin rates on actual (scale) weight: its sheet is flat by
+    // weight bracket with no dim rule, so dims never push a shipment
+    // into a higher bracket.
+    const dimOn = lane.carrier_id === CKJ_ID ? false : dimWeightEnabledFor(lane.carrier_id);
     const bw = dimOn ? dim.billable_lbs : dim.actual_lbs;
     // Guilbault TL surcharge table: 6+ pallets, 12+ trailer feet, or 10,000+ lb.
     const tlHint = lane.carrier_id === GUILBAULT_ID && dimOn && dim.guilbault_tl === true;
