@@ -2354,6 +2354,10 @@ function guilbaultBillableWeight(actualLbs, packages, floorLbPerCuFt) {
 // Rate one shipment across every matching lane; cheapest first.
 // Rating math (weight lanes): first break with billableLbs <= max_lb;
 // base = max(min_charge, billableLbs/100 * rate_cwt); fsc = base * fsc%/100; total = base + fsc.
+// Deficit rating (Guilbault only, proven by their Oct 20 2026 invoice:
+// 4,774 lb billed as 5,000 lb at the 5M rate): base is the cheapest of
+// the own-break price and every higher break's floor-weight price
+// (floor = previous break's max_lb + 1), before the min-charge floor.
 // Flat-band lanes (e.g. Gardewine 2026): when billableLbs falls in a
 // lane.flat_bands entry, that entry's per-shipment price IS the base —
 // no CWT math, no minimum-charge floor. Above the last flat band the lane
@@ -2685,7 +2689,7 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
     // Winnipeg→Churchill publishes no rate under 500 lb); bands without
     // min_lb rate from 0, as before.
     const flat = (lane.flat_bands || []).find((b) => bw <= b.max_lb && bw >= (b.min_lb || 0));
-    let base, rateCwtUsed, minApplied, rateBasis;
+    let base, rateCwtUsed, minApplied, rateBasis, deficitRated = false, deficitBillableLbs = null;
     if (flat && flat.price_cad > 0) {
       base = flat.price_cad;
       rateCwtUsed = null;
@@ -2695,9 +2699,32 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
       const brk = (lane.breaks || []).find((b) => bw <= b.max_lb && bw >= (b.min_lb || 0));
       if (!brk || !(brk.rate_cwt > 0)) continue;
       const raw = (bw / 100) * brk.rate_cwt;
-      minApplied = raw < lane.min_charge_cad;
-      base = minApplied ? lane.min_charge_cad : raw;
-      rateCwtUsed = brk.rate_cwt;
+      // Deficit rating, Guilbault only (their Oct 20 2026 invoice bills
+      // 4,774 lb as 5,000 lb at the 5M rate): price every higher break at
+      // its floor weight (previous break's max_lb + 1) and take the
+      // cheapest. Other carriers are untouched — no invoice evidence
+      // they deficit-rate.
+      let priced = raw;
+      let deficitRateCwt = null;
+      if (lane.carrier_id === GUILBAULT_ID) {
+        const breaks = lane.breaks || [];
+        const ownIdx = breaks.indexOf(brk);
+        for (let j = ownIdx + 1; j < breaks.length; j++) {
+          if (!(breaks[j].rate_cwt > 0)) continue;
+          const floorLb = (breaks[j - 1].max_lb || 0) + 1;
+          if (breaks[j].min_lb && floorLb < breaks[j].min_lb) continue;
+          const cand = (floorLb / 100) * breaks[j].rate_cwt;
+          if (cand < priced) {
+            priced = cand;
+            deficitRated = true;
+            deficitBillableLbs = floorLb;
+            deficitRateCwt = breaks[j].rate_cwt;
+          }
+        }
+      }
+      minApplied = priced < lane.min_charge_cad;
+      base = minApplied ? lane.min_charge_cad : priced;
+      rateCwtUsed = deficitRated ? deficitRateCwt : brk.rate_cwt;
       rateBasis = undefined;
     }
     // MAX F/L cap (e.g. J&R Hall Nov 1 2026 tariff): the line-haul base never
@@ -2725,6 +2752,7 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
       dim_weight_enabled: dimOn,
       rate_cwt_used: rateCwtUsed,
       ...(rateBasis ? { rate_basis: rateBasis } : {}),
+      ...(deficitRated && !minApplied ? { deficit_rated: true, deficit_billable_lbs: deficitBillableLbs } : {}),
       base_cad: r2(base),
       fsc_percent: fscPercent,
       fsc_cad: r2(fsc),
