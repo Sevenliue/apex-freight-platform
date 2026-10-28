@@ -6,8 +6,9 @@
 //
 // NOTE: matrix-data.json also carries lanes this script cannot regenerate —
 // Gardewine (138 lanes, parsed from the TOTATIR 2026 xlsx; flat per-shipment
-// bands don't fit this CSV pipeline), Grimshaw (60 Edmonton LTL lanes,
-// TOTTIEDM02 Rate ID 23863) and the HiFab interim x1.3744 scaling.
+// bands don't fit this CSV pipeline) and Grimshaw (60 Edmonton LTL lanes,
+// TOTTIEDM02 Rate ID 23863). (HiFab's interim x1.3744 scaling was cancelled
+// Oct 28 2026; its rates are back to the Kal Tire 2026 sheet.)
 // Re-running this script would DROP those. Keep Gardewine/Grimshaw edits
 // surgical in matrix-data.json.
 'use strict';
