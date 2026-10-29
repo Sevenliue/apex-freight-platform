@@ -9,7 +9,7 @@
   <meta property="og:type" content="website">
   <title>ShipRate — Instant LTL Freight Quotes</title>
   <link rel="icon" type="image/webp" href="/img/logo.webp">
-  <link rel="stylesheet" href="styles.css?v=20261020b">
+  <link rel="stylesheet" href="/styles.css?v=20261020b">
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer></script>
 </head>
@@ -1644,11 +1644,11 @@
     <div class="wrap foot-base"><span class="muted">© 2026 ShipRate</span></div>
   </footer>
 
-  <script src="fsa.js"></script>
-  <script src="postal-autofill.js"></script>
-  <script src="places-autocomplete.js?v=20261023a"></script>
+  <script src="/fsa.js"></script>
+  <script src="/postal-autofill.js"></script>
+  <script src="/places-autocomplete.js?v=20261023a"></script>
   <script type="module">
-    import * as api from './api.js';
+    import * as api from '/api.js';
 
     const $ = (sel, el = document) => el.querySelector(sel);
     const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
@@ -2329,6 +2329,8 @@
     );
     document.querySelector('#freight-charges').addEventListener('change', syncBillToBlock);
     syncBillToBlock();
+    const PROVINCIAL_TOWNS = ['REGINA', 'MOOSE JAW', 'SWIFT CURRENT', 'WEYBURN', 'ESTEVAN', 'SASKATOON'];
+
     /* Provincial Courier tire prompt: show/hide as the lane is typed. */
     ['o_city', 'o_state', 'd_city', 'd_state'].forEach((n) => {
       const inp = document.querySelector(`#quote-form [name="${n}"]`);
@@ -2386,7 +2388,7 @@
        Other carriers quote normally whether or not it is filled in. The
        lane match is recomputed at submit time, so a missed keystroke
        event can never lose the prompt answers. */
-    const PROVINCIAL_TOWNS = ['REGINA', 'MOOSE JAW', 'SWIFT CURRENT', 'WEYBURN', 'ESTEVAN', 'SASKATOON'];
+
     function provincialLaneMatches() {
       const f = $('#quote-form');
       if (!f) return false;
@@ -3135,6 +3137,9 @@
       // We Buy: Northline Freight only (the matching APIs 404 elsewhere).
       const wbNav = document.querySelector('#nav-webuy');
       if (wbNav) wbNav.style.display = (BRAND_NAME === 'Northline Freight' && SITE_PROFILE !== 'employer') ? '' : 'none';
+      // Northline Ops store: Northline Freight only (shiprate.ca is the freight brand).
+      const storeNav = document.querySelector('[data-group="bookstore"]');
+      if (storeNav) storeNav.style.display = (BRAND_NAME === 'Northline Freight' && SITE_PROFILE !== 'employer') ? '' : 'none';
       if (SITE_PROFILE === 'employer' && !document.getElementById('profile-gate-style')) {
         const st = document.createElement('style');
         st.id = 'profile-gate-style';
