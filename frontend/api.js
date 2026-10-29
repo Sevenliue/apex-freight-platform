@@ -359,8 +359,8 @@ export function requestRate({ carrier_id, carrier_name, origin_city, dest_city, 
    single-parcel {weight, length, width, height} still accepted. region /
    direction / freight_charges / bill_to are the Smart Shipping-style top
    options. */
-export function getRates({ origin, destination, parcel, packages, accessorials, shipper, consignee, user_id, region, direction, load_type, skids, freight_charges, bill_to, depot_dropoff, depot_pickup, delivery_note_1, delivery_note_2, private_notes, add_insurance, declared_value, pickup_date }) {
-  return post('/api/rates', { origin, destination, parcel, packages, accessorials, shipper, consignee, user_id, region, direction, load_type, skids, freight_charges, bill_to, depot_dropoff, depot_pickup, delivery_note_1, delivery_note_2, private_notes, add_insurance, declared_value, pickup_date });
+export function getRates({ origin, destination, parcel, packages, accessorials, shipper, consignee, user_id, region, direction, load_type, skids, freight_charges, bill_to, depot_dropoff, depot_pickup, delivery_note_1, delivery_note_2, private_notes, add_insurance, declared_value, pickup_date, provincial }) {
+  return post('/api/rates', { origin, destination, parcel, packages, accessorials, shipper, consignee, user_id, region, direction, load_type, skids, freight_charges, bill_to, depot_dropoff, depot_pickup, delivery_note_1, delivery_note_2, private_notes, add_insurance, declared_value, pickup_date, provincial });
 }
 
 /* Saved quotes + accessorial catalog. */

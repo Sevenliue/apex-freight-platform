@@ -943,6 +943,109 @@ upsertCarrier({
   fsc_note: 'Flat 18% per their rate sheet (eff. 2026-01-08), confirmed current 2026-10-21. Carrier emails customers in advance of any FSC change — no auto-pull; update via Admin when Seven forwards the notice.',
 });
 
+// Provincial Courier Service Inc. (Saskatchewan tire carrier).
+// Rate source: Saskatchewan Tire Price List (Provincial_carrier.docx):
+// routes Regina–Moose Jaw–Swift Current, Regina–Weyburn–Estevan,
+// Regina–Saskatoon, Saskatoon–Regina–Second Destination; prices PER TIRE.
+// Seven's answers 2026-10-28: one price for the whole route; second
+// destination adds 1/2 of the price (total = 1.5x); Semi $30/tire;
+// Tractor = "Rate on request"; FSC 40% per their invoice, updates by
+// email; both ways; GST added at booking like all carriers.
+// Rating: the quote form pops a tire-type prompt ONLY when both ends
+// fall in Provincial's coverage (see frontend). The prompt answers
+// arrive as `provincial` {tire_type, tire_count, second_destination}.
+// A lane match ALWAYS yields a Provincial row (Seven 2026-10-28): priced
+// when type + count are given, otherwise a "Rate on request" row — a
+// non-tire shipper in the lane still sees the carrier, then requests a
+// rate. Callers that pass no `provincial` at all (e.g. audits) get no
+// row, so unpriced rows never leak into re-rate math.
+const PROVINCIAL_ID = 'provincial';
+const PROVINCIAL_LABEL = 'Provincial Courier';
+const PROVINCIAL_TOWNS = new Set([
+  'REGINA', 'MOOSE JAW', 'SWIFT CURRENT', 'WEYBURN', 'ESTEVAN', 'SASKATOON',
+]);
+const PROVINCIAL_TIRE_PRICES = {
+  passenger: 10,
+  light_truck: 10,
+  small_implement: 10,
+  large_truck: 30,
+  grader: 30,
+  forklift: 30,
+  semi: 30,
+};
+function provincialTownFor(city) {
+  const c = norm(city);
+  return PROVINCIAL_TOWNS.has(c) ? c : null;
+}
+function provincialQuotes({ originCity, originProv, destCity, destProv, weightLbs, provincial }) {
+  const oTown = provincialTownFor(originCity);
+  const dTown = provincialTownFor(destCity);
+  if (!oTown || !dTown || oTown === dTown) return [];
+  if (provincial == null) return [];
+  const w = Number(weightLbs);
+  if (!Number.isFinite(w) || w <= 0) return [];
+  const st = ensureLoaded();
+  const carrier = st.carriersById.get(PROVINCIAL_ID);
+  const fscPercent = fscFor(carrier, w);
+  const baseRow = {
+    carrier_id: PROVINCIAL_ID,
+    carrier_label: PROVINCIAL_LABEL,
+    service: 'LTL',
+    weight_lbs: w,
+    billable_weight_lbs: r2(w),
+    density_pcf: null,
+    cube_ft: null,
+    floor_lb_per_cuft: null,
+    dimensional_applied: false,
+    dimensional_rule: 'actual',
+    dim_weight_enabled: false,
+    currency: 'CAD',
+    source: 'matrix',
+    lane_origin_city: oTown,
+    lane_origin_prov: 'SK',
+    lane_dest_city: dTown,
+    lane_dest_prov: 'SK',
+    metro_matched: false,
+  };
+  const p = typeof provincial === 'object' ? provincial : {};
+  const type = String(p.tire_type || '').toLowerCase();
+  const count = Math.floor(Number(p.tire_count));
+  const secondDest = p.second_destination === true || p.second_destination === 'true';
+  const unit = PROVINCIAL_TIRE_PRICES[type];
+  if (type === 'tractor') {
+    return [{ ...baseRow, rate_basis: 'provincial_ror', rate_on_request: true,
+      base_cad: null, fsc_percent: fscPercent, fsc_cad: null, total_cad: null,
+      min_charge_applied: false, tire_type: type,
+      notes: ['Tractor tires: rate on request — call Provincial Courier (Saskatoon 306-250-3949 / Regina 306-539-4041).'] }];
+  }
+  if (unit == null || !Number.isFinite(count) || count <= 0) {
+    return [{ ...baseRow, rate_basis: 'provincial_needs_input', rate_on_request: true,
+      base_cad: null, fsc_percent: fscPercent, fsc_cad: null, total_cad: null,
+      min_charge_applied: false,
+      notes: ['Tires only — select a tire type and count for an instant price, or request a rate.'] }];
+  }
+  let base = unit * count;
+  if (secondDest) base = base * 1.5;
+  const fsc = base * fscPercent / 100;
+  return [{ ...baseRow, rate_basis: 'provincial_tires', rate_cwt_used: null,
+    base_cad: r2(base), fsc_percent: fscPercent, fsc_cad: r2(fsc),
+    total_cad: r2(base + fsc), min_charge_applied: false,
+    tire_type: type, tire_count: count, second_destination: secondDest }];
+}
+// Register the carrier record so the standard FSC machinery applies:
+// listCarriers() shows it (Admin > Fuel surcharges can override it),
+// fscFor() resolves the live percent, and quote rows get rate-checked
+// dates. FSC cadence 'per_sheet': flat 40% from their invoice — the
+// carrier emails updates, so it is never flagged stale on the quote board.
+upsertCarrier({
+  carrier_id: PROVINCIAL_ID,
+  carrier_label: PROVINCIAL_LABEL,
+  fsc_percent: 40, // flat 40% per their invoice Oct 2026
+  fsc_as_of: '2026-10-28',
+  fsc_cadence: 'per_sheet',
+  fsc_note: 'Flat 40% per their invoice (Oct 2026). Carrier emails FSC updates — no auto-pull; update via Admin when Seven forwards the notice.',
+});
+
 // TEAMS Transport (Winnipeg MB; 8-terminal Canadian network).
 // Rate source: carrier QUOTE sheets Q154360-Q154372 issued to TOTAL TIRE
 // DISTRIBUTORS INC, printed Jun 05, 2024, printed expiry Aug 31, 2024 —
@@ -2400,7 +2503,7 @@ function dedupeQuotes(quotes) {
   return [...byKey.values()];
 }
 
-function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, skidCount, packages, pickupDateTime, originStreet, destStreet, destZip }) {
+function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, skidCount, packages, pickupDateTime, originStreet, destStreet, destZip, provincial }) {
   const st = ensureLoaded();
   const oCity = norm(originCity);
   const oProv = norm(originProv);
@@ -2413,6 +2516,9 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
   const skids = Number.isInteger(_sk) && _sk > 0 ? _sk : null;
 
   const quotes = [];
+  // Unpriced rows (e.g. Provincial "Rate on request") bypass the priced
+  // sort/dedupe and append at the end, so null totals never touch sort math.
+  const unpriced = [];
   for (const lane of st.data.lanes) {
     if (!placeMatches(lane.origin_city, lane.origin_prov, oCity, oProv)) continue;
     if (!placeMatches(lane.dest_city, lane.dest_prov, dCity, dProv)) continue;
@@ -2813,6 +2919,18 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
   if ((oProv === 'SK' || oProv === '') && (dProv === 'SK' || dProv === '')) {
     for (const q of knrQuotes({ originCity: oCity, originProv: oProv, destCity: dCity, destProv: dProv, weightLbs: w, packages })) quotes.push(q);
   }
+  // Provincial Courier: per-tire Saskatchewan rating (no matrix lanes).
+  // SK-only; both cities must be in the 6-town service area (exact match
+  // after normalization — no metro collapsing, no nearby-town fallback).
+  // A lane match ALWAYS yields a row: priced when the tire prompt was
+  // answered, otherwise a "Rate on request" row (Seven 2026-10-28 — a
+  // non-tire shipper in the lane still sees the carrier, then requests
+  // a rate). Unpriced rows append after the priced sort/dedupe.
+  if ((oProv === 'SK' || oProv === '') && (dProv === 'SK' || dProv === '')) {
+    for (const q of provincialQuotes({ originCity: oCity, originProv: oProv, destCity: dCity, destProv: dProv, weightLbs: w, provincial })) {
+      if (q.rate_on_request) unpriced.push(q); else quotes.push(q);
+    }
+  }
   // TEAMS Transport: dedicated linear-foot flat rating (no matrix lanes).
   // Both ends must resolve to one of the 8 terminals via the standard
   // matrix place-matching (incl. metro collapsing).
@@ -2824,7 +2942,7 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
   // accessorial (FSA list); without it, no congestion charge applies.
   for (const q of minimaxLtlQuotes({ originCity: oCity, originProv: oProv, destCity: dCity, destProv: dProv, weightLbs: w, packages, destZip })) quotes.push(q);
   quotes.sort((a, b) => a.total_cad - b.total_cad || a.carrier_id.localeCompare(b.carrier_id));
-  return dedupeQuotes(quotes);
+  return dedupeQuotes(quotes).concat(unpriced);
 }
 
 // Full-load (FTL) rating for full-load-scale shipments (see fullLoadCheck).
@@ -3049,4 +3167,4 @@ function upsertCarrierRows(carrierId, rows) {
   return count;
 }
 
-module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, guilbaultBillableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides, primeTimeDeliveryQuotes, primeTimeAfterHoursQuote, primeTimeTruckQuote, primeTimeHotShotQuote, number8Quotes, doneDealQuotes, knrQuotes, teamsQuotes, minimaxLtlQuotes, mayServeLanes };
+module.exports = { loadMatrix, quoteMatrix, quoteFtl, billableWeight, guilbaultBillableWeight, fullLoadCheck, densityFloorFor, setDensityFloor, clearDensityFloor, getDensityFloors, dimWeightEnabledFor, setDimWeightEnabled, getDimWeightFlags, listCarriers, getAccessorials, upsertCarrier, upsertCarrierRows, suggestCity, setFscOverride, clearFscOverride, getFscOverrides, primeTimeDeliveryQuotes, primeTimeAfterHoursQuote, primeTimeTruckQuote, primeTimeHotShotQuote, number8Quotes, doneDealQuotes, knrQuotes, provincialQuotes, teamsQuotes, minimaxLtlQuotes, mayServeLanes };

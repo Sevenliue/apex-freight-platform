@@ -481,6 +481,29 @@
             <input name="user_id" type="text" placeholder="paste your user UUID (auth coming later)">
           </label>
         </div>
+        <section class="qq-panel hidden" id="provincial-prompt">
+          <h3 class="qq-head">Provincial Courier — tire shipment?</h3>
+          <div class="qq-body">
+            <p class="note">Both ends are in Provincial Courier's Saskatchewan area. They haul tires only — pick a tire type and count for an instant price. Other carriers quote normally either way, and Provincial still shows up as a rate request if this is not a tire shipment.</p>
+            <div class="qq-row">
+              <label class="grow">Tire type
+                <select name="prov_tire_type">
+                  <option value="">— Not shipping tires / pick a type —</option>
+                  <option value="passenger">Passenger</option>
+                  <option value="light_truck">Light Truck</option>
+                  <option value="small_implement">Small Implement</option>
+                  <option value="large_truck">Large Truck</option>
+                  <option value="grader">Grader</option>
+                  <option value="forklift">Forklift</option>
+                  <option value="semi">Semi</option>
+                  <option value="tractor">Tractor (rate on request)</option>
+                </select>
+              </label>
+              <label class="sm">Tire count <input name="prov_tire_count" type="number" min="1" max="1000" step="1" placeholder="e.g. 4"></label>
+              <label class="check mini"><input type="checkbox" name="prov_second_dest"> Second destination<br>(adds 50%)</label>
+            </div>
+          </div>
+        </section>
         <section class="qq-panel">
           <h3 class="qq-head">Packages</h3>
           <p class="note">Enter the <strong>total weight</strong> for each line; length × width × height are for <strong>one piece</strong>.</p>
@@ -2295,6 +2318,12 @@
     );
     document.querySelector('#freight-charges').addEventListener('change', syncBillToBlock);
     syncBillToBlock();
+    /* Provincial Courier tire prompt: show/hide as the lane is typed. */
+    ['o_city', 'o_state', 'd_city', 'd_state'].forEach((n) => {
+      const inp = document.querySelector(`#quote-form [name="${n}"]`);
+      if (inp) { inp.addEventListener('input', syncProvincialPrompt); inp.addEventListener('change', syncProvincialPrompt); }
+    });
+    syncProvincialPrompt();
 
     /* Swap ship-from and ship-to addresses (the ⇆ button between panels). */
     const SWAP_PAIRS = [
@@ -2339,6 +2368,35 @@
     function syncRateEmptyHide() {
       const empty = $('#rate-empty');
       if (empty) empty.classList.add('hidden');
+    }
+
+    /* Provincial Courier tire prompt: shown only when both ends fall in
+       Provincial's Saskatchewan coverage (exact city match, SK province).
+       Other carriers quote normally whether or not it is filled in. The
+       lane match is recomputed at submit time, so a missed keystroke
+       event can never lose the prompt answers. */
+    const PROVINCIAL_TOWNS = ['REGINA', 'MOOSE JAW', 'SWIFT CURRENT', 'WEYBURN', 'ESTEVAN', 'SASKATOON'];
+    function provincialLaneMatches() {
+      const f = $('#quote-form');
+      if (!f) return false;
+      const val = (n) => ((f.querySelector('[name="' + n + '"]') || {}).value || '').trim().toUpperCase();
+      const oc = val('o_city'), os = val('o_state'), dc = val('d_city'), ds = val('d_state');
+      const sk = (p) => p === 'SK' || p === 'SASKATCHEWAN';
+      return PROVINCIAL_TOWNS.includes(oc) && PROVINCIAL_TOWNS.includes(dc) && sk(os) && sk(ds);
+    }
+    function syncProvincialPrompt() {
+      const el = $('#provincial-prompt');
+      if (el) el.classList.toggle('hidden', !provincialLaneMatches());
+    }
+    function collectProvincial() {
+      if (!provincialLaneMatches()) return undefined;
+      const f = $('#quote-form');
+      const fd = new FormData(f);
+      return {
+        tire_type: (fd.get('prov_tire_type') || '').toString(),
+        tire_count: (fd.get('prov_tire_count') || '').toString(),
+        second_destination: fd.get('prov_second_dest') === 'on',
+      };
     }
 
     /* "May also serve this lane" section: coverage-defined small carriers
@@ -2663,6 +2721,7 @@
         },
         packages,
         accessorials: collectAccessorials(),
+        provincial: collectProvincial(),
         skids: (() => { const v = parseInt((f.get('skids') || '').toString(), 10); return Number.isInteger(v) && v > 0 ? v : undefined; })(),
         user_id: txt('user_id') || undefined,
       };
@@ -2788,13 +2847,16 @@
       const accLine = (data.accessorials_applied || [])
         .map((a) => `${esc(a.label)} (${cad(a.fee_cad)})`)
         .join(', ');
+      const firstPriced = rates.findIndex((r) => r.retail_cad != null);
       const rows = rates
         .map(
           (r, i) => `<tr>
-            <td class="chk"><input type="radio" name="rate-pick" value="${esc(r.rate_id)}"${i === 0 ? ' checked' : ''}></td>
+            <td class="chk">${r.rate_on_request ? '' : `<input type="radio" name="rate-pick" value="${esc(r.rate_id)}"${i === firstPriced ? ' checked' : ''}>`}</td>
             <td>${esc(r.carrier)}${r.carrier_id ? `<br><span class="carrier-score" data-carrier-id="${esc(r.carrier_id)}"></span>` : ''}${r.service ? '<br><span class="note">' + esc(r.service) + '</span>' : ''}${billedWeightLine(r)}${metroNote(r)} ${sourceBadge(r.source)}${rateCheckedLine(r)}</td>
             <td>${r.delivery_days != null ? esc(String(r.delivery_days)) : '—'}${r.est_delivery_date ? `<br><span class="note">≈ ${esc(fmtEstDate(r.est_delivery_date))}</span>` : ''}</td>
-            <td class="num"><strong>${cad(r.retail_cad)}</strong>${r.insurance_cad ? `<br><span class="note">incl. ${cad(r.insurance_cad)} insurance</span>` : ''}</td>
+            <td class="num">${r.rate_on_request
+              ? `<strong>Rate on request</strong>${(r.notes || []).map((n) => `<br><span class="note">${esc(n)}</span>`).join('')}<br><button type="button" class="btn small" data-mayserve="${esc(r.carrier_id)}" data-ms-name="${esc(r.carrier)}" data-ms-o="${esc(r.lane_origin_city || '')}" data-ms-d="${esc(r.lane_dest_city || '')}">Request a rate</button>`
+              : `<strong>${cad(r.retail_cad)}</strong>${r.insurance_cad ? `<br><span class="note">incl. ${cad(r.insurance_cad)} insurance</span>` : ''}`}</td>
           </tr>`
         )
         .join('');

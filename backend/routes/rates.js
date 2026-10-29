@@ -183,6 +183,7 @@ router.post('/', async (req, res) => {
     private_notes: rawPrivateNotes = '',
     pickup_date: rawPickupDate = '',
     skids: rawSkids = null,
+    provincial: rawProvincial = null,
   } = req.body || {};
 
   // The logged-in account wins over the optional guest user_id label.
@@ -299,6 +300,22 @@ router.post('/', async (req, res) => {
     .filter((c) => acc.isKnown(c));
   const hasDG = packages.some((p) => p.dg);
 
+  // Provincial Courier tire prompt (frontend, only in its SK coverage):
+  // sanitized here so the engine only ever sees an allowlisted type and a
+  // sane count. Null when the form sent nothing — the engine then returns
+  // no Provincial row (audits and old clients are unaffected).
+  const PROV_TIRE_TYPES = new Set(['passenger', 'light_truck', 'small_implement', 'large_truck', 'grader', 'forklift', 'semi', 'tractor']);
+  let provincial = null;
+  if (rawProvincial && typeof rawProvincial === 'object') {
+    const t = String(rawProvincial.tire_type || '').toLowerCase();
+    const c = Math.floor(Number(rawProvincial.tire_count));
+    provincial = {
+      tire_type: PROV_TIRE_TYPES.has(t) ? t : '',
+      tire_count: Number.isFinite(c) && c > 0 && c <= 1000 ? c : 0,
+      second_destination: rawProvincial.second_destination === true || rawProvincial.second_destination === 'true',
+    };
+  }
+
   const shipment_id = id('q');
   const transit = acc.estimateTransit(origin.state, destination.state);
   // Freight markup for this quote: the signed-in customer's per-account
@@ -354,6 +371,7 @@ router.post('/', async (req, res) => {
         originStreet: origin.street1 || '',
         destStreet: destination.street1 || '',
         destZip: destination.zip || '',
+        provincial,
       });
     } catch (err) {
       return bad(res, 502, 'Rate matrix failed', err.message);
@@ -395,6 +413,36 @@ router.post('/', async (req, res) => {
 
   // Price each matrix rate: freight + accessorials (+ DG) -> markup -> retail.
   const rates = (matrixQuotes || []).map((q, i) => {
+    // Unpriced rows (Provincial "Rate on request"): pass through with null
+    // money fields — never through freight/accessorial/markup math, which
+    // would turn nulls into NaN. The board renders the note + request
+    // button instead of a price, and no radio, so the row can't be booked.
+    if (q.rate_on_request || q.total_cad == null) {
+      return {
+        rate_id: `matrix_${q.carrier_id}_${i}`,
+        carrier_id: q.carrier_id,
+        carrier: q.carrier_label,
+        service: q.service,
+        cost_cad: null,
+        retail_cad: null,
+        currency: 'CAD',
+        fsc_percent: q.fsc_percent,
+        delivery_days: transit,
+        transit_estimate: true,
+        est_delivery_date: estDeliveryDate(transitDaysUpper(transit)),
+        source: 'matrix',
+        weight_lbs: totalWeightLbs,
+        billable_weight_lbs: q.billable_weight_lbs != null ? q.billable_weight_lbs : totalWeightLbs,
+        rate_basis: q.rate_basis || 'weight',
+        rate_on_request: true,
+        notes: q.notes || [],
+        lane_origin_city: q.lane_origin_city || null,
+        lane_origin_prov: q.lane_origin_prov || null,
+        lane_dest_city: q.lane_dest_city || null,
+        lane_dest_prov: q.lane_dest_prov || null,
+        metro_matched: !!q.metro_matched,
+      };
+    }
     const freight = round2(q.total_cad);
     const accRes = acc.applyAccessorials(accessorialCodes, freight, q.carrier_id);
     const applied = accRes.applied.slice();
