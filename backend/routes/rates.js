@@ -416,6 +416,15 @@ router.post('/', async (req, res) => {
     console.error('[rates] exclusion filter failed (continuing):', err.message);
   }
 
+  // TEAMS pulled from the public board (Seven, 2026-10-28; general rule:
+  // no shipper quotes another company's rate). TEAMS rates are Total Tire's
+  // account rates: the engine data and teamsQuotes stay untouched for Total
+  // Tire's own-rate rows once the company portal rating path is built, and
+  // audit re-rates (which call quoteMatrix directly) are unaffected. This
+  // filter applies to the board only, for every caller — including Total
+  // Tire — until the portal restores their own-rate rows.
+  matrixQuotes = matrixQuotes.filter((q) => q.carrier_id !== 'teams');
+
   // "May also serve this lane": small regional carriers whose coverage area
   // includes an endpoint but who produced NO priced rows on this quote.
   // Purely additive — priced quoting above is untouched. Non-fatal.
