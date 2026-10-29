@@ -7562,12 +7562,12 @@
     const CARRIER_CONTACTS = {};
     /* Carriers whose rates live in a coded grid, not lane rows: their lane
        count is 0 by construction, so the list shows "grid" instead of 0. */
-    const GRID_CARRIERS = new Set(['number8', 'donedeal', 'knr', 'teams', 'minimax_ltl']);
-    /* FSC update mechanism, from the repo: auto-pull exists only for
-       Grimshaw, Rockfall and Minimax LTL (backend/lib/fsc-auto.js); the
-       auto-pull writes a DB override, so it is checked before the override
+    const GRID_CARRIERS = new Set(['number8', 'donedeal', 'knr', 'teams', 'minimax_ltl', 'provincial', 'redriver']);
+    /* FSC update mechanism, from the repo: auto-pull exists for Grimshaw,
+       Rockfall, Minimax LTL, Morneau and Red River (backend/lib/fsc-auto.js);
+       the auto-pull writes a DB override, so it is checked before the override
        flag. J&R Hall's page needs a login; Number 8 and KNR send email. */
-    const FSC_AUTO_PULL = new Set(['grimshaw', 'rockfall', 'minimax_ltl', 'morneau']);
+    const FSC_AUTO_PULL = new Set(['grimshaw', 'rockfall', 'minimax_ltl', 'morneau', 'redriver']);
     const FSC_MANUAL_NOTES = {
       jrhall: 'Manual — carrier page (login)',
       number8: 'Manual — carrier email',

@@ -436,6 +436,23 @@ if (require.main === module) {
     } catch (err) {
       console.error('[fsc-auto] Morneau init failed (continuing):', err.message);
     }
+    // Red River FSC auto-pull: the carrier posts one current surcharge on
+    // its public fuel-surcharge page (Seven asked for the pull, 2026-10-28).
+    // Pull once a week plus once at boot; the updater only writes when the
+    // value changed, so most runs are no-ops.
+    try {
+      const { updateRedRiverFsc } = require('./lib/fsc-auto');
+      const tickRedRiver = () => {
+        if (config.siteProfile === 'platform2') return; // no carriers there
+        updateRedRiverFsc().catch((err) =>
+          console.error('[fsc-auto] Red River tick failed (continuing):', err.message));
+      };
+      const t = setInterval(tickRedRiver, 7 * 24 * 60 * 60 * 1000);
+      if (t.unref) t.unref();
+      setTimeout(tickRedRiver, 60 * 1000); // boot pull, after DB init
+    } catch (err) {
+      console.error('[fsc-auto] Red River init failed (continuing):', err.message);
+    }
     // Self-serve carrier lanes: merge approved upload lanes over the baked-in
     // matrix, refresh every 5 minutes in case of approval.
     try {

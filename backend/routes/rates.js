@@ -229,6 +229,9 @@ router.post('/', async (req, res) => {
   if (pickup_date < todayStr) {
     return bad(res, 400, 'pickup_date cannot be in the past');
   }
+  // Pickup weekday for day-gated carriers (Red River Beausejour Tue/Thu).
+  // Local noon keeps the weekday correct regardless of server timezone.
+  const pickupDateTime = new Date(pickup_date + 'T12:00:00');
 
   if (region === 'worldwide') {
     if (!origin.city || !origin.country || !destination.city || !destination.country) {
@@ -368,6 +371,7 @@ router.post('/', async (req, res) => {
         weightLbs: totalWeightLbs,
         skidCount,
         packages,
+        pickupDateTime,
         originStreet: origin.street1 || '',
         destStreet: destination.street1 || '',
         destZip: destination.zip || '',
@@ -447,7 +451,10 @@ router.post('/', async (req, res) => {
     const accRes = acc.applyAccessorials(accessorialCodes, freight, q.carrier_id);
     const applied = accRes.applied.slice();
     let accTotal = accRes.total_cad;
-    if (hasDG) {
+    // Red River's $13 DG fee is already inside the engine base (verify case
+    // A32: FSC applies to the accessorial-inclusive base), so the generic
+    // DG fee must NOT stack on top of it.
+    if (hasDG && q.carrier_id !== 'redriver') {
       const dg = acc.dgFee(totalWeightLbs, q.carrier_id);
       applied.push({ code: 'dangerous_goods', label: 'Dangerous Goods', group: 'pickup', fee_cad: dg });
       accTotal = round2(accTotal + dg);

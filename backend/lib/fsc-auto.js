@@ -550,6 +550,102 @@ async function updateMorneauFsc() {
   }
 }
 
+// Red River Messenger — direct FSC scrape (2026-10-28, Seven asked for
+// auto-pull). Their fuel-surcharge page posts a single current % in the
+// line "Our Present Fuel Surcharge as of October 16th, 2026 is 33%".
+// The parser anchors on that line, so the historical percentages further
+// down the page (2008–2012 narrative) are never picked up.
+//
+// fetchRedRiverFsc() returns { effective, fsc } or null.
+// updateRedRiverFsc() writes the value to carrier_fsc ('redriver', both
+// LTL and TL columns — the carrier charges one % for all services) + the
+// in-memory override, but ONLY when it differs from the stored override —
+// the server runs this weekly plus once at boot, so most runs are no-ops.
+// ---------------------------------------------------------------------------
+const REDRIVER_FSC_URL = 'https://redrivermessenger.com/fuel-surcharge/';
+
+function parseRedRiverFsc(html) {
+  if (typeof html !== 'string' || !html) return null;
+  const text = html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;|&#160;/g, ' ')
+    .replace(/\s+/g, ' ');
+  const m = /Present Fuel Surcharge as of\s+(.+?)\s+is\s+([\d.]+)\s*%/.exec(text);
+  if (!m) return null;
+  const pct = Number(m[2]);
+  if (!Number.isFinite(pct) || pct <= 0 || pct >= 300) return null;
+  return { effective: m[1].trim(), fsc: pct };
+}
+
+async function fetchRedRiverFsc() {
+  try {
+    const res = await fetch(REDRIVER_FSC_URL, {
+      headers: { 'User-Agent': 'ShipRate/1.0 (fuel-surcharge-monitor)' },
+    });
+    if (!res.ok) {
+      console.error('[fsc-auto] Red River HTTP', res.status);
+      return null;
+    }
+    const html = await res.text();
+    const parsed = parseRedRiverFsc(html);
+    if (!parsed) console.error('[fsc-auto] Red River parse failed: present-surcharge line not found');
+    return parsed;
+  } catch (err) {
+    console.error('[fsc-auto] Red River fetch failed:', err.message);
+    return null;
+  }
+}
+
+async function updateRedRiverFsc() {
+  if (!db.isEnabled()) {
+    console.log('[fsc-auto] Red River: DB not enabled, skipping');
+    return { updated: false, reason: 'db-disabled' };
+  }
+  const fresh = await fetchRedRiverFsc();
+  if (!fresh) return { updated: false, reason: 'fetch-parse-failed' };
+  // Change-only: compare against the stored override, if any.
+  try {
+    const cur = await db.query(
+      'SELECT fsc_ltl_percent, fsc_tl_percent FROM carrier_fsc WHERE carrier_id = $1',
+      ['redriver']
+    );
+    const row = cur.rows[0];
+    if (
+      row &&
+      Number(row.fsc_ltl_percent) === fresh.fsc &&
+      Number(row.fsc_tl_percent) === fresh.fsc
+    ) {
+      console.log(`[fsc-auto] Red River: FSC unchanged (${fresh.fsc}%, eff. ${fresh.effective})`);
+      return { updated: false, reason: 'unchanged', ...fresh };
+    }
+  } catch (err) {
+    console.error('[fsc-auto] Red River current-value check failed (continuing):', err.message);
+  }
+  try {
+    await db.query(
+      `INSERT INTO carrier_fsc (carrier_id, fsc_ltl_percent, fsc_tl_percent, updated_at)
+       VALUES ('redriver', $1, $2, now())
+       ON CONFLICT (carrier_id) DO UPDATE SET
+         fsc_ltl_percent = EXCLUDED.fsc_ltl_percent,
+         fsc_tl_percent = EXCLUDED.fsc_tl_percent,
+         updated_at = EXCLUDED.updated_at`,
+      [fresh.fsc, fresh.fsc]
+    );
+    if (typeof matrix.setFscOverride === 'function') {
+      matrix.setFscOverride('redriver', {
+        ltl: fresh.fsc,
+        tl: fresh.fsc,
+        updated_at: new Date().toISOString(),
+      });
+    }
+    console.log(`[fsc-auto] Red River: FSC → ${fresh.fsc}% (eff. ${fresh.effective})`);
+    return { updated: true, ...fresh };
+  } catch (err) {
+    console.error('[fsc-auto] Red River update failed:', err.message);
+    return { updated: false, reason: 'db-write-failed' };
+  }
+}
+
 async function updateAllCarrierFsc() {
   if (!db.isEnabled()) {
     console.log('[fsc-auto] DB not enabled, skipping');
@@ -624,5 +720,8 @@ module.exports = {
   fetchMorneauFsc,
   updateMorneauFsc,
   parseMorneauFsc,
+  fetchRedRiverFsc,
+  updateRedRiverFsc,
+  parseRedRiverFsc,
   CARRIER_FSC_TABLES,
 };

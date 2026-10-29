@@ -1046,6 +1046,455 @@ upsertCarrier({
   fsc_note: 'Flat 40% per their invoice (Oct 2026). Carrier emails FSC updates — no auto-pull; update via Admin when Seven forwards the notice.',
 });
 
+// Red River Messenger (Winnipeg MB; Manitoba same-day + regional runs).
+// Rate source: Rate_Book_2025.pdf (10 pp., headed "As of Jan 1, 2024"),
+// transcribed 2026-10-28 to ~/workspace/tools/red-river/redriver-tables.json
+// (159 band rows + 22 CWT/heavy rows + 20-row envelope table).
+// Consent to list: YES (Seven Q28, 2026-10-28). Rates: published retail,
+// still current, no planned change (Seven Q1/Q2).
+// Rating model (every rule below approved by Seven 2026-10-28):
+//   - Actual weight only — the book cubes, but Seven (Q9) says no dim/cubing.
+//   - NO deficit rating (Q6): own-break price only, even where the book
+//     prints deficit breakpoint columns. Price drops at CWT boundaries
+//     stand (e.g. Steinbach 999 lb $97.50 vs 1000 lb $71.90).
+//   - FSC: single % for all services (Q3), currently 33% from their site
+//     (2026-10-16) with weekly + boot auto-pull (lib/fsc-auto.js); the
+//     FSC AMOUNT rounds UP to whole dollars (their site rule) —
+//     fsc = ceil(r2(base * pct / 100)), NOT standard rounding.
+//   - FSC applies to the accessorial-inclusive base (verify case A32):
+//     base = weight price + DG $13 + heated $10.50 + length charge.
+//   - Reading C for Rush/Direct "plus weight over 25 lbs": base price
+//     (up-to-25-lb price) + (band price at weight − band price at 25 lb).
+//     Winnipeg Rush 15.07 / Direct 22.00; Selkirk Rush 32.12 / Direct 64.25.
+//     Rush/Direct price the band range only (≤500 lb).
+//   - Run CWT rule: bands to 500 lb; 501–999 lb at the 500-row rate/100;
+//     1000–1999 lb at the 1000-row rate/100; exactly 2000 lb the 2000-row
+//     floor; above 2000 lb no row (call for rate).
+//   - Winnipeg heavy break convention (Seven's approval 2026-10-28):
+//     rates switch at the PRINTED breakpoint weights (753 / 1474 / 4000 /
+//     7869) — the only convention reproducing all three approved examples
+//     (300 lb → 7.93, 800 lb → 5.97, 3000 lb → 4.40). Same convention on
+//     the Selkirk heavy table (3842 / 7164 / 12190 / 18434). Consequence:
+//     prices drop just past each breakpoint (same no-deficit structure as
+//     the CWT drops), e.g. 753 lb $59.71 → 754 lb $45.01.
+//   - Ceilings: Winnipeg van ≤500 lb, then heavy to 10,000 lb. Selkirk van
+//     ≤2000 lb, then heavy to 20,000 lb. Brandon–Winnipeg bands to 5,000 lb;
+//     Brandon–Portage bands to 500 lb; Gimli columns to 1,000 lb;
+//     Oakbank/Beausejour bands to 500 lb. Above ceiling: no row.
+//   - Skid minimum is a FLOOR (price = max(weight price, skid min)),
+//     per shipment, only when skids are declared: Carman/Portage
+//     standard $51.40 / oversized $64.25; Brandon $64.25 / $77.10.
+//     Oversized = over 48" on any side (approved assumption — the book
+//     never defines standard vs oversized). Selkirk/Steinbach print no
+//     skid rate: no skid minimum there.
+//   - Beyond towns: Selkirk/Steinbach use min charge + weight over 25
+//     (min + (price at weight − price at 25)); Portage/Brandon use band
+//     price + Add (Seven's approval — the Minnedosa envelope check
+//     $29.20 + $16.20 = $45.40 proves Add adds to the band price).
+//     Minnedosa = Brandon-leg band price + $16.20 (Winnipeg or Portage leg).
+//   - Portage Run Direct (Seven's approval, reading-C analogy):
+//     $64.25 covers up to 100 lb + (band price at weight − 100-lb band
+//     price) over that; 200 lb → $69.40. Portage run range (≤2000 lb).
+//   - Selkirk after-hours 2× applies to HEAVY ONLY (Seven's approval);
+//     van after-hours uses the printed Direct prices ($84.80 / $128.50).
+//     After-hours pricing needs a pickup TIME, which the quote form does
+//     not collect, so the board quotes business-hours (8am–4pm) prices and
+//     after-hours/weekend adjustments apply at booking — noted on rows.
+//   - Beausejour: Tuesday/Thursday only (book + Q16). Gated on the pickup
+//     date when one is supplied; the audit path (no date) is ungated.
+//   - Town-to-town across runs = two legs via Winnipeg, each at full
+//     weight (Q15); reverse direction same price. Direct Brandon↔Portage
+//     bands take precedence over two-leg. Beyond towns pair with Winnipeg
+//     (or Portage for Brandon/Portage beyond) — beyond↔hub pairs and
+//     same-run-page pairs (Gimli↔Arborg, Oakbank↔Beausejour) are
+//     call-for-rate in v1, not two-legged.
+//   - Envelope-only towns (Niverville, Elie, Dugald, Ste Agathe): envelope
+//     price $18.63 up to 25 lb only; no row above 25 lb, no two-leg.
+//   - Perimeter zone SKIPPED (no town list in the book). Direct $/km,
+//     waiting/loading fees, dead call, liability, hourly heavy rates and
+//     transit times are OUT of v1 per Seven's answers.
+//   - Length charge (per shipment, from package dims, longest side over
+//     10 ft): Winnipeg local/heavy $24, all runs $26 — EXCEPT Portage,
+//     which prints no length charge (unprinted accessorials are NOT
+//     assumed onto a run). Tailgate ($26 first 2 uses + $13/additional
+//     per stop on runs; $24 + $12 Winnipeg heavy) needs a stop count the
+//     form does not collect, so it prices only via the generic catalog.
+//   - DG $13 per shipment (Q22) from package dg flags, with a shipper
+//     note when DG weight exceeds 200 lb ("rate may be higher, call
+//     them"). Heated $10.50 (Q18, higher of $10.30/$10.50) is engine-ready
+//     via the heated flag but has no form input in v1, so it prices at
+//     booking on request.
+//   - Selkirk heavy 5000-lb rate transcribed AS PRINTED ($3.81) although
+//     its row price ($197.50) and breakpoint (7164) both imply $3.95 —
+//     open for Jordan, not silently "fixed" (4000 lb → $152.40 as printed).
+//   - Selkirk heavy $24 vehicle floor is carried over from Winnipeg as an
+//     assumption (the Selkirk heavy table prints no minimum).
+const REDRIVER_ID = 'redriver';
+const REDRIVER_LABEL = 'Red River Messenger';
+const RR_DG_FEE = 13.00;
+const RR_HEATED_FEE = 10.50;
+const RR_LENGTH_WPG = 24.00;
+const RR_LENGTH_RUN = 26.00;
+const RR_ENVELOPE_ONLY_PRICE = 18.63;
+// Band tables: [max_lb, price_cad]; first band starts at 1 lb.
+const RR_WPG_BANDS = [[25, 11.33], [50, 14.48], [100, 17.62], [150, 22.66], [200, 24.53], [250, 26.40], [300, 29.57], [350, 31.46], [400, 34.61], [450, 37.13], [500, 39.65]];
+const RR_SELKIRK_BANDS = [[25, 17.35], [50, 20.60], [100, 23.85], [150, 27.10], [200, 30.10], [250, 33.10], [300, 35.85], [350, 38.60], [400, 41.10], [450, 43.60], [500, 46.10]];
+const RR_RUN_BANDS = [[25, 18.63], [50, 22.49], [100, 27.62], [150, 29.56], [200, 32.77], [250, 35.33], [300, 38.55], [350, 41.76], [400, 44.34], [450, 46.26], [500, 48.80]];
+const RR_OAKBANK_BANDS = [[25, 18.63], [50, 22.49], [100, 27.62], [150, 29.56], [200, 32.77], [250, 35.33], [300, 38.55], [350, 41.76], [400, 44.34], [450, 46.26], [500, 48.82]];
+const RR_BEAUSEJOUR_BANDS = [[25, 23.76], [50, 26.14], [100, 29.11], [150, 30.89], [200, 35.05], [250, 38.02], [300, 41.58], [350, 44.55], [400, 47.52], [450, 50.49], [500, 53.46]];
+const RR_BRANDON_BANDS = [[25, 29.20], [50, 32.51], [100, 35.96], [150, 39.83], [200, 43.68], [250, 47.54], [300, 51.39], [350, 54.61], [400, 57.82], [450, 61.04], [500, 64.25], [750, 83.52], [1000, 102.80], [1500, 120.79], [2000, 138.77], [2500, 173.47], [3000, 206.00], [3500, 242.85], [4000, 277.55], [4500, 312.24], [5000, 346.93]];
+const RR_GIMLI_COLS = {
+  gimli: [[25, 25.17], [50, 27.68], [100, 30.83], [150, 33.35], [200, 37.12], [250, 40.27], [300, 44.04], [350, 47.19], [400, 50.34], [450, 53.48], [500, 56.63], [750, 81.80], [1000, 100.67]],
+  arborg: [[25, 30.89], [50, 32.34], [100, 34.59], [150, 38.30], [200, 42.01], [250, 45.71], [300, 49.42], [350, 52.51], [400, 55.60], [450, 58.69], [500, 61.78], [750, 86.49], [1000, 105.02]],
+  riverton: [[25, 37.07], [50, 39.79], [100, 42.63], [150, 45.10], [200, 48.80], [250, 51.89], [300, 55.60], [350, 58.69], [400, 61.78], [450, 64.86], [500, 67.95], [750, 92.66], [1000, 111.20]],
+};
+// CWT rows: {label, rate, floor?} — floor applies at exactly the label weight.
+const RR_RUN_CWT = [{ label: 500, rate: 9.76 }, { label: 1000, rate: 7.19 }, { label: 2000, rate: 5.27, floor: 105.40 }];
+const RR_SELKIRK_CWT = [{ label: 500, rate: 9.04 }, { label: 1000, rate: 6.97 }, { label: 2000, rate: 5.14, floor: 102.80 }];
+// Heavy schedules: rates switch at the printed breakpoint weights.
+const RR_HEAVY_WPG = { breakpoints: [753, 1474, 4000, 7869], rates: [7.93, 5.97, 4.40, 3.52, 2.77], floor: 24.00, ceiling: 10000 };
+const RR_HEAVY_SEL = { breakpoints: [3842, 7164, 12190, 18434], rates: [5.14, 3.81, 2.83, 2.30, 2.12], floor: 24.00, ceiling: 20000 };
+const RR_SKID_MINS = { carman: { standard: 51.40, oversized: 64.25 }, portage: { standard: 51.40, oversized: 64.25 }, brandon: { standard: 64.25, oversized: 77.10 } };
+// Spaceless normalized key: "Portage la Prairie" -> PORTAGELAPRAIRIE,
+// "St-Pierre-Jolys" -> STPIERREJOLYS, "Winnipeg Beach" -> WINNIPEGBEACH
+// (distinct from WINNIPEG).
+const rrKey = (city) => norm(city).replace(/[^A-Z0-9]/g, '');
+const RR_TOWNS = {
+  WINNIPEG: { kind: 'winnipeg', display: 'WINNIPEG' },
+  SELKIRK: { kind: 'run', run: 'selkirk', display: 'SELKIRK' },
+  STONEWALL: { kind: 'run', run: 'selkirk', display: 'STONEWALL' },
+  STEINBACH: { kind: 'run', run: 'steinbach', display: 'STEINBACH' },
+  CARMAN: { kind: 'run', run: 'carman', display: 'CARMAN' },
+  MORDEN: { kind: 'run', run: 'carman', display: 'MORDEN' },
+  WINKLER: { kind: 'run', run: 'carman', display: 'WINKLER' },
+  LASALLE: { kind: 'run', run: 'carman', display: 'LA SALLE' },
+  PORTAGELAPRAIRIE: { kind: 'run', run: 'portage', display: 'PORTAGE LA PRAIRIE' },
+  PORTAGE: { kind: 'run', run: 'portage', display: 'PORTAGE LA PRAIRIE' },
+  BRANDON: { kind: 'run', run: 'brandon', display: 'BRANDON' },
+  CARBERRY: { kind: 'run', run: 'brandon', display: 'CARBERRY' },
+  GLADSTONE: { kind: 'run', run: 'brandon', display: 'GLADSTONE' },
+  NEEPAWA: { kind: 'run', run: 'brandon', display: 'NEEPAWA' },
+  GIMLI: { kind: 'run', run: 'gimli', display: 'GIMLI' },
+  WINNIPEGBEACH: { kind: 'run', run: 'gimli', display: 'WINNIPEG BEACH' },
+  ARBORG: { kind: 'run', run: 'arborg', display: 'ARBORG' },
+  RIVERTON: { kind: 'run', run: 'riverton', display: 'RIVERTON' },
+  OAKBANK: { kind: 'run', run: 'oakbank', display: 'OAKBANK' },
+  BEAUSEJOUR: { kind: 'run', run: 'beausejour', display: 'BEAUSEJOUR' },
+  TEULON: { kind: 'beyond', run: 'selkirk', min: 53.54, display: 'TEULON' },
+  WOODLANDS: { kind: 'beyond', run: 'selkirk', min: 49.50, display: 'WOODLANDS' },
+  WARREN: { kind: 'beyond', run: 'selkirk', min: 35.70, display: 'WARREN' },
+  BALMORAL: { kind: 'beyond', run: 'selkirk', min: 29.74, display: 'BALMORAL' },
+  LABROQUERIE: { kind: 'beyond', run: 'steinbach', min: 34.50, display: 'LA BROQUERIE' },
+  STPIERRE: { kind: 'beyond', run: 'steinbach', min: 34.50, display: 'ST PIERRE' },
+  STPIERREJOLYS: { kind: 'beyond', run: 'steinbach', min: 34.50, display: 'ST PIERRE' },
+  GRUNTHAL: { kind: 'beyond', run: 'steinbach', min: 34.50, display: 'GRUNTHAL' },
+  RICHER: { kind: 'beyond', run: 'steinbach', min: 34.50, display: 'RICHER' },
+  PARADISEVILLAGE: { kind: 'beyond', run: 'steinbach', min: 28.60, display: 'PARADISE VILLAGE' },
+  LONGPLAINS: { kind: 'beyond', run: 'portage', add: 32.40, display: 'LONG PLAINS' },
+  EDWIN: { kind: 'beyond', run: 'portage', add: 21.60, display: 'EDWIN' },
+  SHILO: { kind: 'beyond', run: 'brandon', add: 12.00, display: 'SHILO' },
+  RIVERS: { kind: 'beyond', run: 'brandon', add: 35.50, display: 'RIVERS' },
+  MINNEDOSA: { kind: 'minnedosa', display: 'MINNEDOSA' },
+  NIVERVILLE: { kind: 'envelope', display: 'NIVERVILLE' },
+  ELIE: { kind: 'envelope', display: 'ELIE' },
+  DUGALD: { kind: 'envelope', display: 'DUGALD' },
+  STEAGATHE: { kind: 'envelope', display: 'STE AGATHE' },
+  STAGATHE: { kind: 'envelope', display: 'STE AGATHE' },
+  SAINTEAGATHE: { kind: 'envelope', display: 'STE AGATHE' },
+};
+function rrBandPrice(bands, w) {
+  for (const [max, price] of bands) if (w <= max) return price;
+  return null;
+}
+function rrCwtPrice(cwt, w) {
+  if (w <= 500) return null; // bands cover this range
+  if (w < 1000) return (w / 100) * cwt[0].rate;
+  if (w < 2000) return (w / 100) * cwt[1].rate;
+  if (w === 2000) return cwt[2].floor;
+  return null;
+}
+function rrCwtRate(cwt, w) {
+  if (w <= 500 || w >= 2000) return null;
+  return w < 1000 ? cwt[0].rate : cwt[1].rate;
+}
+function rrHeavyPrice(sched, w) {
+  if (w > sched.ceiling) return null;
+  let rate = sched.rates[sched.rates.length - 1];
+  for (let i = 0; i < sched.breakpoints.length; i++) {
+    if (w <= sched.breakpoints[i]) { rate = sched.rates[i]; break; }
+  }
+  const raw = (w / 100) * rate;
+  const floorApplied = raw < sched.floor;
+  return { price: floorApplied ? sched.floor : raw, floorApplied, rate };
+}
+// Price one Winnipeg leg for a run town. Returns
+// {price, floorApplied, rateCwt, service, basis} or null. basis is
+// 'band' | 'cwt' | 'heavy' for the row's rate_basis.
+function rrRunLeg(run, w, skids, oversized) {
+  let price = null; let floorApplied = false; let rateCwt = null;
+  let service = 'Regular'; let basis = 'band';
+  if (run === 'selkirk') {
+    if (w <= 500) price = rrBandPrice(RR_SELKIRK_BANDS, w);
+    else if (w <= 2000) { price = rrCwtPrice(RR_SELKIRK_CWT, w); rateCwt = rrCwtRate(RR_SELKIRK_CWT, w); basis = 'cwt'; }
+    else {
+      const h = rrHeavyPrice(RR_HEAVY_SEL, w);
+      if (h) { price = h.price; floorApplied = h.floorApplied; rateCwt = h.rate; service = 'Heavy Truck'; basis = 'heavy'; }
+    }
+  } else if (run === 'steinbach' || run === 'carman' || run === 'portage') {
+    if (w <= 500) price = rrBandPrice(RR_RUN_BANDS, w);
+    else if (w <= 2000) { price = rrCwtPrice(RR_RUN_CWT, w); rateCwt = rrCwtRate(RR_RUN_CWT, w); basis = 'cwt'; }
+    if (price != null && skids != null && RR_SKID_MINS[run]) {
+      const min = oversized ? RR_SKID_MINS[run].oversized : RR_SKID_MINS[run].standard;
+      if (price < min) { price = min; floorApplied = true; }
+    }
+  } else if (run === 'brandon') {
+    if (w <= 5000) price = rrBandPrice(RR_BRANDON_BANDS, w);
+    if (price != null && skids != null) {
+      const min = oversized ? RR_SKID_MINS.brandon.oversized : RR_SKID_MINS.brandon.standard;
+      if (price < min) { price = min; floorApplied = true; }
+    }
+  } else if (run === 'brandon_portage') {
+    if (w <= 500) price = rrBandPrice(RR_RUN_BANDS, w);
+    if (price != null && skids != null) {
+      const min = oversized ? RR_SKID_MINS.brandon.oversized : RR_SKID_MINS.brandon.standard;
+      if (price < min) { price = min; floorApplied = true; }
+    }
+  } else if (run === 'gimli' || run === 'arborg' || run === 'riverton') {
+    if (w <= 1000) price = rrBandPrice(RR_GIMLI_COLS[run], w);
+  } else if (run === 'oakbank') {
+    if (w <= 500) price = rrBandPrice(RR_OAKBANK_BANDS, w);
+  } else if (run === 'beausejour') {
+    if (w <= 500) price = rrBandPrice(RR_BEAUSEJOUR_BANDS, w);
+  }
+  if (price == null) return null;
+  return { price, floorApplied, rateCwt, service, basis };
+}
+// Beyond-town price for a Winnipeg pair (min model for Selkirk/Steinbach,
+// Add model for Portage/Brandon; Minnedosa via the Brandon-leg band).
+// Skid floor applies to the weight price before the Add, never after.
+function rrBeyondFromWinnipeg(town, w, skids, oversized) {
+  if (town.kind === 'minnedosa') {
+    const leg = rrRunLeg('brandon', w, skids, oversized);
+    if (!leg) return null;
+    return { price: leg.price + 16.20, floorApplied: leg.floorApplied };
+  }
+  if (town.min != null) {
+    const bands = town.run === 'selkirk' ? RR_SELKIRK_BANDS : RR_RUN_BANDS;
+    const cwt = town.run === 'selkirk' ? RR_SELKIRK_CWT : RR_RUN_CWT;
+    let atW = null;
+    if (w <= 500) atW = rrBandPrice(bands, w);
+    else if (w <= 2000) atW = rrCwtPrice(cwt, w);
+    if (atW == null) return null;
+    return { price: town.min + (atW - bands[0][1]), floorApplied: false };
+  }
+  if (town.add != null) {
+    const leg = town.run === 'portage'
+      ? rrRunLeg('portage', w, skids, oversized)
+      : rrRunLeg('brandon', w, skids, oversized);
+    if (!leg) return null;
+    return { price: leg.price + town.add, floorApplied: leg.floorApplied };
+  }
+  return null;
+}
+// Winnipeg-leg price for a town (used by the two-leg rule). Envelope towns
+// have no Winnipeg leg beyond their envelope price: null (no two-leg).
+function rrLegPrice(town, w, skids, oversized) {
+  if (town.kind === 'run') return rrRunLeg(town.run, w, skids, oversized);
+  if (town.kind === 'beyond' || town.kind === 'minnedosa') return rrBeyondFromWinnipeg(town, w, skids, oversized);
+  return null;
+}
+// Brandon-family town paired with Portage (direct leg, not via Winnipeg).
+function rrPortageLegPrice(town, w, skids, oversized) {
+  if (town.kind === 'run' && town.run === 'brandon') return rrRunLeg('brandon_portage', w, skids, oversized);
+  if (town.kind === 'minnedosa') {
+    const leg = rrRunLeg('brandon_portage', w, skids, oversized);
+    if (!leg) return null;
+    return { price: leg.price + 16.20, floorApplied: leg.floorApplied };
+  }
+  if (town.kind === 'beyond' && town.run === 'brandon' && town.add != null) {
+    const leg = rrRunLeg('brandon_portage', w, skids, oversized);
+    if (!leg) return null;
+    return { price: leg.price + town.add, floorApplied: leg.floorApplied };
+  }
+  return null;
+}
+function redRiverQuotes({ originCity, originProv, destCity, destProv, weightLbs, skidCount, packages, pickupDateTime, heated }) {
+  const oTown = RR_TOWNS[rrKey(originCity)];
+  const dTown = RR_TOWNS[rrKey(destCity)];
+  if (!oTown || !dTown) return [];
+  const w = Number(weightLbs);
+  if (!Number.isFinite(w) || w <= 0) return [];
+  // Beausejour runs Tuesday/Thursday only. Gated on the pickup date when
+  // one is supplied; the audit path (no date) is ungated.
+  if ((oTown.run === 'beausejour' || dTown.run === 'beausejour')
+      && pickupDateTime instanceof Date && !Number.isNaN(pickupDateTime.getTime())) {
+    const day = pickupDateTime.getDay();
+    if (day !== 2 && day !== 4) return [];
+  }
+  const st = ensureLoaded();
+  const carrier = st.carriersById.get(REDRIVER_ID);
+  const fscPercent = fscFor(carrier, w);
+  const skids = Number.isInteger(Number(skidCount)) && Number(skidCount) > 0 ? Number(skidCount) : null;
+  const pkgs = Array.isArray(packages) ? packages : [];
+  const oversized = pkgs.some((p) => [p.length, p.width, p.height].some((d) => Number(d) > 48));
+  const longestSide = pkgs.reduce((m, p) => Math.max(m, Number(p.length) || 0, Number(p.width) || 0, Number(p.height) || 0), 0);
+  const over10ft = longestSide > 120;
+  const dgLines = pkgs.filter((p) => p.dg);
+  const hasDG = dgLines.length > 0;
+  const dgWeight = dgLines.reduce((s, p) => s + (Number(p.weight_lb) || 0) * (Number(p.qty) || 1), 0);
+
+  const rows = [];
+  // lengthContext: 'winnipeg' ($24), 'run' ($26), 'none' (Portage/envelope
+  // print no length charge, so none is assumed).
+  const build = ({ service, freightPrice, floorApplied, rateCwt, rateBasis, laneO, laneD, lengthContext, extraNotes }) => {
+    let acc = 0; const notes = [];
+    if (hasDG) { acc += RR_DG_FEE; notes.push(`Includes $${RR_DG_FEE.toFixed(2)} dangerous goods fee.`); }
+    if (heated) { acc += RR_HEATED_FEE; notes.push(`Includes $${RR_HEATED_FEE.toFixed(2)} heated service.`); }
+    if (over10ft) {
+      const lc = lengthContext === 'winnipeg' ? RR_LENGTH_WPG : lengthContext === 'none' ? 0 : RR_LENGTH_RUN;
+      if (lc > 0) { acc += lc; notes.push(`Includes $${lc.toFixed(2)} length charge (over 10 ft).`); }
+    }
+    if (hasDG && dgWeight > 200) notes.push('Dangerous goods over 200 lb — rate may be higher, call Red River Messenger (Winnipeg 204-941-9063 / Selkirk 204-785-1051 / toll-free 1-866-785-1051).');
+    if (floorApplied) notes.push('Minimum charge applied.');
+    if (extraNotes) notes.push(...extraNotes);
+    notes.push('Business-hours rates (8am–4pm); after-hours and weekend pricing applies at booking.');
+    const base = r2(freightPrice + acc);
+    // Red River FSC amount rounds UP to whole dollars (carrier site rule).
+    // The 1e-9 guard only kills binary float dust (e.g. 33.000000000004):
+    // a true just-above-integer product like 13.002 still ceils to 14.
+    const fsc = Math.ceil(base * fscPercent / 100 - 1e-9);
+    return {
+      carrier_id: REDRIVER_ID, carrier_label: REDRIVER_LABEL, service,
+      weight_lbs: w, billable_weight_lbs: r2(w), skids,
+      density_pcf: null, cube_ft: null, floor_lb_per_cuft: null,
+      dimensional_applied: false, dimensional_rule: 'actual', dim_weight_enabled: false,
+      currency: 'CAD', source: 'matrix',
+      lane_origin_city: laneO, lane_origin_prov: 'MB',
+      lane_dest_city: laneD, lane_dest_prov: 'MB',
+      metro_matched: false,
+      rate_basis: rateBasis, rate_cwt_used: rateCwt != null ? rateCwt : null,
+      base_cad: base, fsc_percent: fscPercent, fsc_cad: fsc, total_cad: r2(base + fsc),
+      min_charge_applied: !!floorApplied, notes,
+    };
+  };
+  const isWpg = (t) => t.kind === 'winnipeg';
+  const runOf = (t) => {
+    if (t.kind === 'run') return t.run;
+    if (t.kind === 'beyond') return t.run;
+    if (t.kind === 'minnedosa') return 'brandon';
+    return null;
+  };
+
+  // Within Winnipeg: the local van/heavy tables.
+  if (isWpg(oTown) && isWpg(dTown)) {
+    if (w <= 500) {
+      const band = rrBandPrice(RR_WPG_BANDS, w);
+      const band25 = RR_WPG_BANDS[0][1];
+      rows.push(build({ service: 'Regular', freightPrice: band, floorApplied: false, rateCwt: null, rateBasis: 'redriver_band', laneO: 'WINNIPEG', laneD: 'WINNIPEG', lengthContext: 'winnipeg' }));
+      rows.push(build({ service: 'Rush', freightPrice: 15.07 + (band - band25), floorApplied: false, rateCwt: null, rateBasis: 'redriver_rush', laneO: 'WINNIPEG', laneD: 'WINNIPEG', lengthContext: 'winnipeg' }));
+      rows.push(build({ service: 'Direct', freightPrice: 22.00 + (band - band25), floorApplied: false, rateCwt: null, rateBasis: 'redriver_direct', laneO: 'WINNIPEG', laneD: 'WINNIPEG', lengthContext: 'winnipeg' }));
+    } else {
+      const h = rrHeavyPrice(RR_HEAVY_WPG, w);
+      if (h) rows.push(build({ service: 'Heavy Truck', freightPrice: h.price, floorApplied: h.floorApplied, rateCwt: h.rate, rateBasis: 'redriver_heavy', laneO: 'WINNIPEG', laneD: 'WINNIPEG', lengthContext: 'winnipeg' }));
+    }
+    return rows;
+  }
+
+  // One end is Winnipeg: direct leg pricing.
+  if (isWpg(oTown) || isWpg(dTown)) {
+    const town = isWpg(oTown) ? dTown : oTown;
+    const laneO = isWpg(oTown) ? 'WINNIPEG' : town.display;
+    const laneD = isWpg(oTown) ? town.display : 'WINNIPEG';
+    if (town.kind === 'envelope') {
+      if (w > 25) return [];
+      rows.push(build({ service: 'Regular', freightPrice: RR_ENVELOPE_ONLY_PRICE, floorApplied: false, rateCwt: null, rateBasis: 'redriver_envelope', laneO, laneD, lengthContext: 'none' }));
+      return rows;
+    }
+    if (town.kind === 'run' && town.run === 'selkirk') {
+      if (w <= 500) {
+        const band = rrBandPrice(RR_SELKIRK_BANDS, w);
+        const band25 = RR_SELKIRK_BANDS[0][1];
+        rows.push(build({ service: 'Regular', freightPrice: band, floorApplied: false, rateCwt: null, rateBasis: 'redriver_band', laneO, laneD, lengthContext: 'run' }));
+        rows.push(build({ service: 'Rush', freightPrice: 32.12 + (band - band25), floorApplied: false, rateCwt: null, rateBasis: 'redriver_rush', laneO, laneD, lengthContext: 'run' }));
+        rows.push(build({ service: 'Direct', freightPrice: 64.25 + (band - band25), floorApplied: false, rateCwt: null, rateBasis: 'redriver_direct', laneO, laneD, lengthContext: 'run' }));
+      } else if (w <= 2000) {
+        const leg = rrRunLeg('selkirk', w, null, false);
+        rows.push(build({ service: 'Regular', freightPrice: leg.price, floorApplied: false, rateCwt: leg.rateCwt, rateBasis: 'redriver_cwt', laneO, laneD, lengthContext: 'run' }));
+      } else {
+        const leg = rrRunLeg('selkirk', w, null, false);
+        if (leg) rows.push(build({ service: 'Heavy Truck', freightPrice: leg.price, floorApplied: leg.floorApplied, rateCwt: leg.rateCwt, rateBasis: 'redriver_heavy', laneO, laneD, lengthContext: 'run' }));
+      }
+      return rows;
+    }
+    if (town.kind === 'run' && town.run === 'portage') {
+      let weightPrice = null; let rateCwt = null; let basis = 'band';
+      if (w <= 500) weightPrice = rrBandPrice(RR_RUN_BANDS, w);
+      else if (w <= 2000) { weightPrice = rrCwtPrice(RR_RUN_CWT, w); rateCwt = rrCwtRate(RR_RUN_CWT, w); basis = 'cwt'; }
+      if (weightPrice == null) return [];
+      const skidMin = skids != null ? (oversized ? RR_SKID_MINS.portage.oversized : RR_SKID_MINS.portage.standard) : 0;
+      const regPrice = Math.max(weightPrice, skidMin);
+      rows.push(build({ service: 'Regular', freightPrice: regPrice, floorApplied: regPrice > weightPrice, rateCwt, rateBasis: 'redriver_' + basis, laneO, laneD, lengthContext: 'none' }));
+      if (w <= 2000) {
+        const band100 = rrBandPrice(RR_RUN_BANDS, 100);
+        const raw = w <= 100 ? 64.25 : 64.25 + (weightPrice - band100);
+        const rdPrice = Math.max(raw, skidMin);
+        rows.push(build({ service: 'Run Direct', freightPrice: rdPrice, floorApplied: rdPrice > raw, rateCwt: null, rateBasis: 'redriver_run_direct', laneO, laneD, lengthContext: 'none' }));
+      }
+      return rows;
+    }
+    if (town.kind === 'run') {
+      const leg = rrRunLeg(town.run, w, skids, oversized);
+      if (!leg) return [];
+      rows.push(build({ service: 'Regular', freightPrice: leg.price, floorApplied: leg.floorApplied, rateCwt: leg.rateCwt, rateBasis: 'redriver_' + leg.basis, laneO, laneD, lengthContext: 'run' }));
+      return rows;
+    }
+    if (town.kind === 'beyond' || town.kind === 'minnedosa') {
+      const leg = rrBeyondFromWinnipeg(town, w, skids, oversized);
+      if (!leg) return [];
+      rows.push(build({ service: 'Regular', freightPrice: leg.price, floorApplied: leg.floorApplied, rateCwt: null, rateBasis: town.kind === 'minnedosa' ? 'redriver_minnedosa' : 'redriver_beyond', laneO, laneD, lengthContext: town.run === 'portage' ? 'none' : 'run' }));
+      return rows;
+    }
+    return rows;
+  }
+
+  // Town to town (neither end Winnipeg).
+  if (runOf(oTown) && runOf(oTown) === runOf(dTown)) return []; // same run (incl. beyond↔hub)
+  const GIMLI_PAGE = new Set(['gimli', 'arborg', 'riverton']);
+  if (oTown.kind === 'run' && dTown.kind === 'run' && GIMLI_PAGE.has(oTown.run) && GIMLI_PAGE.has(dTown.run)) return []; // one run, two columns
+  if (oTown.kind === 'run' && dTown.kind === 'run'
+      && ((oTown.run === 'oakbank' && dTown.run === 'beausejour') || (oTown.run === 'beausejour' && dTown.run === 'oakbank'))) return [];
+  if (oTown.kind === 'envelope' || dTown.kind === 'envelope') return []; // envelope towns don't two-leg
+  // Direct Brandon↔Portage (incl. Brandon-family towns paired with Portage).
+  const isBrandonSide = (t) => (t.kind === 'run' && t.run === 'brandon') || t.kind === 'minnedosa' || (t.kind === 'beyond' && t.run === 'brandon');
+  const isPortageSide = (t) => t.kind === 'run' && t.run === 'portage';
+  if ((isBrandonSide(oTown) && isPortageSide(dTown)) || (isPortageSide(oTown) && isBrandonSide(dTown))) {
+    const bTown = isBrandonSide(oTown) ? oTown : dTown;
+    const leg = rrPortageLegPrice(bTown, w, skids, oversized);
+    if (!leg) return [];
+    rows.push(build({ service: 'Regular', freightPrice: leg.price, floorApplied: leg.floorApplied, rateCwt: leg.rateCwt, rateBasis: 'redriver_band', laneO: oTown.display, laneD: dTown.display, lengthContext: 'run' }));
+    return rows;
+  }
+  // Two legs via Winnipeg, each at full weight.
+  const legO = rrLegPrice(oTown, w, skids, oversized);
+  const legD = rrLegPrice(dTown, w, skids, oversized);
+  if (!legO || !legD) return [];
+  rows.push(build({ service: 'Regular', freightPrice: legO.price + legD.price, floorApplied: legO.floorApplied || legD.floorApplied, rateCwt: null, rateBasis: 'redriver_two_leg', laneO: oTown.display, laneD: dTown.display, lengthContext: 'run', extraNotes: ['Two legs via Winnipeg.'] }));
+  return rows;
+}
+// Register the carrier record so the standard FSC machinery applies:
+// listCarriers() shows it (Admin > Fuel surcharges can override it),
+// fscFor() resolves the live percent, and quote rows get rate-checked
+// dates. FSC cadence 'weekly': the site posts one current % (as of
+// 2026-10-16: 33%), pulled weekly + at boot by lib/fsc-auto.js.
+upsertCarrier({
+  carrier_id: REDRIVER_ID,
+  carrier_label: REDRIVER_LABEL,
+  fsc_percent: 33, // 33% per their fuel-surcharge page, as of 2026-10-16
+  fsc_as_of: '2026-10-16',
+  fsc_cadence: 'weekly',
+  fsc_note: 'Auto-pull from redrivermessenger.com/fuel-surcharge/ (weekly + boot, change-only). FSC amount rounds UP to whole dollars (carrier site rule).',
+});
+
 // TEAMS Transport (Winnipeg MB; 8-terminal Canadian network).
 // Rate source: carrier QUOTE sheets Q154360-Q154372 issued to TOTAL TIRE
 // DISTRIBUTORS INC, printed Jun 05, 2024, printed expiry Aug 31, 2024 —
@@ -2503,7 +2952,7 @@ function dedupeQuotes(quotes) {
   return [...byKey.values()];
 }
 
-function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, skidCount, packages, pickupDateTime, originStreet, destStreet, destZip, provincial }) {
+function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, skidCount, packages, pickupDateTime, originStreet, destStreet, destZip, provincial, heated }) {
   const st = ensureLoaded();
   const oCity = norm(originCity);
   const oProv = norm(originProv);
@@ -2930,6 +3379,12 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
     for (const q of provincialQuotes({ originCity: oCity, originProv: oProv, destCity: dCity, destProv: dProv, weightLbs: w, provincial })) {
       if (q.rate_on_request) unpriced.push(q); else quotes.push(q);
     }
+  }
+  // Red River Messenger: dedicated Manitoba run rating (no matrix lanes).
+  // MB-only; both cities must resolve to Red River towns (exact match after
+  // normalization — no metro collapsing, no nearby-town fallback).
+  if ((oProv === 'MB' || oProv === '') && (dProv === 'MB' || dProv === '')) {
+    for (const q of redRiverQuotes({ originCity: oCity, originProv: oProv, destCity: dCity, destProv: dProv, weightLbs: w, skidCount: skids, packages, pickupDateTime, heated })) quotes.push(q);
   }
   // TEAMS Transport: dedicated linear-foot flat rating (no matrix lanes).
   // Both ends must resolve to one of the 8 terminals via the standard

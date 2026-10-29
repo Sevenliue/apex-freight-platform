@@ -162,6 +162,7 @@ function applyAccessorials(codes, freightCost, carrierId) {
 function dgFee(weightLbs, carrierId) {
   if (String(carrierId || '').toLowerCase() === 'jrhall') return 100;
   if (String(carrierId || '').toLowerCase() === 'gardewine') return 46.08;
+  if (String(carrierId || '').toLowerCase() === 'redriver') return 13;
   // Prime Time: $25 per shipment (regular hours). After-hours DG is $40
   // (replaces $25) — needs pickup-time awareness when after-hours is wired.
   if (String(carrierId || '').toLowerCase() === 'primetime') return 25;
