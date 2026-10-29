@@ -182,6 +182,29 @@ router.post('/signup', signupLimit, async (req, res) => {
        RETURNING id, email, full_name, company_name, role, is_verified, shipping_approved`,
       [id, email, name, company || null, hash, approved]
     );
+    // Company-join flag (2026-10-28): if the signup claimed an existing
+    // company name and their domain is flagged for it, create a pending
+    // join request and notify that company's admins. Best-effort, never
+    // blocks signup; the account stays solo (no company_id) until a
+    // company admin approves. No match / ambiguous name / unflagged
+    // domain: no change — a later code join runs the same check.
+    let companyJoinPending = null;
+    if (company) {
+      try {
+        const h = require('./company').joinFlagHelpers;
+        const match = await h.findCompanyByName(company);
+        if (match) {
+          const flag = await h.checkJoinFlag(email, match.id);
+          if (flag) {
+            await h.createPendingRequest(id, match.id, flag);
+            h.notifyCompanyAdmins(match.id, { email, full_name: name }).catch(() => {});
+            companyJoinPending = { company_name: match.name };
+          }
+        }
+      } catch (e) {
+        console.error('[auth/signup] company-join flag failed:', e.message);
+      }
+    }
     await sessionLib.pruneExpiredSessions();
     const token = await sessionLib.createSession(r.rows[0].id);
     // Verification email (best-effort; never blocks signup).
@@ -204,7 +227,7 @@ router.post('/signup', signupLimit, async (req, res) => {
         user: { name, email, company },
       });
     } catch { /* notify never throws; belt and suspenders */ }
-    return res.status(201).json({ token, user: sessionLib.sanitizeUser(r.rows[0]) });
+    return res.status(201).json({ token, user: sessionLib.sanitizeUser(r.rows[0]), company_join_pending: companyJoinPending });
   } catch (err) {
     // Race on the UNIQUE(email) constraint between the check and insert.
     if (err && err.code === '23505') {

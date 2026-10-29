@@ -1575,11 +1575,13 @@
             <label>Join code <input name="join_code" type="text" maxlength="16" placeholder="8-character code from your admin" style="text-transform:uppercase"></label>
             <div class="actions"><button class="btn" type="submit" id="company-join-submit">Join company</button></div>
           </form>
+          <p class="note hidden" id="company-pending-note"></p>
         </div>
         <div id="company-member" class="hidden">
           <p><strong id="company-name"></strong></p>
           <p class="note">Join code: <strong id="company-code"></strong> <button class="btn small" type="button" id="company-copy-code">Copy</button> — share it with teammates so they can join.</p>
           <ul id="company-members" class="lists-ul"></ul>
+          <div id="company-join-requests"></div>
           <div class="actions"><button class="btn danger" type="button" id="company-leave">Leave company</button></div>
         </div>
       </div>
@@ -4284,7 +4286,7 @@
       if (!box) return;
       box.innerHTML = '<div class="card empty">Loading accounts…</div>';
       try {
-        const { users, default_markup } = await api.listUsers();
+        const { users, default_markup, join_requests } = await api.listUsers();
         const defaultMarkup = default_markup == null ? 15 : Number(default_markup);
         if (!users.length) {
           box.innerHTML =
@@ -4300,6 +4302,11 @@
           `<strong>Make company admin</strong> gives a shipper a “My Company” view of their own company — people, quotes and address book. They never see costs or margins, and approvals stay with you.</p>` +
           (pending.length
             ? `<div class="card warn" style="margin-bottom:10px">⏳ ${pending.length} account${pending.length === 1 ? '' : 's'} waiting for approval.</div>`
+            : '') +
+          (join_requests && join_requests.length
+            ? `<div class="card" style="margin-bottom:10px"><strong>🏢 ${join_requests.length} company join request${join_requests.length === 1 ? '' : 's'} awaiting confirmation</strong> — the company admin approves these (My Company → People or Settings → Company); shown here for visibility only.<br>` +
+              join_requests.map((rq) => `${esc(rq.name || rq.email || 'Account')} <span class="muted">${esc(rq.email || '')}</span> → <strong>${esc(rq.company_name || '')}</strong> <span class="note">${esc((rq.created_at || '').slice(0, 10))}${rq.reason === 'domain_other_company' ? ' · email domain tied to another company' : rq.reason === 'domain_unseen' ? ' · email domain never seen under this company' : ''}</span>`).join('<br>') +
+              `</div>`
             : '') +
           `<div class="table-wrap"><table class="data"><thead><tr>
             <th>Registered</th><th>Name</th><th>Company</th><th>Email</th><th>Markup</th><th>Quotes</th><th>Status</th><th></th>
@@ -4547,7 +4554,7 @@
       if (!box) return;
       box.innerHTML = '<div class="card empty">Loading people…</div>';
       try {
-        const { company, people } = await api.getCompanyPeople();
+        const { company, people, join_requests } = await api.getCompanyPeople();
         const lede = $('#mc-lede');
         if (lede) {
           lede.textContent = company
@@ -4575,6 +4582,26 @@
             </tr>`
             )
             .join('')}</tbody></table></div>`;
+        const mcReqs = join_requests || [];
+        if (mcReqs.length) {
+          const block = document.createElement('div');
+          block.innerHTML = '<h3 style="margin-top:14px">Join requests awaiting confirmation</h3>' +
+            '<p class="lede">These accounts asked to join with an email domain that does not match your company. Approve to give them company access; decline to leave them quoting on their own.</p>' +
+            `<div class="table-wrap"><table class="data"><thead><tr><th>Name</th><th>Email</th><th>Requested</th><th></th></tr></thead><tbody>${mcReqs.map((rq) => `<tr><td>${esc(rq.name || '—')}</td><td>${esc(rq.email || '—')}</td><td>${esc((rq.created_at || '').slice(0, 10))}</td><td><button class="btn small primary" data-jr-approve="${esc(rq.id)}">Approve</button> <button class="btn small" data-jr-decline="${esc(rq.id)}" style="margin-left:4px">Decline</button></td></tr>`).join('')}</tbody></table></div>`;
+          box.appendChild(block);
+          block.querySelectorAll('[data-jr-approve]').forEach((btn) => btn.addEventListener('click', async () => {
+            if (!window.confirm('Approve this account into the company?')) return;
+            btn.disabled = true;
+            try { await api.approveJoinRequest(btn.getAttribute('data-jr-approve')); loadMcPeople(); }
+            catch (err) { showAlert('Could not approve: ' + err.message); btn.disabled = false; }
+          }));
+          block.querySelectorAll('[data-jr-decline]').forEach((btn) => btn.addEventListener('click', async () => {
+            if (!window.confirm('Decline this join request? The account stays solo.')) return;
+            btn.disabled = true;
+            try { await api.declineJoinRequest(btn.getAttribute('data-jr-decline')); loadMcPeople(); }
+            catch (err) { showAlert('Could not decline: ' + err.message); btn.disabled = false; }
+          }));
+        }
         box.querySelectorAll('[data-mc-edit-person]').forEach((btn) =>
           btn.addEventListener('click', async () => {
             const name = prompt('Name:', btn.getAttribute('data-name') || '');
@@ -5829,6 +5856,9 @@
             password: String(f.get('password') || ''),
           });
           await afterAuth(data);
+          if (data.company_join_pending && data.company_join_pending.company_name) {
+            showAlert(`Your request to join ${data.company_join_pending.company_name} is waiting for the company admin's confirmation. Until then you have no company access, but you can still quote on your own.`);
+          }
         } catch (err) {
           authFail('#signup-error', err);
         } finally {
@@ -8749,6 +8779,15 @@
           : '';
         return `<li>${esc(m.name || m.email || 'Member')}${you ? ' (you)' : ''}${adminBadge} <span class="muted">${esc(m.email || '')}</span>${rm}</li>`;
       }).join('') || '<li>No members yet.</li>';
+      const jrBox = $('#company-join-requests');
+      if (jrBox) {
+        const reqs = companyState.join_requests || [];
+        jrBox.innerHTML = reqs.length
+          ? '<h3 style="margin-top:14px">Join requests awaiting confirmation</h3>' +
+            '<p class="note">These accounts asked to join with an email domain that does not match your company. Approve to give them company access; decline to leave them quoting on their own.</p>' +
+            '<ul class="lists-ul">' + reqs.map((rq) => `<li>${esc(rq.name || rq.email || 'Account')} <span class="muted">${esc(rq.email || '')}</span> <span class="note">${esc((rq.created_at || '').slice(0, 10))}</span> <button class="btn small primary" type="button" data-jr-approve="${rq.id}">Approve</button> <button class="btn small" type="button" data-jr-decline="${rq.id}">Decline</button></li>`).join('') + '</ul>'
+          : '';
+      }
     }
     async function loadCompany() {
       $('#company-loading').classList.remove('hidden');
@@ -8762,6 +8801,18 @@
         return;
       }
       renderCompany();
+      const note = $('#company-pending-note');
+      if (note) {
+        try {
+          const { requests } = await api.getMyJoinRequests();
+          if (requests && requests.length) {
+            note.textContent = requests.map((rq) => `Your request to join ${rq.company_name} is waiting for the company admin's confirmation. You can still quote on your own.`).join(' ');
+            note.classList.remove('hidden');
+          } else {
+            note.classList.add('hidden');
+          }
+        } catch { note.classList.add('hidden'); }
+      }
     }
     $('#company-create-form').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -8789,13 +8840,40 @@
         const f = new FormData(e.target);
         const code = String(f.get('join_code') || '').trim();
         if (!code) { settingsFail(new Error('Enter the join code.')); return; }
-        companyState = await api.joinCompany(code);
+        const joined = await api.joinCompany(code);
+        if (joined && joined.pending) {
+          await loadCompany();
+          settingsOk('Join request sent — the company admin must confirm it before you get company access. You can still quote on your own.');
+          e.target.reset();
+          return;
+        }
+        companyState = joined;
         renderCompany();
         settingsOk('Joined the company. You now share its waybill sequence.');
         e.target.reset();
       } catch (err) {
         settingsFail(err);
       } finally {
+        btn.disabled = false;
+      }
+    });
+    $('#company-section').addEventListener('click', async (e) => {
+      const approve = e.target.closest('[data-jr-approve]');
+      const decline = e.target.closest('[data-jr-decline]');
+      const btn = approve || decline;
+      if (!btn) return;
+      const id = btn.getAttribute('data-jr-approve') || btn.getAttribute('data-jr-decline');
+      if (approve && !window.confirm('Approve this account into the company? They will share its waybill sequence and see its waybills.')) return;
+      if (decline && !window.confirm('Decline this join request? The account stays solo and can still quote on its own.')) return;
+      btn.disabled = true;
+      try {
+        if (approve) await api.approveJoinRequest(id);
+        else await api.declineJoinRequest(id);
+        companyState = await api.getCompany();
+        renderCompany();
+        settingsOk(approve ? 'Join request approved.' : 'Join request declined.');
+      } catch (err) {
+        settingsFail(err);
         btn.disabled = false;
       }
     });

@@ -81,11 +81,13 @@ function personShape(u, callerId) {
   };
 }
 
-// GET /api/company-admin/people — the caller's company's accounts.
+// GET /api/company-admin/people — the caller's company's accounts, plus
+// pending company-join requests awaiting this admin's confirmation
+// (company-join flag, 2026-10-28). Requests carry no cost/margin data.
 router.get('/people', async (req, res) => {
   const { companyId } = req.companyScope;
   try {
-    if (!companyId) return res.json({ company: null, people: [] });
+    if (!companyId) return res.json({ company: null, people: [], join_requests: [] });
     const company = await companyRow(companyId);
     const r = await db.query(
       `SELECT id, email, full_name, phone, role, shipping_approved
@@ -93,7 +95,14 @@ router.get('/people', async (req, res) => {
         ORDER BY full_name NULLS LAST, email`,
       [companyId]
     );
-    return res.json({ company, people: r.rows.map((u) => personShape(u, req.user.id)) });
+    let joinRequests = [];
+    try {
+      const { listPendingRequests } = require('./company').joinFlagHelpers;
+      joinRequests = await listPendingRequests(companyId);
+    } catch (e) {
+      console.error('[company-admin] join requests failed:', e.message);
+    }
+    return res.json({ company, people: r.rows.map((u) => personShape(u, req.user.id)), join_requests: joinRequests });
   } catch (err) {
     return res.status(502).json({ error: 'Could not load company people: ' + err.message });
   }

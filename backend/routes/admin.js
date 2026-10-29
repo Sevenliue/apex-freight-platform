@@ -126,7 +126,34 @@ router.get('/users', async (req, res) => {
       company_group: u.company_group || null,
       created_at: u.created_at,
     }));
-    return res.json({ users, default_markup: config.markupPercent });
+    // Company-join flags (2026-10-28), read-only here: the company admin
+    // approves, the site admin only sees them. Missing table (very old
+    // DBs before the boot migration runs) degrades to an empty list.
+    let joinRequests = [];
+    try {
+      const jr = await db.query(
+        `SELECT r.id, r.user_id, r.reason, r.created_at, u.email, u.full_name AS name,
+                c.id AS company_id, c.name AS company_name
+           FROM company_join_requests r
+           JOIN users u ON u.id = r.user_id
+           JOIN companies c ON c.id = r.company_id
+          WHERE r.status = 'pending'
+          ORDER BY r.created_at ASC LIMIT 500`
+      );
+      joinRequests = jr.rows.map((row) => ({
+        id: row.id,
+        user_id: row.user_id,
+        email: row.email,
+        name: row.name || null,
+        company_id: row.company_id,
+        company_name: row.company_name,
+        reason: row.reason || null,
+        created_at: row.created_at,
+      }));
+    } catch (e) {
+      console.error('[admin] join requests failed:', e.message);
+    }
+    return res.json({ users, default_markup: config.markupPercent, join_requests: joinRequests });
   } catch (err) {
     return res.status(502).json({ error: 'Could not list accounts: ' + err.message });
   }

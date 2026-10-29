@@ -210,6 +210,21 @@ export function removeCompanyMember(id) {
   return post(`/api/company/members/${encodeURIComponent(id)}/remove`, {});
 }
 
+/* Company-join flag (2026-10-28): flagged signups wait for a company
+   admin's confirmation. These are the requester's own pending requests
+   plus the company admin's approve/decline actions. */
+export function getMyJoinRequests() {
+  return get('/api/company/my-requests');
+}
+
+export function approveJoinRequest(id) {
+  return post(`/api/company/join-requests/${encodeURIComponent(id)}/approve`, {});
+}
+
+export function declineJoinRequest(id) {
+  return post(`/api/company/join-requests/${encodeURIComponent(id)}/decline`, {});
+}
+
 /* My Company — the company-admin layer (role 'company_admin', assigned by
    the site admin only). Every endpoint is scoped server-side to the
    caller's own company; the quotes payload carries retail totals only. */
