@@ -133,6 +133,26 @@ router.post('/', async (req, res) => {
     return res.json({ full_load: true });
   }
 
+  // DEMO MODE (admin-only): sample rows only, never real rating. The demo
+  // flag is honored ONLY for owner/staff emails (billingLib.isAdminEmail);
+  // any other caller's demo flag is ignored and the request rates normally,
+  // so a crafted request can never extract sample rates or bypass rating.
+  // Demo quotes skip the engine, the quote log, and quota entirely, carry
+  // no shipment_id, and are never stored — so no real carrier or company
+  // rate can appear on a demo board, and a demo row can never be booked
+  // (booking requires a server-stored shipment_id + rate_id).
+  if (req.body && req.body.demo === true && req.user && billingLib.isAdminEmail(req.user.email)) {
+    const pkgs = Array.isArray(req.body.packages) ? req.body.packages : [];
+    const totalW = pkgs.reduce((s, p) => s + (Number(p.weight_lb) || 0) * (Number(p.qty) || 1), 0);
+    const money = (v) => Math.round(v * 100) / 100;
+    const rows = [
+      { rate_id: 'demo-a', carrier: 'Sample Carrier A', service: 'Standard LTL (sample)', delivery_days: 2, retail_cad: money(totalW * 0.95 + 35), source: 'demo', demo: true },
+      { rate_id: 'demo-b', carrier: 'Sample Carrier B', service: 'Standard LTL (sample)', delivery_days: 4, retail_cad: money(totalW * 1.10 + 40), source: 'demo', demo: true },
+      { rate_id: 'demo-c', carrier: 'Sample Carrier C', service: 'Standard LTL (sample)', delivery_days: 6, retail_cad: money(totalW * 0.80 + 55), source: 'demo', demo: true },
+    ];
+    return res.json({ demo: true, rates: rows, total_weight_lbs: totalW, billable_weight_lbs: totalW, cube_ft: 0, density_pcf: null, accessorials_applied: [] });
+  }
+
   // Monthly quota: free 5 / starter 35 / growth 100 / business 200 / pro 500
   // per calendar month. At the cap the 402 carries an upgrade offer (next
   // tier + price) so the frontend can prompt instead of silently blocking;

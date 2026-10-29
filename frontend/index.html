@@ -540,6 +540,7 @@
               <div class="qq-split-left">
                 <p class="lede" id="total-weight-line">Total weight: <strong>0 lb</strong></p>
                 <button type="submit" class="btn fetch-btn fetch-btn-left" id="fetch-rates-btn">Get Carrier Rates</button>
+                <label class="inline" id="demo-mode-wrap" style="display:none;margin-left:8px"><input type="checkbox" id="demo-mode"> Demo mode (sample rates)</label>
                 <button type="button" class="btn" id="new-quote-btn" title="Clear the form to start a new quote">New Quote</button>
                 <p class="note rate-disclaimer" id="rate-disclaimer">Rates are estimates only &mdash; final pricing is confirmed at booking and may change with fuel surcharges and carrier rate updates.</p>
                 <div class="rate-empty" id="rate-empty">
@@ -2730,6 +2731,7 @@
         packages,
         accessorials: collectAccessorials(),
         provincial: collectProvincial(),
+        demo: !!($('#demo-mode') && $('#demo-mode').checked),
         skids: (() => { const v = parseInt((f.get('skids') || '').toString(), 10); return Number.isInteger(v) && v > 0 ? v : undefined; })(),
         user_id: txt('user_id') || undefined,
       };
@@ -2755,6 +2757,7 @@
     }
 
     function sourceBadge(source) {
+      if (source === 'demo') return '<span class="badge warn">Demo</span>';
       return source === 'easypost'
         ? '<span class="badge live">Live</span>'
         : '<span class="badge instant">Instant</span>';
@@ -2851,7 +2854,12 @@
         return;
       }
 
-      currentQuote = data;
+      // DEMO MODE: sample rows only. Never selectable, never bookable or
+      // saveable: currentQuote stays null so the save/complete buttons stay
+      // disabled (openCompleteModal + saveCurrentQuote both bail on null),
+      // and demo rows carry no radio (see the row template below).
+      const isDemoBoard = !!(data && data.demo);
+      currentQuote = isDemoBoard ? null : data;
       const accLine = (data.accessorials_applied || [])
         .map((a) => `${esc(a.label)} (${cad(a.fee_cad)})`)
         .join(', ');
@@ -2859,7 +2867,7 @@
       const rows = rates
         .map(
           (r, i) => `<tr>
-            <td class="chk">${r.rate_on_request ? '' : `<input type="radio" name="rate-pick" value="${esc(r.rate_id)}"${i === firstPriced ? ' checked' : ''}>`}</td>
+            <td class="chk">${(r.rate_on_request || r.demo) ? '' : `<input type="radio" name="rate-pick" value="${esc(r.rate_id)}"${i === firstPriced ? ' checked' : ''}>`}</td>
             <td>${esc(r.carrier)}${r.carrier_id ? `<br><span class="carrier-score" data-carrier-id="${esc(r.carrier_id)}"></span>` : ''}${r.service ? '<br><span class="note">' + esc(r.service) + '</span>' : ''}${billedWeightLine(r)}${metroNote(r)} ${sourceBadge(r.source)}${rateCheckedLine(r)}</td>
             <td>${r.delivery_days != null ? esc(String(r.delivery_days)) : '—'}${r.est_delivery_date ? `<br><span class="note">≈ ${esc(fmtEstDate(r.est_delivery_date))}</span>` : ''}</td>
             <td class="num">${r.rate_on_request
@@ -2912,6 +2920,7 @@
 
       syncRateEmptyHide();
       box.innerHTML = `
+        ${isDemoBoard ? `<div class="card demo-banner"><strong>DEMO — sample rates only.</strong> These are not real carrier prices and cannot be booked or saved.</div>` : ''}
         ${dimCard}
         ${data.holiday_notice ? `<div class="card holiday-notice">
           <p>⚠ ${esc(data.holiday_notice)}</p>
@@ -5618,6 +5627,16 @@
           sideSignup.dataset.wired = '1';
           sideSignup.addEventListener('click', () => openAuthModal('signup'));
         }
+      }
+      // Demo-mode toggle: owner/staff only (billingState.is_admin). Hidden
+      // for everyone else, and unchecked when hidden, so a demo quote can
+      // only ever start from an admin session. The server enforces the same
+      // rule and ignores any other caller's demo flag.
+      const demoWrap = $('#demo-mode-wrap');
+      if (demoWrap) {
+        const showDemo = !!(billingState && billingState.is_admin);
+        demoWrap.style.display = showDemo ? '' : 'none';
+        if (!showDemo) { const cb = $('#demo-mode'); if (cb) cb.checked = false; }
       }
       if (!area) return;
       if (currentUser) {
