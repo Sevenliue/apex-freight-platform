@@ -128,7 +128,7 @@ function fail(status, message) {
 
 // prepareOrder(): validate quote+rate, build the order and BOL, persist as
 // awaiting_payment/unpaid. Shared by /complete and /checkout.
-async function prepareOrder(body, effectiveUserId) {
+async function prepareOrder(body, effectiveUserId, opts = {}) {
   const {
     shipment_id, rate_id,
     shipper = {}, consignee = {}, references = {},
@@ -138,6 +138,8 @@ async function prepareOrder(body, effectiveUserId) {
     region = null, direction = null, freight_charges = null, bill_to = null,
     depot_dropoff = null, depot_pickup = null, terms_accepted = false,
   } = body || {};
+  // Sandbox TEST flag (verified admin-only by the route handlers).
+  const testMode = !!opts.testMode;
 
   if (!shipment_id || !rate_id) fail(400, 'shipment_id and rate_id are required');
   if (!terms_accepted) fail(400, 'You must accept the Terms of Service to schedule a shipment.');
@@ -215,6 +217,7 @@ async function prepareOrder(body, effectiveUserId) {
     // completed or paid: status 'dg_review' instead of 'awaiting_payment'.
     status: (quote.packages || []).some((p) => p.dg) ? 'dg_review' : 'awaiting_payment',
     payment_status: 'unpaid',
+    test_mode: testMode,
     tracking_code: null,
     label_url: null,
     shipper_order_no,
@@ -262,13 +265,13 @@ async function prepareOrder(body, effectiveUserId) {
       `INSERT INTO orders (quote_id, user_id, easypost_shipment_id, easypost_rate_id,
                            tracking_code, carrier, carrier_id, service_level, cost_amount,
                            charged_amount, currency, label_url, status, payment_status,
-                           shipper_order_no, receiver_po_no, bol_json)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
+                           shipper_order_no, receiver_po_no, bol_json, test_mode)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING id`,
       [order.quote_id, userUuid, order.easypost_shipment_id, rate.source === 'easypost' ? rate_id : null,
        order.tracking_code, order.carrier, order.carrier_id || null, order.service, order.cost_cad,
        order.charged_amount, order.currency, order.label_url, order.status, order.payment_status,
        order.shipper_order_no, order.receiver_po_no,
-       JSON.stringify(bol)]
+       JSON.stringify(bol), testMode]
     );
     order.id = r.rows[0].id;
     order.user_id = userUuid || effectiveUserId;
@@ -379,7 +382,7 @@ async function finalizeShipmentPayment(dbOrderId, paymentIntentId) {
       const notifyLib = require('../lib/notify');
       notifyLib.notify('payment_succeeded', {
         carrier: out.carrier, charged_amount: out.charged_amount, tracking_code: out.tracking_code,
-        shipper_order_no: out.shipper_order_no, bol: out.bol,
+        shipper_order_no: out.shipper_order_no, bol: out.bol, test_mode: row.test_mode,
       });
     } catch (err) { console.error('[notify] hook failed (non-fatal):', err.message); }
   }
@@ -393,14 +396,19 @@ router.post('/checkout', async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Sign in to schedule a shipment.' });
   }
+  // Admin check (also gates the sandbox TEST flag below).
+  let isAdmin = false;
+  try { isAdmin = !!((await billing.getBillingState(req.user.id) || {}).isAdmin); } catch { /* ignore */ }
   // Phase-one site mode: shipment creation is disabled for everyone except
   // admins while the site runs as a quote-only tool.
-  if (config.siteMode === 'quote-only') {
-    let isAdmin = false;
-    try { isAdmin = !!((await billing.getBillingState(req.user.id) || {}).isAdmin); } catch { /* ignore */ }
-    if (!isAdmin) {
-      return res.status(403).json({ error: 'Creating shipments is currently disabled while we fine-tune our quotes.' });
-    }
+  if (config.siteMode === 'quote-only' && !isAdmin) {
+    return res.status(403).json({ error: 'Creating shipments is currently disabled while we fine-tune our quotes.' });
+  }
+  // Sandbox: TEST shipments are admin-only, and a TEST order must never
+  // touch a live card — it needs a Stripe test key (sk_test_).
+  const isTest = req.body && req.body.test === true;
+  if (isTest && !isAdmin) {
+    return res.status(403).json({ error: 'Test shipments are admin-only.' });
   }
   if (!db.isEnabled()) {
     return res.status(501).json({ error: 'Shipment payment requires a database. Set DATABASE_URL.' });
@@ -416,9 +424,12 @@ router.post('/checkout', async (req, res) => {
   if (!stripeKey) {
     return res.status(501).json({ error: 'Stripe is not configured: set STRIPE_SECRET_KEY on the server.' });
   }
+  if (isTest && stripeKey && stripeKey.startsWith('sk_live')) {
+    return res.status(400).json({ error: 'Test shipments need a Stripe test key (sk_test_). Refusing to charge a live card for a test.' });
+  }
   let prepared;
   try {
-    prepared = await prepareOrder(req.body || {}, req.user.id);
+    prepared = await prepareOrder(req.body || {}, req.user.id, { testMode: isTest });
   } catch (e) {
     return res.status(e.status || 500).json({ error: e.message });
   }
@@ -461,13 +472,13 @@ router.post('/checkout', async (req, res) => {
         },
         quantity: 1,
       }],
-      metadata: { type: 'shipment_payment', order_id: order.id, user_id: req.user.id },
+      metadata: { type: 'shipment_payment', order_id: order.id, user_id: req.user.id, test_mode: isTest ? '1' : '0' },
       payment_intent_data: { metadata: { type: 'shipment_payment', order_id: order.id } },
       success_url: `${origin}/?shipment=paid&order_id=${encodeURIComponent(order.id)}`,
       cancel_url: `${origin}/?shipment=cancelled`,
     });
     await db.query('UPDATE orders SET stripe_checkout_session_id = $2 WHERE id = $1', [order.id, session.id]);
-    return res.json({ url: session.url, order_id: order.id });
+    return res.json({ url: session.url, order_id: order.id, test_mode: order.test_mode });
   } catch (err) {
     console.error('[shipments/checkout]', err.message);
     return res.status(502).json({ error: 'Could not start payment: ' + err.message });
@@ -486,9 +497,11 @@ router.post('/complete', async (req, res) => {
     return res.status(403).json({ error: 'Scheduling without payment is restricted to staff. Please pay online to schedule this shipment.' });
   }
   const effectiveUserId = (req.user && req.user.id) || (req.body || {}).user_id || null;
+  // Sandbox TEST order (the isAdmin gate above already restricts this route to staff).
+  const isTestComplete = req.body && req.body.test === true;
   let prepared;
   try {
-    prepared = await prepareOrder(req.body || {}, effectiveUserId);
+    prepared = await prepareOrder(req.body || {}, effectiveUserId, { testMode: isTestComplete });
   } catch (e) {
     return res.status(e.status || 500).json({ error: e.message });
   }
@@ -505,6 +518,7 @@ router.post('/complete', async (req, res) => {
       tracking_code: null,
       label_url: null,
       charged_amount: order.charged_amount,
+      test_mode: order.test_mode,
       payment: 'unpaid',
       payment_note: 'This shipment contains dangerous goods and is under review. We will confirm acceptance before any payment is collected.',
       bol_url: `/api/shipments/bol/${encodeURIComponent(order.id)}`,
@@ -548,8 +562,9 @@ router.post('/complete', async (req, res) => {
     tracking_code: order.tracking_code,
     label_url: order.label_url,
     charged_amount: order.charged_amount,
+    test_mode: order.test_mode,
     payment: 'unpaid',
-    payment_note: 'Stripe is not configured — this load was scheduled without payment (test mode).',
+    payment_note: isTestComplete ? 'TEST shipment — marked TEST end to end. No payment collected, no carrier contacted.' : 'Stripe is not configured — this load was scheduled without payment (test mode).',
     bol_url: `/api/shipments/bol/${encodeURIComponent(order.id)}`,
   });
 });

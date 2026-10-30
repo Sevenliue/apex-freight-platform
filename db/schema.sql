@@ -154,6 +154,7 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS stripe_checkout_session_id varchar(2
 -- Shipper's order # + receiver's PO #: required on every shipment, for reporting.
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipper_order_no varchar(255);
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS receiver_po_no varchar(255);
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS test_mode boolean NOT NULL DEFAULT false;
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS orders (
     id                     uuid            PRIMARY KEY DEFAULT gen_random_uuid(),

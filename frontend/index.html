@@ -603,6 +603,7 @@
           <p class="note">Covers loss or damage beyond standard carrier liability: 1% of declared value (minimum $20), added to your total at cost.</p>
           <p class="note hidden" id="cm-ins-preview"></p>
           <label class="chk"><input type="checkbox" id="cm-terms"> I agree to the <a href="#" id="cm-terms-link">Terms of Service</a> *</label>
+          <label class="chk" id="cm-test-row" style="display:none"><input type="checkbox" id="cm-test"> TEST shipment — marked TEST end to end. No carrier contacted, no real charge.</label>
           <div class="actions">
             <button type="button" class="btn primary" id="cm-confirm">Confirm — Create This Shipment</button>
           </div>
@@ -3276,6 +3277,8 @@
       $('#cm-ref-num').value = '';
       $('#cm-po-num').value = '';
       $('#cm-terms').checked = false;
+      $('#cm-test-row').style.display = qoIsAdmin() ? '' : 'none';
+      $('#cm-test').checked = false;
       $('#cm-note-1').value = (q.delivery_note_1 || '').slice(0, 60);
       $('#cm-note-2').value = (q.delivery_note_2 || '').slice(0, 60);
       $('#cm-private-notes').value = q.private_notes || '';
@@ -3346,6 +3349,7 @@
           add_insurance: $('#cm-add-insurance').checked,
           declared_value: Math.max(0, parseFloat($('#cm-declared-value').value) || 0),
           terms_accepted: true,
+          test: !!($('#cm-test') && $('#cm-test').checked),
           user_id: lastQuoteParams.user_id,
           region: lastQuoteParams.region,
           direction: lastQuoteParams.direction,
@@ -3394,7 +3398,7 @@
       if (res.status === 'dg_review') {
         $('#complete-result').innerHTML = `
           <div class="card dg-notice" style="margin-top:12px">
-            <h3>⚠ Under dangerous-goods review</h3>
+            <h3>⚠ Under dangerous-goods review${res.test_mode ? ' <span class="badge">TEST</span>' : ''}</h3>
             <p><strong>${esc(res.carrier)}</strong>${res.service ? ' — ' + esc(res.service) : ''} · ${cad(res.charged_amount)}</p>
             <p>${esc(res.payment_note || 'This shipment contains dangerous goods and is under review. We will confirm acceptance before any payment is collected.')}</p>
             <div class="actions">
@@ -3405,13 +3409,13 @@
         return;
       }
       const payNote = testMode
-        ? '<p class="note">Test mode: Stripe is not connected, so no payment was collected for this load.</p>'
+        ? `<p class="note">${esc(res.payment_note || 'Test mode: Stripe is not connected, so no payment was collected for this load.')}</p>`
         : res.payment === 'unpaid'
           ? `<p class="note">${esc(res.payment_note || 'No payment collected.')}</p>`
           : '<p class="note">Payment received — load scheduled.</p>';
       $('#complete-result').innerHTML = `
         <div class="card" style="margin-top:12px">
-          <h3>Shipment ${res.status === 'purchased' ? 'booked' : 'scheduled'}</h3>
+          <h3>Shipment ${res.status === 'purchased' ? 'booked' : 'scheduled'}${res.test_mode ? ' <span class="badge">TEST</span>' : ''}</h3>
           <p><strong>${esc(res.carrier)}</strong>${res.service ? ' — ' + esc(res.service) : ''}</p>
           <p>PRO / Tracking: <strong>${esc(res.tracking_code || '—')}</strong></p>
           <p>Total charged: <strong>${cad(res.charged_amount)}</strong></p>
@@ -3640,7 +3644,7 @@
       box.innerHTML = pickups.map((p) => `
         <div class="card" style="margin-bottom:10px">
           <div><strong>${esc(p.order_ref || 'Shipment')}</strong>
-            <span class="badge">${esc(PICKUP_STATUS_LABELS[p.status] || p.status)}</span></div>
+            <span class="badge">${esc(PICKUP_STATUS_LABELS[p.status] || p.status)}</span>${p.test_mode ? ' <span class="badge">TEST</span>' : ''}</div>
           <div class="muted">${esc(p.pickup_date || '')} · ${esc(p.time_window_label || p.time_window || '')}</div>
           ${p.contact_name ? `<div>Contact: ${esc(p.contact_name)}${p.contact_phone ? ' · ' + esc(p.contact_phone) : ''}</div>` : ''}
           ${p.notes ? `<div class="muted">${esc(p.notes)}</div>` : ''}
@@ -4305,7 +4309,7 @@
               (p) => `<tr>
               <td>${esc(p.pickup_date || '—')}</td>
               <td>${esc(winLabel[p.time_window] || p.time_window || '—')}</td>
-              <td>${esc(p.order_ref || '—')}${p.carrier ? '<br>' + esc(p.carrier) : ''}</td>
+              <td>${esc(p.order_ref || '—')}${p.carrier ? '<br>' + esc(p.carrier) : ''}${p.test_mode ? '<br><span class="badge">TEST</span>' : ''}</td>
               <td>${esc(p.user_email || '—')}</td>
               <td>${esc(p.contact_name || '—')}${p.contact_phone ? '<br>' + esc(p.contact_phone) : ''}</td>
               <td>${esc(p.notes || '—')}</td>

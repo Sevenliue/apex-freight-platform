@@ -82,38 +82,39 @@ async function notify(event, order, opts = {}) {
     const admin = adminEmail();
     const route = order ? routeOf(order) : '';
     const ref = order && order.shipper_order_no ? ` (your order #${order.shipper_order_no})` : '';
+    const testPrefix = (order && order.test_mode) || opts.testMode ? '[TEST] ' : '';
     switch (event) {
       case 'order_created':
         await sendEmail({
-          to: customer, event, subject: `Shipment received — ${route}`,
+          to: customer, event, subject: testPrefix + `Shipment received — ${route}`,
           text: `Thanks — we received your shipment request${ref} for ${route}.\nCarrier: ${order.carrier || '—'}\nAmount: ${money(order.charged_amount)} CAD\nRequested pickup: ${((order.bol || {}).pickup_date) || '—'}\nWe will confirm scheduling shortly.`,
         });
         break;
       case 'dg_review':
         await sendEmail({
-          to: customer, event, subject: `Dangerous goods review — ${route}`,
+          to: customer, event, subject: testPrefix + `Dangerous goods review — ${route}`,
           text: `Your shipment${ref} for ${route} contains dangerous goods and is under review.\nNo payment has been collected. We will confirm whether a carrier accepts the load and then release it for payment.`,
         });
         await sendEmail({
-          to: admin, event, subject: `DG review needed — ${route}`,
+          to: admin, event, subject: testPrefix + `DG review needed — ${route}`,
           text: `A dangerous-goods shipment is waiting in the DG review queue.\nRoute: ${route}\nCarrier: ${order.carrier || '—'}\nAmount: ${money(order.charged_amount)} CAD\nApprove or reject it in Admin → Dangerous goods review.`,
         });
         break;
       case 'payment_succeeded':
         await sendEmail({
-          to: customer, event, subject: `Payment received — load scheduled (${route})`,
+          to: customer, event, subject: testPrefix + `Payment received — load scheduled (${route})`,
           text: `Payment of ${money(order.charged_amount)} CAD received — your load${ref} is scheduled.\nRoute: ${route}\nCarrier: ${order.carrier || '—'}\nPRO / tracking: ${order.tracking_code || '—'}\nRequested pickup: ${((order.bol || {}).pickup_date) || '—'}`,
         });
         break;
       case 'tendered':
         await sendEmail({
-          to: customer, event, subject: `Your load is booked — ${route}`,
+          to: customer, event, subject: testPrefix + `Your load is booked — ${route}`,
           text: `Your load${ref} is now booked with the carrier.\nCarrier: ${order.carrier || '—'}\nCarrier PRO: ${order.carrier_pro || '—'}\nRequested pickup: ${((order.bol || {}).pickup_date) || '—'}`,
         });
         break;
       case 'cancelled':
         await sendEmail({
-          to: customer, event, subject: `Shipment cancelled — ${route}`,
+          to: customer, event, subject: testPrefix + `Shipment cancelled — ${route}`,
           text: `Your shipment${ref} for ${route} has been cancelled.${opts.refunded ? '\nYour payment has been refunded.' : ''}`,
         });
         break;
@@ -145,7 +146,7 @@ async function notify(event, order, opts = {}) {
       case 'pickup_requested': {
         const p = opts.pickup || {};
         await sendEmail({
-          to: admin, event, subject: `Pickup requested — ${p.pickup_date || '?'} (${p.time_window || '?'})`,
+          to: admin, event, subject: testPrefix + `Pickup requested — ${p.pickup_date || '?'} (${p.time_window || '?'})`,
           text: `A customer booked a carrier pickup.\nOrder: ${p.order_ref || '—'}\nRoute: ${p.route || '—'}\nPickup date: ${p.pickup_date || '—'}\nTime window: ${p.time_window || '—'}\nContact: ${p.contact_name || '—'} ${p.contact_phone || ''}\nNotes: ${p.notes || '—'}\nCustomer: ${p.user_email || '—'}\n\nConfirm it with the carrier, then update the status in Admin → Pickup requests.`,
         });
         break;

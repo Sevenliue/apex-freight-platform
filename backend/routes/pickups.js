@@ -50,6 +50,7 @@ function rowToPickup(r) {
     contact_phone: r.contact_phone,
     notes: r.notes,
     status: r.status,
+    test_mode: !!r.test_mode,
     created_at: r.created_at,
   };
 }
@@ -59,7 +60,7 @@ router.get('/', async (req, res) => {
   if (needDb(res)) return;
   try {
     const r = await db.query(
-      `SELECT p.*, o.tracking_code, o.shipper_order_no, o.carrier
+      `SELECT p.*, o.tracking_code, o.shipper_order_no, o.carrier, o.test_mode
          FROM pickup_requests p
          LEFT JOIN orders o ON o.id = p.order_id
         WHERE p.user_id = $1
@@ -78,7 +79,7 @@ router.get('/orders', async (req, res) => {
   if (needDb(res)) return;
   try {
     const r = await db.query(
-      `SELECT id, tracking_code, shipper_order_no, carrier, status, created_at
+      `SELECT id, tracking_code, shipper_order_no, carrier, status, created_at, test_mode
          FROM orders
         WHERE user_id = $1
         ORDER BY created_at DESC
@@ -91,6 +92,7 @@ router.get('/orders', async (req, res) => {
         ref: o.tracking_code || o.shipper_order_no || o.id.slice(0, 8),
         carrier: o.carrier,
         status: o.status,
+        test_mode: !!o.test_mode,
       })),
     });
   } catch (err) {
@@ -115,7 +117,7 @@ router.post('/', async (req, res) => {
     if (pickupDate < today) return res.status(400).json({ error: 'Pick up date cannot be in the past.' });
 
     // The order must belong to the signed-in account.
-    const own = await db.query('SELECT id, tracking_code, shipper_order_no, user_id FROM orders WHERE id = $1', [orderId]);
+    const own = await db.query('SELECT id, tracking_code, shipper_order_no, user_id, test_mode FROM orders WHERE id = $1', [orderId]);
     if (!own.rows.length || String(own.rows[0].user_id) !== String(req.user.id)) {
       return res.status(404).json({ error: 'Shipment not found.' });
     }
@@ -162,6 +164,7 @@ router.post('/', async (req, res) => {
       userEmail = u.rows.length ? u.rows[0].email : null;
     } catch { /* non-fatal */ }
     notifyLib.notify('pickup_requested', null, {
+      testMode: !!order.test_mode,
       pickup: {
         pickup_date: pickupDate,
         time_window: WINDOW_LABELS[timeWindow],
@@ -173,7 +176,7 @@ router.post('/', async (req, res) => {
       },
     });
 
-    res.status(201).json({ pickup: rowToPickup({ ...pickup, tracking_code: order.tracking_code, shipper_order_no: order.shipper_order_no }) });
+    res.status(201).json({ pickup: rowToPickup({ ...pickup, tracking_code: order.tracking_code, shipper_order_no: order.shipper_order_no, test_mode: !!order.test_mode }) });
   } catch (err) {
     console.error('[pickups] create failed:', err.message);
     res.status(500).json({ error: 'Could not book the pickup.' });
@@ -227,7 +230,7 @@ router.get('/admin/queue', async (req, res) => {
   if (!(await requireAdmin(req, res))) return;
   try {
     const r = await db.query(
-      `SELECT p.*, o.tracking_code, o.shipper_order_no, o.carrier, u.email AS user_email
+      `SELECT p.*, o.tracking_code, o.shipper_order_no, o.carrier, o.test_mode, u.email AS user_email
          FROM pickup_requests p
          LEFT JOIN orders o ON o.id = p.order_id
          LEFT JOIN users u ON u.id = p.user_id
