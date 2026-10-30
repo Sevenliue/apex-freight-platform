@@ -3402,7 +3402,7 @@
             <p><strong>${esc(res.carrier)}</strong>${res.service ? ' — ' + esc(res.service) : ''} · ${cad(res.charged_amount)}</p>
             <p>${esc(res.payment_note || 'This shipment contains dangerous goods and is under review. We will confirm acceptance before any payment is collected.')}</p>
             <div class="actions">
-              <a class="btn" href="${esc(res.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a>
+              <a class="btn" href="${esc(res.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a> <a class="btn" href="${esc(res.bol_url.replace('/bol/', '/label/'))}" target="_blank" rel="noopener">Print 4×6 Label</a>
             </div>
           </div>`;
         $('#complete-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -3421,7 +3421,7 @@
           <p>Total charged: <strong>${cad(res.charged_amount)}</strong></p>
           ${payNote}
           <div class="actions">
-            <a class="btn" href="${esc(res.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a>${label}
+            <a class="btn" href="${esc(res.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a> <a class="btn" href="${esc(res.bol_url.replace('/bol/', '/label/'))}" target="_blank" rel="noopener">Print 4×6 Label</a>${label}
           </div>
         </div>`;
       $('#complete-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -5286,7 +5286,7 @@
             .map(
               (q) => `<tr>
               <td>${esc((q.created_at || '').slice(0, 10))}</td>
-              <td>${esc(q.route || '—')}<br><a href="${esc(q.bol_url)}" target="_blank" rel="noopener">BOL</a></td>
+              <td>${esc(q.route || '—')}<br><a href="${esc(q.bol_url)}" target="_blank" rel="noopener">BOL</a> · <a href="${esc(q.bol_url.replace('/bol/', '/label/'))}" target="_blank" rel="noopener">4×6 Label</a></td>
               <td>${esc(q.customer_email || '—')}</td>
               <td>${(q.dg_lines || []).map((l) => `${esc(l.product)} — UN ${esc(l.un_number)}, Class ${esc(l.class)}${l.pkg_group && l.pkg_group !== '—' ? ', PG ' + esc(l.pkg_group) : ''} (${esc(String(l.qty))} pcs, ${esc(String(l.weight_lb))} lb total)`).join('<br>') || '—'}</td>
               <td class="num">${cad(q.charged_amount)}</td>
@@ -5341,7 +5341,7 @@
               (t) => `<tr>
               <td>${esc((t.created_at || '').slice(0, 10))}</td>
               <td><strong>${esc(t.pickup_date || '—')}</strong></td>
-              <td><strong>${esc(t.tracking_code || '—')}</strong><br><a href="${esc(t.bol_url)}" target="_blank" rel="noopener">BOL</a></td>
+              <td><strong>${esc(t.tracking_code || '—')}</strong><br><a href="${esc(t.bol_url)}" target="_blank" rel="noopener">BOL</a> · <a href="${esc(t.bol_url.replace('/bol/', '/label/'))}" target="_blank" rel="noopener">4×6 Label</a></td>
               <td>${esc(t.route || '—')}</td>
               <td>${esc(t.carrier || '—')}</td>
               <td>${esc(t.shipper_order_no || '—')}</td>
@@ -6851,7 +6851,7 @@
               (o.shipper_order_no ? `<p>Shipper's order #: <strong>${esc(o.shipper_order_no)}</strong></p>` : '') +
               (o.receiver_po_no ? `<p>Receiver's PO #: <strong>${esc(o.receiver_po_no)}</strong></p>` : '') +
               `<p>Total charged: <strong>${cad(o.charged_amount)}</strong></p>` +
-              `<div class="actions"><a class="btn primary" href="${esc(o.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a>${label}</div></div>`;
+              `<div class="actions"><a class="btn primary" href="${esc(o.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a> <a class="btn" href="${esc(o.bol_url.replace('/bol/', '/label/'))}" target="_blank" rel="noopener">Print 4×6 Label</a>${label}</div></div>`;
             box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             return;
           }
@@ -8708,11 +8708,13 @@
     // session attached instead. Covers all four BOL buttons: booking
     // result, quote log, tenders, and shipment list.
     function openBolLink(e) {
-      const a = e.target && e.target.closest ? e.target.closest('a[href*="/api/shipments/bol/"]') : null;
+      const a = e.target && e.target.closest ? e.target.closest('a[href*="/api/shipments/bol/"], a[href*="/api/shipments/label/"]') : null;
       if (!a) return;
       if (e.type === 'auxclick' && e.button !== 1) return;
       e.preventDefault();
-      api.openBol(a.getAttribute('href'));
+      const href = a.getAttribute('href');
+      if (href.includes('/api/shipments/label/')) api.openLabel(href);
+      else api.openBol(href);
     }
     document.addEventListener('click', openBolLink);
     document.addEventListener('auxclick', openBolLink);

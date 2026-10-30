@@ -59,6 +59,8 @@ export async function openBol(url) {
   return true;
 }
 
+export const openLabel = openBol;
+
 // Requests time out instead of hanging forever: a stalled network used to
 // leave buttons like "Getting rates..." disabled with no error shown.
 const REQUEST_TIMEOUT_MS = 60000;
