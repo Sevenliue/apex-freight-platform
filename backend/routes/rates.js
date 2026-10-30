@@ -691,10 +691,18 @@ router.post('/', async (req, res) => {
   // absent). Non-fatal: any failure here leaves the broker board untouched.
   try {
     if (companyOwn) {
+      // Bee FSC: admin carrier_fsc override wins, else the PDF 33%.
+      // Guarded so a cache-read failure can never take down own rows.
+      let beeFuelPct;
+      try {
+        const ov = typeof matrix.getFscOverrides === 'function' ? matrix.getFscOverrides().beeexpress : null;
+        if (ov && Number.isFinite(Number(ov.ltl))) beeFuelPct = Number(ov.ltl) / 100;
+      } catch (_) { beeFuelPct = undefined; }
       const merged = companyRates.mergePortalRows({
         rates,
         markers: companyOwn.carriers,
         bee,
+        beeFuelPct,
         originCity: origin.city,
         destCity: destination.city,
         totalWeightLbs,

@@ -12,8 +12,10 @@
 // - Minimum charge of 2 tires applies: 1 tire bills as 2.
 // - Penhold appears in both PDF town lists; assigned to SOUTH here.
 // - Farm weight bands are PER TIRE (a farm tire weighs 150-1000 lb).
-// - Fuel is 33% of freight (matches every PDF row to the cent except the
-//   table-1 500-750 band, whose printed fuel $34.40 is stored exactly).
+// - Fuel defaults to 33% of freight (PDF value; matches every PDF row to
+//   the cent except the table-1 500-750 band, whose printed fuel $34.40
+//   is stored exactly). An admin carrier_fsc override for beeexpress
+//   replaces it — see mergePortalRows beeFuelPct.
 // - Corridor is picked from the destination town first, then the origin
 //   town; direction does not change the flats.
 'use strict';
@@ -68,7 +70,7 @@ function corridorFor(originCity, destCity) {
 // tires: { flat, mt, semi } counts; farmWeights: per-tire weights (lb).
 // Returns { freight, fuel, total, detail } (pre-tax) or
 // { rate_on_request: true, reason } when any input cannot be priced.
-function beeExpressQuote({ originCity, destCity, flat = 0, mt = 0, semi = 0, farmWeights = [] }) {
+function beeExpressQuote({ originCity, destCity, flat = 0, mt = 0, semi = 0, farmWeights = [], fuelPct = FUEL_PCT }) {
   const corridor = corridorFor(originCity, destCity);
   if (!corridor) return { rate_on_request: true, reason: 'lane outside Bee Express Acheson corridor' };
   const rates = FLATS[corridor];
@@ -101,8 +103,9 @@ function beeExpressQuote({ originCity, destCity, flat = 0, mt = 0, semi = 0, far
   }
   if (freight <= 0) return { rate_on_request: true, reason: 'no priced tires' };
   freight = round2(freight);
-  const fuel = round2(freight * FUEL_PCT);
-  return { freight, fuel, total: round2(freight + fuel), detail: detail.join(', ') };
+  const pct = (typeof fuelPct === 'number' && fuelPct >= 0) ? fuelPct : FUEL_PCT;
+  const fuel = round2(freight * pct);
+  return { freight, fuel, total: round2(freight + fuel), fuelPct: pct, detail: detail.join(', ') };
 }
 
 module.exports = {

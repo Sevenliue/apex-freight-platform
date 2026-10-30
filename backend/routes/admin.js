@@ -695,6 +695,23 @@ router.get('/fsc', async (req, res) => {
       fsc_cadence_label: FSC_CADENCE_LABELS[c.fsc_cadence] || '—',
       fsc_stale: fscStale(c.fsc_as_of, c.fsc_cadence),
     }));
+    // Bee Express is portal-only (no matrix lanes), so it is not in
+    // listCarriers — append it so its FSC is editable like any carrier.
+    // Default 33% is the PDF value; an override replaces it on quotes.
+    const beeOv = (typeof matrix.getFscOverrides === 'function' && matrix.getFscOverrides().beeexpress) || null;
+    carriers.push({
+      carrier_id: 'beeexpress',
+      carrier_label: 'Bee Express',
+      lane_count: 0,
+      rate_sheet_ltl: 33,
+      fsc_ltl_percent: beeOv ? beeOv.ltl : null,
+      fsc_tl_percent: beeOv ? beeOv.tl : null,
+      fsc_overridden: !!beeOv,
+      fsc_as_of: (beeOv && beeOv.updated_at) || null,
+      fsc_cadence: 'per_sheet',
+      fsc_cadence_label: 'Per sheet',
+      fsc_stale: false,
+    });
     return res.json({ carriers });
   } catch (err) {
     return res.status(502).json({ error: 'Could not load fuel surcharges: ' + err.message });
@@ -711,7 +728,7 @@ router.put('/fsc/bulk', async (req, res) => {
   const updates = Array.isArray((req.body || {}).updates) ? req.body.updates : [];
   if (!updates.length) return res.json({ updated: [], errors: [] });
   if (updates.length > 500) return res.status(400).json({ error: 'Too many rows (max 500).' });
-  const known = new Set(matrix.listCarriers().map((c) => c.carrier_id));
+  const known = new Set([...matrix.listCarriers().map((c) => c.carrier_id), 'beeexpress']);
   const clean = (v) => {
     if (v === '' || v == null) return null;
     const n = Number(v);
@@ -763,7 +780,7 @@ router.put('/fsc/:carrier_id', async (req, res) => {
   if (needDb(res)) return;
   if (!(await requireAdmin(req, res))) return;
   const carrierId = String(req.params.carrier_id || '').trim();
-  const known = matrix.listCarriers().some((c) => c.carrier_id === carrierId);
+  const known = matrix.listCarriers().some((c) => c.carrier_id === carrierId) || carrierId === 'beeexpress';
   if (!known) return res.status(404).json({ error: 'Unknown carrier.' });
   const body = req.body || {};
   const clean = (v) => {

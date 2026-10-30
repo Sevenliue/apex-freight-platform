@@ -62,7 +62,7 @@ function isBookableOwnRate(rate, markers) {
 // rate_kind 'own' + billing 'carrier_direct'; broker rows carry neither.
 // Own rows exclude the platform add-on insurance (a carrier-direct booking
 // bills freight only). Callers must NOT pass another company's markers.
-function mergePortalRows({ rates, markers, bee, originCity, destCity, totalWeightLbs, transit, estDeliveryDate, transitDaysUpper }) {
+function mergePortalRows({ rates, markers, bee, originCity, destCity, totalWeightLbs, transit, estDeliveryDate, transitDaysUpper, beeFuelPct }) {
   // TEAMS: kept in the pricing set only for marker members; convert in
   // place (no broker copy ever exists for TEAMS — private rates).
   for (const r of rates) {
@@ -99,10 +99,13 @@ function mergePortalRows({ rates, markers, bee, originCity, destCity, totalWeigh
   });
   merged.push(...ownRows);
   // Bee Express per-tire own row (Total Tire's Acheson corridor tables).
+  // Fuel: admin carrier_fsc override wins, else the PDF 33% default.
   if (markers.get('beeexpress') && bee) {
+    const fuelPct = (typeof beeFuelPct === 'number' && beeFuelPct >= 0) ? beeFuelPct : 0.33;
     const q = beeRates.beeExpressQuote({
       originCity, destCity,
       flat: bee.flat, mt: bee.mt, semi: bee.semi, farmWeights: bee.farmWeights,
+      fuelPct,
     });
     if (!q.rate_on_request) {
       const brokerBee = merged.find((r) => r.carrier_id === 'beeexpress' && r.retail_cad != null && !r.rate_on_request);
@@ -114,7 +117,7 @@ function mergePortalRows({ rates, markers, bee, originCity, destCity, totalWeigh
         cost_cad: q.total,
         retail_cad: q.total,
         currency: 'CAD',
-        fsc_percent: 33,
+        fsc_percent: Math.round(fuelPct * 10000) / 100,
         delivery_days: transit,
         transit_estimate: true,
         est_delivery_date: estDeliveryDate(transitDaysUpper(transit)),
