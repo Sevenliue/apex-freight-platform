@@ -132,6 +132,16 @@ function mergePortalRows({ rates, markers, bee, originCity, destCity, totalWeigh
       merged = merged.filter((r) => !(r.carrier_id === 'beeexpress' && r.rate_kind !== 'own' && r.retail_cad != null && !(r.retail_cad < q.total)));
     }
   }
+  // Reading 1 (Seven, 2026-10-29): a portal member sees ONLY their own
+  // carriers' rows. Exception: when the board has zero own rows (the
+  // company covers none of this lane), the ShipRate broker rows stay
+  // visible so the shipper can still ship on the site — those bookings
+  // go through ShipRate as broker at the 15% markup. This supersedes
+  // the Oct 28 same-carrier-broker-cheaper exception for portal
+  // members: with own rows present, no broker row shows at all.
+  if (merged.some((r) => r.rate_kind === 'own')) {
+    return merged.filter((r) => r.rate_kind === 'own');
+  }
   return merged;
 }
 
