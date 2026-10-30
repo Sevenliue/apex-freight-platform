@@ -212,7 +212,7 @@ async function seedTotalTireRates() {
 // rows); otherwise { carriers: Map(carrier_id -> { shape, payload }) }.
 async function getCompanyOwnRates(companyId) {
   if (!db.isEnabled() || !companyId) return null;
-  const flag = await db.query('SELECT portal_enabled FROM companies WHERE id = $1', [companyId]);
+  const flag = await db.query('SELECT portal_enabled, name FROM companies WHERE id = $1', [companyId]);
   if (!flag.rows.length || !flag.rows[0].portal_enabled) return null;
   const r = await db.query(
     'SELECT carrier_id, shape, payload FROM company_rates WHERE company_id = $1',
@@ -220,7 +220,21 @@ async function getCompanyOwnRates(companyId) {
   if (!r.rows.length) return null;
   const carriers = new Map();
   for (const row of r.rows) carriers.set(row.carrier_id, { shape: row.shape, payload: row.payload });
-  return { carriers };
+  return { carriers, companyId, companyName: flag.rows[0].name || null };
+}
+
+// Coverage gap (portal): a member company (markers non-empty) whose board
+// has no own-rate row — i.e. none of their carriers covers this lane.
+// Returns the gap flag plus the cheapest priced broker rows (the
+// discussion candidates for staff). Pure: no DB, no email.
+function getCoverageGap({ markers, rates }) {
+  if (!markers || markers.size === 0) return { gap: false, candidates: [] };
+  if ((rates || []).some((r) => r.rate_kind === 'own')) return { gap: false, candidates: [] };
+  const priced = (rates || [])
+    .filter((r) => r.retail_cad != null && !r.rate_on_request)
+    .sort((a, b) => a.retail_cad - b.retail_cad);
+  if (!priced.length) return { gap: false, candidates: [] };
+  return { gap: true, candidates: priced.slice(0, 2) };
 }
 
 ensureCompanyRateTables()
@@ -233,6 +247,7 @@ module.exports = {
   PER_TIRE_CARRIERS,
   BEE_CORRIDOR: { south: beeRates.SOUTH_TOWNS, north: beeRates.NORTH_TOWNS },
   mergePortalRows,
+  getCoverageGap,
   isBookableOwnRate,
   ensureCompanyRateTables,
   seedTotalTireRates,

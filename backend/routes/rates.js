@@ -35,6 +35,7 @@ const billingLib = require('../lib/billing');
 const { rateCheckedFor } = require('../lib/sheet-dates');
 const holidays = require('../lib/holidays');
 const companyRates = require('../lib/company-rates');
+const coverageGapLib = require('../lib/coverage-gap');
 
 const router = express.Router();
 
@@ -720,6 +721,31 @@ router.post('/', async (req, res) => {
   // One ranked board: cheapest sell price first.
   rates.sort((a, b) => a.retail_cad - b.retail_cad);
 
+  // Coverage gap (portal, Seven 2026-10-29): a member company whose board
+  // has no own-rate row gets ShipRate broker rates (already on the board)
+  // plus a staff notification so staff can discuss adding a carrier.
+  // Fire-and-forget: never slows or fails the quote.
+  let coverageGap = false;
+  try {
+    if (companyOwn) {
+      const gap = companyRates.getCoverageGap({ markers: companyOwn.carriers, rates });
+      coverageGap = gap.gap;
+      if (gap.gap) {
+        coverageGapLib.maybeNotifyCoverageGap({
+          companyId: companyOwn.companyId || null,
+          companyName: companyOwn.companyName || null,
+          userEmail: (req.user && req.user.email) || null,
+          originCity: origin.city, originProv: origin.prov,
+          destCity: destination.city, destProv: destination.prov,
+          weightLbs: totalWeightLbs,
+          candidates: gap.candidates,
+        }).catch(() => {});
+      }
+    }
+  } catch (err) {
+    console.error('[rates] coverage gap check failed (non-fatal):', err.message);
+  }
+
   // Persist the quote when a database is configured (non-fatal).
   let db_quote_id = null;
   if (db.isEnabled()) {
@@ -795,6 +821,11 @@ router.post('/', async (req, res) => {
       origin_city: origin.city || '',
       dest_city: destination.city || '',
     })),
+    // Coverage gap (portal): true when the caller's company has no
+    // own-rate row on this board — the rates shown are ShipRate broker
+    // rates. A staff notification fires best-effort (one email per
+    // company + lane per day) to discuss adding a carrier.
+    coverage_gap: coverageGap,
     // Sep 30 delay warning for non-BC lanes (federally regulated carriers).
     holiday_notice: holidays.truthReconciliationNotice(
       pickup_date,
