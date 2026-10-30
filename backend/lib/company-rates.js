@@ -25,6 +25,11 @@ const TOTAL_TIRE_ADMIN_EMAIL = 'hongbo_liu@kaltire.com';
 const LIVE_LINK_CARRIERS = [
   'jays', 'armour', 'willys', 'hifab', 'bandstra', 'jrhall', 'guilbault',
   'minimax', 'morneau', 'number8', 'minimax_ltl', 'grimshaw',
+  // Flipped B→A 2026-10-30 (Seven): all remaining broker carriers join
+  // Total Tire's own-rate board — Total Tire now covers all 26 engine
+  // carriers (TEAMS via 'engine' shape, Bee via per-tire payload).
+  'rosenau', 'gardewine', 'minimax_ottawa', 'rockfall', 'j6', 'paexpress',
+  'ckj', 'flatlander', 'donedeal', 'knr', 'provincial', 'redriver',
 ];
 const ENGINE_CARRIERS = ['teams'];
 const PER_TIRE_CARRIERS = ['beeexpress'];
