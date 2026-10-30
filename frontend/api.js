@@ -27,6 +27,38 @@ export function setAuthToken(token) {
   }
 }
 
+// Open a bill of lading in a new tab WITH the session attached. The BOL
+// endpoint requires auth (Bearer token from localStorage), but a plain link
+// click never carries that header — which is why Print BOL answered "Sign
+// in required." even for signed-in shippers. Fetch the self-contained BOL
+// HTML with the token, then write it into a tab opened synchronously from
+// the click (popup-blocker safe). The token never goes in the URL.
+export async function openBol(url) {
+  const win = window.open('about:blank', '_blank');
+  if (!win) return false;
+  try {
+    const headers = {};
+    const token = getAuthToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(url, { headers });
+    if (!res.ok) {
+      win.document.write(`<!doctype html><title>Bill of lading</title><p>Could not open the bill of lading (${res.status}). Please try again from the shipment list.</p>`);
+      win.document.close();
+      return true;
+    }
+    const html = await res.text();
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+  } catch {
+    try {
+      win.document.write('<!doctype html><title>Bill of lading</title><p>Could not open the bill of lading. Please check your connection and try again.</p>');
+      win.document.close();
+    } catch { /* tab already closed */ }
+  }
+  return true;
+}
+
 // Requests time out instead of hanging forever: a stalled network used to
 // leave buttons like "Getting rates..." disabled with no error shown.
 const REQUEST_TIMEOUT_MS = 60000;

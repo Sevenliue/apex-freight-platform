@@ -8701,6 +8701,22 @@
       showPanel(a.dataset.page);
     });
 
+    // Bill of lading links carry no session on a plain navigation (the auth
+    // token lives in localStorage and is only attached by fetch calls), so a
+    // direct click answered "Sign in required." even for signed-in shippers.
+    // Intercept every BOL link (left or middle click) and open it with the
+    // session attached instead. Covers all four BOL buttons: booking
+    // result, quote log, tenders, and shipment list.
+    function openBolLink(e) {
+      const a = e.target && e.target.closest ? e.target.closest('a[href*="/api/shipments/bol/"]') : null;
+      if (!a) return;
+      if (e.type === 'auxclick' && e.button !== 1) return;
+      e.preventDefault();
+      api.openBol(a.getAttribute('href'));
+    }
+    document.addEventListener('click', openBolLink);
+    document.addEventListener('auxclick', openBolLink);
+
     // "Back to waiting page" on the public demo / request-carrier panels
     // (visible only while the account is approval-locked).
     document.addEventListener('click', (e) => {
