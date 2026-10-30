@@ -6656,7 +6656,9 @@
        right where the user clicked, instead of doing anything. One delegated
        capture listener covers the quote-page button and both My Orders
        buttons (the empty-orders one is rendered dynamically). The server
-       also rejects the request. */
+       also rejects the request. EXCEPTION (portal, 2026-10-29): a badged
+       own-rate row books carrier-direct, which the server allows in
+       quote-only mode — the listener lets that click through. */
     function showQoTooltip(x, y, msg) {
       document.querySelectorAll('.qo-tip').forEach((t) => t.remove());
       const tip = document.createElement('div');
@@ -6682,6 +6684,18 @@
         ? e.target.closest('#complete-shipment-btn, #dash-create, #dash-empty-create')
         : null;
       if (!t) return;
+      // Company portal: a badged own-rate row books carrier-direct, which
+      // the server allows in quote-only mode (it charges nothing via
+      // ShipRate) — let that click through. Broker bookings and the
+      // dashboard Create buttons stay blocked.
+      if (t.id === 'complete-shipment-btn' && currentQuote) {
+        let selectedRate = null;
+        try {
+          const rid = selectedRateId();
+          selectedRate = (currentQuote.rates || []).find((r) => r.rate_id === rid);
+        } catch (_) { selectedRate = null; }
+        if (selectedRate && selectedRate.billing === 'carrier_direct') return;
+      }
       e.stopImmediatePropagation();
       e.preventDefault();
       showQoTooltip(e.clientX, e.clientY,
