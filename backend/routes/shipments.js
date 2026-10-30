@@ -118,6 +118,7 @@ module.exports = router;
 // ---------------------------------------------------------------------------
 const easypostRoute = require('./easypost');
 const billing = require('../lib/billing');
+const companyRates = require('../lib/company-rates');
 
 function fail(status, message) {
   const e = new Error(message);
@@ -549,6 +550,97 @@ router.post('/complete', async (req, res) => {
     charged_amount: order.charged_amount,
     payment: 'unpaid',
     payment_note: 'Stripe is not configured — this load was scheduled without payment (test mode).',
+    bol_url: `/api/shipments/bol/${encodeURIComponent(order.id)}`,
+  });
+});
+
+// POST /api/shipments/book-direct — company portal carrier-direct booking.
+// An own-rate row books WITHOUT ShipRate payment: the carrier invoices the
+// company directly. Verification is server-side only (never trust the
+// client's billing flag) and runs BEFORE prepareOrder, so a failed check
+// leaves no stray order record: the stored row must be an own-rate row,
+// the caller's company must hold a marker for that carrier, and retail
+// must equal cost. The quote-only site-mode gate is bypassed here ONLY
+// for verified own-rate rows: the gate blocks ShipRate-brokered charges
+// while quotes are fine-tuned, and a carrier-direct booking charges
+// nothing via ShipRate. Account shipping approval (userCanShip) still
+// applies. Cargo insurance is rejected in V1: ShipRate has no payment
+// path for it on carrier-direct bookings.
+router.post('/book-direct', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Sign in to schedule a shipment.' });
+  if (!db.isEnabled()) return res.status(501).json({ error: 'Company portal bookings require a database.' });
+  if (!(await userCanShip(req.user.id))) {
+    return res.status(403).json({ error: 'Your account is not approved for shipping yet. You can keep getting quotes — we will enable scheduling once your account is approved.' });
+  }
+  const body = req.body || {};
+  if (body.add_insurance === true || body.add_insurance === 'true' || body.add_insurance === 'on') {
+    return res.status(400).json({ error: 'Cargo insurance is not available on carrier-direct bookings yet — uncheck insurance or book a ShipRate broker row.' });
+  }
+  const { shipment_id, rate_id } = body;
+  if (!shipment_id || !rate_id) return res.status(400).json({ error: 'shipment_id and rate_id are required' });
+  const quote = store.quotes.get(shipment_id);
+  if (!quote) return res.status(404).json({ error: 'Unknown shipment_id — request a fresh quote first' });
+  const rate = (quote.rates || []).find((r) => r.rate_id === rate_id);
+  if (!rate) return res.status(404).json({ error: 'Unknown rate_id for this shipment' });
+  let ok = false;
+  try {
+    const cu = await db.query('SELECT company_id FROM users WHERE id = $1 LIMIT 1', [req.user.id]);
+    const companyId = cu.rows.length ? cu.rows[0].company_id : null;
+    if (companyId) {
+      const own = await companyRates.getCompanyOwnRates(companyId);
+      ok = !!own && companyRates.isBookableOwnRate(rate, own.carriers);
+    }
+  } catch (err) {
+    console.error('[shipments/book-direct] verification failed:', err.message);
+  }
+  if (!ok) return res.status(403).json({ error: 'That rate is not your company\'s own rate — book it through ShipRate checkout instead.' });
+  let prepared;
+  try {
+    prepared = await prepareOrder(body, req.user.id);
+  } catch (e) {
+    return res.status(e.status || 500).json({ error: e.message });
+  }
+  const { order } = prepared;
+  if (order.status === 'dg_review') {
+    return res.json({
+      order_id: order.id,
+      status: 'dg_review',
+      carrier: order.carrier,
+      service: order.service,
+      tracking_code: null,
+      label_url: null,
+      charged_amount: order.charged_amount,
+      payment: 'unpaid',
+      payment_note: 'This shipment contains dangerous goods and is under review. The carrier will invoice your company directly once acceptance is confirmed.',
+      bol_url: `/api/shipments/bol/${encodeURIComponent(order.id)}`,
+    });
+  }
+  // Matrix carrier: schedule the shipment, mint an internal PRO (own-rate
+  // rows are never EasyPost rows). Record billing so reports can tell
+  // carrier-direct loads apart from ShipRate-brokered ones.
+  order.status = 'scheduled';
+  order.tracking_code = 'APX-' + Math.random().toString(36).slice(2, 8).toUpperCase();
+  if (/^[0-9a-f-]{36}$/i.test(order.id || '')) {
+    try {
+      await db.query('ALTER TABLE orders ADD COLUMN IF NOT EXISTS billing TEXT');
+      await db.query(
+        `UPDATE orders SET status = $2, tracking_code = $3, carrier = $4, service_level = $5, billing = 'carrier_direct' WHERE id = $1`,
+        [order.id, order.status, order.tracking_code, order.carrier, order.service]
+      );
+    } catch (err) {
+      console.error('[shipments/book-direct] order update failed (non-fatal):', err.message);
+    }
+  }
+  return res.json({
+    order_id: order.id,
+    status: order.status,
+    carrier: order.carrier,
+    service: order.service,
+    tracking_code: order.tracking_code,
+    label_url: order.label_url,
+    charged_amount: order.charged_amount,
+    payment: 'unpaid',
+    payment_note: 'Carrier invoices your company directly — nothing charged by ShipRate.',
     bol_url: `/api/shipments/bol/${encodeURIComponent(order.id)}`,
   });
 });

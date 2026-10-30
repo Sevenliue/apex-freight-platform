@@ -34,6 +34,7 @@ const acc = require('../lib/accessorials');
 const billingLib = require('../lib/billing');
 const { rateCheckedFor } = require('../lib/sheet-dates');
 const holidays = require('../lib/holidays');
+const companyRates = require('../lib/company-rates');
 
 const router = express.Router();
 
@@ -204,6 +205,7 @@ router.post('/', async (req, res) => {
     pickup_date: rawPickupDate = '',
     skids: rawSkids = null,
     provincial: rawProvincial = null,
+    bee: rawBee = null,
   } = req.body || {};
 
   // The logged-in account wins over the optional guest user_id label.
@@ -339,6 +341,19 @@ router.post('/', async (req, res) => {
     };
   }
 
+  // Bee Express own-rate prompt (frontend, Acheson corridor only):
+  // sanitized here so rating only ever sees sane counts/weights. Null
+  // when the form sent nothing — the board merge below then adds no
+  // Bee own-rate row (the broker row is unaffected).
+  let bee = null;
+  if (rawBee && typeof rawBee === 'object') {
+    const ci = (v) => { const n = Math.floor(Number(v)); return Number.isFinite(n) && n >= 0 && n <= 1000 ? n : 0; };
+    const farm = Array.isArray(rawBee.farmWeights)
+      ? rawBee.farmWeights.map((w) => Number(w)).filter((n) => Number.isFinite(n) && n > 0 && n <= 10000)
+      : [];
+    bee = { flat: ci(rawBee.flat), mt: ci(rawBee.mt), semi: ci(rawBee.semi), farmWeights: farm };
+  }
+
   const shipment_id = id('q');
   const transit = acc.estimateTransit(origin.state, destination.state);
   // Freight markup for this quote: the signed-in customer's per-account
@@ -416,14 +431,33 @@ router.post('/', async (req, res) => {
     console.error('[rates] exclusion filter failed (continuing):', err.message);
   }
 
+  // Company portal markers for the caller (see the board merge below):
+  // loaded here because the TEAMS board filter below depends on them.
+  // Markers follow the CALLER (req.user), never an effective/user_id
+  // override, so one company can never see another's rates. Non-fatal:
+  // any failure leaves companyOwn null and the board behaves exactly as
+  // before (TEAMS filtered, no own-rate rows).
+  let companyOwn = null;
+  try {
+    if (req.user && db.isEnabled()) {
+      const cu = await db.query('SELECT company_id FROM users WHERE id = $1 LIMIT 1', [req.user.id]);
+      const companyId = cu.rows.length ? cu.rows[0].company_id : null;
+      if (companyId) companyOwn = await companyRates.getCompanyOwnRates(companyId);
+    }
+  } catch (err) {
+    console.error('[rates] company own-rates load failed (continuing):', err.message);
+  }
+
   // TEAMS pulled from the public board (Seven, 2026-10-28; general rule:
   // no shipper quotes another company's rate). TEAMS rates are Total Tire's
   // account rates: the engine data and teamsQuotes stay untouched for Total
   // Tire's own-rate rows once the company portal rating path is built, and
-  // audit re-rates (which call quoteMatrix directly) are unaffected. This
-  // filter applies to the board only, for every caller — including Total
-  // Tire — until the portal restores their own-rate rows.
-  matrixQuotes = matrixQuotes.filter((q) => q.carrier_id !== 'teams');
+  // audit re-rates (which call quoteMatrix directly) are unaffected.
+  // Portal exception (2026-10-29): a caller whose company holds a TEAMS
+  // own-rate marker keeps the rows in the pricing set; the board merge
+  // below converts them to own-rate rows (never a broker row — TEAMS
+  // rates are private). Everyone else still has them filtered here.
+  matrixQuotes = matrixQuotes.filter((q) => q.carrier_id !== 'teams' || (companyOwn && companyOwn.carriers.has('teams')));
 
   // "May also serve this lane": small regional carriers whose coverage area
   // includes an endpoint but who produced NO priced rows on this quote.
@@ -648,6 +682,31 @@ router.post('/', async (req, res) => {
     }
   } catch (err) {
     console.error('[rates] rate-checked attach failed (non-fatal):', err.message);
+  }
+
+  // Company portal board merge (Seven, 2026-10-29): own-rate rows for the
+  // caller's company — see mergePortalRows in lib/company-rates.js for the
+  // rules. Own rows carry rate_kind 'own' + billing 'carrier_direct'
+  // (booking split, phase 4); all other rows are broker rows (fields
+  // absent). Non-fatal: any failure here leaves the broker board untouched.
+  try {
+    if (companyOwn) {
+      const merged = companyRates.mergePortalRows({
+        rates,
+        markers: companyOwn.carriers,
+        bee,
+        originCity: origin.city,
+        destCity: destination.city,
+        totalWeightLbs,
+        transit,
+        estDeliveryDate,
+        transitDaysUpper,
+      });
+      rates.length = 0;
+      rates.push(...merged);
+    }
+  } catch (err) {
+    console.error('[rates] portal merge failed (continuing with broker board):', err.message);
   }
 
   // One ranked board: cheapest sell price first.

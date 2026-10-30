@@ -510,6 +510,18 @@
             </div>
           </div>
         </section>
+        <section class="qq-panel hidden" id="bee-prompt">
+          <h3 class="qq-head">Bee Express — your company's own rate needs tire counts</h3>
+          <div class="qq-body">
+            <p class="note">This lane is in Bee Express's Acheson corridor, and your company has its own Bee Express rate. Enter tire counts for an own-rate row; other carriers quote normally either way.</p>
+            <div class="qq-row">
+              <label class="sm">Flat tires <input name="bee_flat_count" type="number" min="0" max="1000" step="1" placeholder="e.g. 4"></label>
+              <label class="sm">MT (35"+) tires <input name="bee_mt_count" type="number" min="0" max="1000" step="1" placeholder="e.g. 0"></label>
+              <label class="sm">Semi tires <input name="bee_semi_count" type="number" min="0" max="1000" step="1" placeholder="e.g. 0"></label>
+              <label class="grow">Farm tire weights, lb (comma-separated) <input name="bee_farm_weights" type="text" placeholder="e.g. 300, 450"></label>
+            </div>
+          </div>
+        </section>
         <section class="qq-panel">
           <h3 class="qq-head">Packages</h3>
           <p class="note">Enter the <strong>total weight</strong> for each line; length × width × height are for <strong>one piece</strong>.</p>
@@ -2330,13 +2342,21 @@
     document.querySelector('#freight-charges').addEventListener('change', syncBillToBlock);
     syncBillToBlock();
     const PROVINCIAL_TOWNS = ['REGINA', 'MOOSE JAW', 'SWIFT CURRENT', 'WEYBURN', 'ESTEVAN', 'SASKATOON'];
+    /* Bee Express Acheson corridor towns (mirror backend/lib/bee-express-rates.js).
+       Declared above the prompt wiring so the top-level syncBeePrompt() call
+       below never reaches a const/let declared after it (TDZ rule). */
+    const BEE_SOUTH_TOWNS = ['EDMONTON', 'LEDUC', 'NISKU', 'CAMROSE', 'WETASKIWIN', 'PONOKA', 'LACOMBE', 'BLACKFALDS', 'RED DEER', 'PENHOLD'];
+    const BEE_NORTH_TOWNS = ['INNISFAIL', 'BOWDEN', 'OLDS', 'DIDSBURY', 'CARSTAIRS', 'CROSSFIELD', 'AIRDRIE', 'CALGARY'];
+    let companyOwnRates = null; // {portal, carriers} from GET /api/company/own-rates
+    let companyOwnRatesLoading = null; // in-flight promise
 
     /* Provincial Courier tire prompt: show/hide as the lane is typed. */
     ['o_city', 'o_state', 'd_city', 'd_state'].forEach((n) => {
       const inp = document.querySelector(`#quote-form [name="${n}"]`);
-      if (inp) { inp.addEventListener('input', syncProvincialPrompt); inp.addEventListener('change', syncProvincialPrompt); }
+      if (inp) { inp.addEventListener('input', syncProvincialPrompt); inp.addEventListener('change', syncProvincialPrompt); inp.addEventListener('input', syncBeePrompt); inp.addEventListener('change', syncBeePrompt); }
     });
     syncProvincialPrompt();
+    syncBeePrompt();
 
     /* Swap ship-from and ship-to addresses (the ⇆ button between panels). */
     const SWAP_PAIRS = [
@@ -2409,6 +2429,47 @@
         tire_type: (fd.get('prov_tire_type') || '').toString(),
         tire_count: (fd.get('prov_tire_count') || '').toString(),
         second_destination: fd.get('prov_second_dest') === 'on',
+      };
+    }
+
+    /* Bee Express own-rate prompt: corridor towns only, and only for a
+       signed-in member of a portal-enabled company with a beeexpress
+       own-rate marker. Corridor is checked from hardcoded town lists
+       first, so no own-rates fetch fires for lanes outside the corridor. */
+    function beeCorridorMatches() {
+      const o = (txt('o_city') || '').trim().toUpperCase();
+      const d = (txt('d_city') || '').trim().toUpperCase();
+      return BEE_SOUTH_TOWNS.includes(o) || BEE_SOUTH_TOWNS.includes(d)
+        || BEE_NORTH_TOWNS.includes(o) || BEE_NORTH_TOWNS.includes(d);
+    }
+    async function syncBeePrompt() {
+      const el = $('#bee-prompt');
+      if (!el) return;
+      if (!beeCorridorMatches()) { el.classList.add('hidden'); return; }
+      if (!companyOwnRates && !companyOwnRatesLoading) {
+        if (!currentUser) { el.classList.add('hidden'); return; }
+        companyOwnRatesLoading = api.getCompanyOwnRates()
+          .then((d) => { companyOwnRates = d; return d; })
+          .catch(() => { companyOwnRates = { portal: false, carriers: [] }; return companyOwnRates; })
+          .finally(() => { syncBeePrompt(); });
+        return;
+      }
+      if (!companyOwnRates) return; // fetch in flight; the finally() re-syncs
+      const show = !!companyOwnRates.portal && (companyOwnRates.carriers || []).includes('beeexpress');
+      el.classList.toggle('hidden', !show);
+    }
+    function collectBee() {
+      if (!beeCorridorMatches()) return undefined;
+      const f = $('#quote-form');
+      const fd = new FormData(f);
+      const farm = (fd.get('bee_farm_weights') || '').toString().split(',')
+        .map((s) => parseFloat(s.trim()))
+        .filter((n) => Number.isFinite(n) && n > 0);
+      return {
+        flat: parseInt((fd.get('bee_flat_count') || '').toString(), 10) || 0,
+        mt: parseInt((fd.get('bee_mt_count') || '').toString(), 10) || 0,
+        semi: parseInt((fd.get('bee_semi_count') || '').toString(), 10) || 0,
+        farmWeights: farm,
       };
     }
 
@@ -2735,6 +2796,7 @@
         packages,
         accessorials: collectAccessorials(),
         provincial: collectProvincial(),
+        bee: collectBee(),
         demo: !!($('#demo-mode') && $('#demo-mode').checked),
         skids: (() => { const v = parseInt((f.get('skids') || '').toString(), 10); return Number.isInteger(v) && v > 0 ? v : undefined; })(),
         user_id: txt('user_id') || undefined,
@@ -2872,7 +2934,7 @@
         .map(
           (r, i) => `<tr>
             <td class="chk">${(r.rate_on_request || r.demo) ? '' : `<input type="radio" name="rate-pick" value="${esc(r.rate_id)}"${i === firstPriced ? ' checked' : ''}>`}</td>
-            <td>${esc(r.carrier)}${r.carrier_id ? `<br><span class="carrier-score" data-carrier-id="${esc(r.carrier_id)}"></span>` : ''}${r.service ? '<br><span class="note">' + esc(r.service) + '</span>' : ''}${billedWeightLine(r)}${metroNote(r)} ${sourceBadge(r.source)}${rateCheckedLine(r)}</td>
+            <td>${esc(r.carrier)}${r.rate_kind === 'own' ? ' <span class="badge">Company rate</span>' : ''}${r.carrier_id ? `<br><span class="carrier-score" data-carrier-id="${esc(r.carrier_id)}"></span>` : ''}${r.service ? '<br><span class="note">' + esc(r.service) + '</span>' : ''}${billedWeightLine(r)}${metroNote(r)} ${sourceBadge(r.source)}${rateCheckedLine(r)}</td>
             <td>${r.delivery_days != null ? esc(String(r.delivery_days)) : '—'}${r.est_delivery_date ? `<br><span class="note">≈ ${esc(fmtEstDate(r.est_delivery_date))}</span>` : ''}</td>
             <td class="num">${r.rate_on_request
               ? `<strong>Rate on request</strong>${(r.notes || []).map((n) => `<br><span class="note">${esc(n)}</span>`).join('')}<br><button type="button" class="btn small" data-mayserve="${esc(r.carrier_id)}" data-ms-name="${esc(r.carrier)}" data-ms-o="${esc(r.lane_origin_city || '')}" data-ms-d="${esc(r.lane_dest_city || '')}">Request a rate</button>`
@@ -3252,7 +3314,8 @@
       const btn = $('#complete-shipment-btn');
       btn.disabled = true;
       const origText = btn.textContent;
-      btn.textContent = 'Starting secure payment…';
+      const selectedRate = (currentQuote.rates || []).find((r) => r.rate_id === rateId);
+      btn.textContent = (selectedRate && selectedRate.billing === 'carrier_direct') ? 'Creating shipment…' : 'Starting secure payment…';
       try {
         // Staged files upload now, at shipment creation time.
         await uploadStagedFiles();
@@ -3276,6 +3339,19 @@
           depot_dropoff: lastQuoteParams.depot_dropoff,
           depot_pickup: lastQuoteParams.depot_pickup,
         };
+        // Company portal: an own-rate row books carrier-direct (no ShipRate
+        // payment; the carrier invoices the company). The server verifies
+        // the row against the caller's company markers. Insurance is never
+        // sent (the server rejects it on carrier-direct bookings).
+        if (selectedRate && selectedRate.billing === 'carrier_direct') {
+          try {
+            const res = await api.bookDirectShipment(payload);
+            renderCompleteResult(res, false);
+          } catch (err) {
+            showAlert('Could not complete shipment: ' + err.message);
+          }
+          return;
+        }
         // Pay-first: customer pays the full freight amount at scheduling via
         // Stripe Checkout, then the load is scheduled on payment success.
         try {
@@ -5880,6 +5956,11 @@
           // A pending-approval account loads nothing else — waiting page only.
           if (applyApprovalLock()) return;
           loadSavedQuotes();
+          // Company portal white-label: load the caller's company once at
+          // boot so portal members see their company name in the header,
+          // footer, and page title without opening settings first. The
+          // company section itself still renders on open via loadCompany.
+          api.getCompany().then((s) => { companyState = s; applyPortalBranding(); }).catch(() => {});
           if (typeof loadAddressBook === 'function') loadAddressBook();
           if (typeof refreshPrimeLocation === 'function') refreshPrimeLocation();
         } catch {
@@ -8760,7 +8841,19 @@
     });
     // Company grouping (shared waybill sequence + shared waybill list).
     let companyState = null; // {company, members} from GET /api/company
+    /* Company portal white-label (V1: name only): portal members see their
+       company name in the header brand, footer, and page title. Anyone
+       else (including non-portal company members) sees plain ShipRate. */
+    function applyPortalBranding() {
+      const company = companyState && companyState.company;
+      const name = (company && company.portal_enabled) ? String(company.name || '').trim() : '';
+      $$('.brand-name').forEach((el) => { el.textContent = name || 'ShipRate'; });
+      const foot = document.querySelector('.foot-base .muted');
+      if (foot) foot.textContent = name ? `© 2026 ${name} · Powered by ShipRate` : '© 2026 ShipRate';
+      document.title = name ? `${name} — ShipRate` : 'ShipRate — Instant LTL Freight Quotes';
+    }
     function renderCompany() {
+      applyPortalBranding();
       const loading = $('#company-loading');
       const none = $('#company-none');
       const member = $('#company-member');

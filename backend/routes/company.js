@@ -35,6 +35,7 @@ const express = require('express');
 const crypto = require('crypto');
 const db = require('../db');
 const billing = require('../lib/billing');
+const companyRates = require('../lib/company-rates');
 const joinFlag = require('../lib/company-join-flag');
 
 const router = express.Router();
@@ -113,7 +114,11 @@ async function genJoinCode() {
 
 async function getMyCompany(userId) {
   const r = await db.query(
-    `SELECT u.company_id AS id, c.name, c.join_code, c.created_by, c.created_at
+    // c.* (not an explicit column list) so this never errors on the first
+    // boot after a companies-column migration lands; portal_enabled simply
+    // arrives once the boot ALTER has run. c.id duplicates u.company_id
+    // with the same value.
+    `SELECT u.company_id AS id, c.*
        FROM users u LEFT JOIN companies c ON c.id = u.company_id
       WHERE u.id = $1 LIMIT 1`, [userId]);
   const row = r.rows[0];
@@ -301,6 +306,47 @@ router.get('/', async (req, res) => {
     res.json(out);
   } catch (e) {
     res.status(500).json({ error: 'Could not load company.' });
+  }
+});
+
+// GET /api/company/own-rates — the signed-in user's OWN company's portal
+// markers only (never another company's). No rate values: the frontend
+// needs only visibility (which carriers have own-rate rows) and the Bee
+// Express corridor town lists (geography, not prices). Rating itself
+// happens server-side in the board merge.
+router.get('/own-rates', async (req, res) => {
+  if (!needUser(req, res) || !needDb(res)) return;
+  try {
+    const company = await getMyCompany(req.user.id);
+    if (!company) return res.json({ portal: false, carriers: [] });
+    const own = await companyRates.getCompanyOwnRates(company.id);
+    if (!own) return res.json({ portal: false, carriers: [] });
+    res.json({
+      portal: true,
+      carriers: [...own.carriers.keys()],
+      bee_corridor: companyRates.BEE_CORRIDOR,
+    });
+  } catch (e) {
+    res.status(500).json({ error: 'Could not load company rates.' });
+  }
+});
+
+// POST /api/company/admin-portal — site admin only: enable or disable the
+// company portal ($119/mo gate, decision 1A: offline flag, not Stripe).
+// Disabling stops own-rate rows + white-label + carrier-direct booking;
+// the company_rates rows are kept, so re-enabling restores the portal.
+router.post('/admin-portal', async (req, res) => {
+  if (!needUser(req, res) || !needDb(res)) return;
+  if (!billing.isAdminEmail(req.user.email)) return res.status(403).json({ error: 'Site admin only.' });
+  try {
+    const companyId = String((req.body && req.body.company_id) || '');
+    const enabled = (req.body && req.body.enabled) === true;
+    if (!/^[0-9a-f-]{36}$/i.test(companyId)) return res.status(400).json({ error: 'company_id is required.' });
+    const r = await db.query('UPDATE companies SET portal_enabled = $2 WHERE id = $1 RETURNING id, portal_enabled', [companyId, enabled]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Unknown company.' });
+    res.json({ company_id: r.rows[0].id, portal_enabled: r.rows[0].portal_enabled });
+  } catch (e) {
+    res.status(500).json({ error: 'Could not update the portal flag.' });
   }
 });
 

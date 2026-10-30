@@ -194,6 +194,10 @@ export function getCompany() {
   return get('/api/company');
 }
 
+export function getCompanyOwnRates() {
+  return get('/api/company/own-rates');
+}
+
 export function createCompany(name) {
   return post('/api/company', { name });
 }
@@ -403,6 +407,12 @@ export function completeShipment({ shipment_id, rate_id, shipper, consignee, ref
 /* Pay-first scheduling: Stripe Checkout for the full freight amount. */
 export function checkoutShipment({ shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, terms_accepted, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup }) {
   return post('/api/shipments/checkout', { shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, terms_accepted, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup });
+}
+
+/* Company portal carrier-direct booking: no ShipRate payment; the carrier
+   invoices the company. Insurance is never sent (the server rejects it). */
+export function bookDirectShipment({ shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, terms_accepted, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup }) {
+  return post('/api/shipments/book-direct', { shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, terms_accepted, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup });
 }
 
 export function getShipmentOrder(id) {
