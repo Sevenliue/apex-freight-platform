@@ -2437,15 +2437,22 @@
        own-rate marker. Corridor is checked from hardcoded town lists
        first, so no own-rates fetch fires for lanes outside the corridor. */
     function beeCorridorMatches() {
-      const o = (txt('o_city') || '').trim().toUpperCase();
-      const d = (txt('d_city') || '').trim().toUpperCase();
+      // Module-scope read (same pattern as provincialLaneMatches): the
+      // txt() helper is local to the submit functions, NOT module scope —
+      // calling it here threw ReferenceError and broke every quote.
+      const f = $('#quote-form');
+      if (!f) return false;
+      const val = (n) => ((f.querySelector('[name="' + n + '"]') || {}).value || '').trim().toUpperCase();
+      const o = val('o_city'), d = val('d_city');
       return BEE_SOUTH_TOWNS.includes(o) || BEE_SOUTH_TOWNS.includes(d)
         || BEE_NORTH_TOWNS.includes(o) || BEE_NORTH_TOWNS.includes(d);
     }
     async function syncBeePrompt() {
       const el = $('#bee-prompt');
       if (!el) return;
-      if (!beeCorridorMatches()) { el.classList.add('hidden'); return; }
+      let corridor = false;
+      try { corridor = beeCorridorMatches(); } catch (err) { console.error('[bee-prompt] corridor check failed:', err.message); }
+      if (!corridor) { el.classList.add('hidden'); return; }
       if (!companyOwnRates && !companyOwnRatesLoading) {
         if (!currentUser) { el.classList.add('hidden'); return; }
         companyOwnRatesLoading = api.getCompanyOwnRates()
@@ -2459,18 +2466,26 @@
       el.classList.toggle('hidden', !show);
     }
     function collectBee() {
-      if (!beeCorridorMatches()) return undefined;
-      const f = $('#quote-form');
-      const fd = new FormData(f);
-      const farm = (fd.get('bee_farm_weights') || '').toString().split(',')
-        .map((s) => parseFloat(s.trim()))
-        .filter((n) => Number.isFinite(n) && n > 0);
-      return {
-        flat: parseInt((fd.get('bee_flat_count') || '').toString(), 10) || 0,
-        mt: parseInt((fd.get('bee_mt_count') || '').toString(), 10) || 0,
-        semi: parseInt((fd.get('bee_semi_count') || '').toString(), 10) || 0,
-        farmWeights: farm,
-      };
+      // Guarded: a prompt bug must never break quoting again. On any
+      // error, return undefined (no Bee own-rate row; broker rows still
+      // quote normally).
+      try {
+        if (!beeCorridorMatches()) return undefined;
+        const f = $('#quote-form');
+        const fd = new FormData(f);
+        const farm = (fd.get('bee_farm_weights') || '').toString().split(',')
+          .map((s) => parseFloat(s.trim()))
+          .filter((n) => Number.isFinite(n) && n > 0);
+        return {
+          flat: parseInt((fd.get('bee_flat_count') || '').toString(), 10) || 0,
+          mt: parseInt((fd.get('bee_mt_count') || '').toString(), 10) || 0,
+          semi: parseInt((fd.get('bee_semi_count') || '').toString(), 10) || 0,
+          farmWeights: farm,
+        };
+      } catch (err) {
+        console.error('[bee-prompt] collect failed (continuing without Bee own-rate):', err.message);
+        return undefined;
+      }
     }
 
     /* "May also serve this lane" section: coverage-defined small carriers
