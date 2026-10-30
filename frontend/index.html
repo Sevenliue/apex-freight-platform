@@ -3002,7 +3002,6 @@
       syncRateEmptyHide();
       box.innerHTML = `
         ${isDemoBoard ? `<div class="card demo-banner"><strong>DEMO — sample rates only.</strong> These are not real carrier prices and cannot be booked or saved.</div>` : ''}
-        ${data.coverage_gap ? `<div class="card gap-notice"><p>ℹ️ <strong>No company carrier for this lane.</strong> Your company has no carrier covering this route, so the rates below are ShipRate broker rates. Want a carrier for this lane? Our team can help you add one.</p></div>` : ''}
         ${dimCard}
         ${data.holiday_notice ? `<div class="card holiday-notice">
           <p>⚠ ${esc(data.holiday_notice)}</p>
