@@ -24,7 +24,7 @@ const TOTAL_TIRE_ADMIN_EMAIL = 'hongbo_liu@kaltire.com';
 
 const LIVE_LINK_CARRIERS = [
   'jays', 'armour', 'willys', 'hifab', 'bandstra', 'jrhall', 'guilbault',
-  'minimax', 'morneau', 'number8', 'minimax_ltl',
+  'minimax', 'morneau', 'number8', 'minimax_ltl', 'grimshaw',
 ];
 const ENGINE_CARRIERS = ['teams'];
 const PER_TIRE_CARRIERS = ['beeexpress'];
