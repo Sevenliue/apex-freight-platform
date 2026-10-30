@@ -8866,6 +8866,11 @@
       const foot = document.querySelector('.foot-base .muted');
       if (foot) foot.textContent = name ? `© 2026 ${name} · Powered by ShipRate` : '© 2026 ShipRate';
       document.title = name ? `${name} — ShipRate` : 'ShipRate — Instant LTL Freight Quotes';
+      // Portal members don't recruit carriers: hide the sidebar
+      // "Carrier? Join free" button for them (Seven, 2026-10-29).
+      // Homepage carrier sections are untouched; the join page itself
+      // stays reachable by URL.
+      document.querySelectorAll('.side-cta[data-page="carrier-join"]').forEach((el) => { el.style.display = name ? 'none' : ''; });
     }
     function renderCompany() {
       applyPortalBranding();
