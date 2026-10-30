@@ -367,6 +367,7 @@ function billableWeight(actualLbs, packages, floorLbPerCuFt) {
 // footprint method at 1,200 lb per engine-foot (footprint/8 ft) — the factor
 // that reproduces the reconciled probills exactly (23.33 engine-ft -> 28 ft).
 const GUILBAULT_ID = 'guilbault';
+const WILLYS_ID = 'willys';
 const CKJ_ID = 'ckj';
 const GUILBAULT_LF_THRESHOLD_FT = 12;
 const GUILBAULT_LB_PER_FT = 1000;
@@ -3258,14 +3259,16 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
       const brk = (lane.breaks || []).find((b) => bw <= b.max_lb && bw >= (b.min_lb || 0));
       if (!brk || !(brk.rate_cwt > 0)) continue;
       const raw = (bw / 100) * brk.rate_cwt;
-      // Deficit rating, Guilbault only (their Oct 20 2026 invoice bills
-      // 4,774 lb as 5,000 lb at the 5M rate): price every higher break at
-      // its floor weight (previous break's max_lb + 1) and take the
-      // cheapest. Other carriers are untouched — no invoice evidence
+      // Deficit rating, Guilbault + Willy's (Guilbault per their Oct 20
+      // 2026 invoice billing 4,774 lb as 5,000 lb at the 5M rate;
+      // Willy's per Seven 2026-10-29, same rule shape — no Willy's
+      // invoice on file yet to verify against). Price every higher
+      // break at its floor weight (previous break's max_lb + 1) and
+      // take the cheapest. Other carriers are untouched — no evidence
       // they deficit-rate.
       let priced = raw;
       let deficitRateCwt = null;
-      if (lane.carrier_id === GUILBAULT_ID) {
+      if (lane.carrier_id === GUILBAULT_ID || lane.carrier_id === WILLYS_ID) {
         const breaks = lane.breaks || [];
         const ownIdx = breaks.indexOf(brk);
         for (let j = ownIdx + 1; j < breaks.length; j++) {
