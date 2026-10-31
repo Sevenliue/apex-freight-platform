@@ -434,13 +434,13 @@ export function getQuote(id) {
 }
 
 /* Complete a shipment (book label or schedule pickup) + printable BOL. */
-export function completeShipment({ shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, terms_accepted, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup, test }) {
-  return post('/api/shipments/complete', { shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, terms_accepted, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup, test });
+export function completeShipment({ shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, terms_accepted, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup, test, add_insurance, declared_value }) {
+  return post('/api/shipments/complete', { shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, terms_accepted, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup, test, add_insurance, declared_value });
 }
 
 /* Pay-first scheduling: Stripe Checkout for the full freight amount. */
-export function checkoutShipment({ shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, terms_accepted, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup, test }) {
-  return post('/api/shipments/checkout', { shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, terms_accepted, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup, test });
+export function checkoutShipment({ shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, terms_accepted, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup, test, add_insurance, declared_value }) {
+  return post('/api/shipments/checkout', { shipment_id, rate_id, shipper, consignee, references, delivery_note_1, delivery_note_2, terms_accepted, user_id, region, direction, freight_charges, bill_to, depot_dropoff, depot_pickup, test, add_insurance, declared_value });
 }
 
 /* Company portal carrier-direct booking: no ShipRate payment; the carrier
