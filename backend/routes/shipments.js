@@ -1082,9 +1082,10 @@ ${(() => { const n = [b.delivery_note_1, b.delivery_note_2].filter(Boolean).map(
 
 
 // GET /api/shipments/label/:id — printable 4x6 shipping label for a booked
-// shipment: PRO, carrier, shipper/consignee, pieces/weight, and a QR code
-// holding the shipment details as plain text (no public tracking page
-// exists yet, so the QR is not a link). Same owner-or-admin guard as BOL.
+// shipment: PRO, carrier, shipper/consignee, pieces/weight, a Code 128
+// barcode of the PRO, and a QR code holding the shipment details as plain
+// text (no public tracking page exists yet, so the QR is not a link).
+// Same owner-or-admin guard as BOL.
 router.get('/label/:id', async (req, res) => {
   if (!req.user) return res.status(401).send('Sign in required.');
   const order = await findOrder(req.params.id);
@@ -1122,17 +1123,21 @@ body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #111; }
 .label { width: 4in; height: 6in; padding: 0.2in; }
 .carrier { font-size: 18px; font-weight: bold; }
 .pro { font-size: 30px; font-weight: bold; letter-spacing: 1px; margin: 6px 0; }
+#pro-barcode { display: block; margin: 4px auto 0; max-width: 3.4in; height: auto; }
 #label-qr { text-align: center; margin: 6px 0; }
-#label-qr img { max-width: 2.2in; height: auto; }
-.addr { font-size: 13px; line-height: 1.35; margin: 6px 0; }
-.meta { font-size: 12.5px; margin-top: 6px; }
-.note { font-size: 11px; color: #555; margin-top: 6px; }
+#label-qr img { max-width: 1.7in; height: auto; }
+.addr { font-size: 13px; line-height: 1.3; margin: 4px 0; }
+.meta { font-size: 12.5px; margin-top: 4px; }
+.note { font-size: 11px; color: #555; margin-top: 4px; }
 @media print { .noprint { display: none; } }
 </style></head><body>
 <div class="noprint" style="margin:8px"><button onclick="window.print()">Print</button></div>
 <div class="label">
 <div class="carrier">${escHtml(order.carrier)}${order.service ? ' — ' + escHtml(order.service) : ''}</div>
 <div class="pro">${escHtml(pro)}</div>
+<svg id="pro-barcode"></svg>
+<!--BARCODE_SCRIPT-->
+<script>if (typeof JsBarcode !== 'undefined') { JsBarcode('#pro-barcode', __PRO_JSON__, { format: 'CODE128', width: 2, height: 36, displayValue: false, margin: 0 }); }</script>
 <div id="label-qr"></div>
 <!--QR_SCRIPT-->
 <script>if (typeof qrcode !== 'undefined') { var qr = qrcode(0, 'M'); qr.addData(__QR_JSON__); qr.make(); document.getElementById('label-qr').innerHTML = qr.createImgTag(4, 8); }</script>
@@ -1143,7 +1148,9 @@ body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #111; }
 </div></body></html>`;
   res.send(labelHtml
     .replace('<!--QR_SCRIPT-->', () => QR_LIB ? `<script>${QR_LIB}</script>` : '')
-    .replace('__QR_JSON__', () => JSON.stringify(qrLines)));
+    .replace('<!--BARCODE_SCRIPT-->', () => BARCODE_LIB ? `<script>${BARCODE_LIB}</script>` : '')
+    .replace('__QR_JSON__', () => JSON.stringify(qrLines))
+    .replace('__PRO_JSON__', () => JSON.stringify(pro)));
 });
 
 // Exported for the Stripe webhook: finalize a paid shipment order.
