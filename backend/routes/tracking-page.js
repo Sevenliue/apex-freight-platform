@@ -90,7 +90,7 @@ function pageHtml({ title, body }) {
 <style>
 body{font-family:Arial,Helvetica,sans-serif;margin:0;color:#111;background:#f4f6f8}
 .card{max-width:520px;margin:24px auto;background:#fff;border:1px solid #ddd;border-radius:12px;padding:24px}
-h1{font-size:22px;margin:0 0 4px}.pro{font-size:26px;font-weight:bold;letter-spacing:1px;margin:8px 0}
+h1{font-size:22px;margin:0 0 4px}.pro-label{font-size:13px;font-weight:700;letter-spacing:2px;color:#555;margin:12px 0 0}.pro{font-size:26px;font-weight:bold;letter-spacing:1px;margin:2px 0 8px}
 .badge{display:inline-block;background:#e6f0e6;border:1px solid #9cc49c;color:#1e5c1e;border-radius:999px;padding:4px 12px;font-weight:700;font-size:14px}
 .badge.test{background:#fff3cd;border-color:#d9a400;color:#5c4300}
 table{width:100%;border-collapse:collapse;font-size:15px;margin-top:16px}
@@ -120,6 +120,7 @@ router.get('/:code', async (req, res) => {
   res.send(pageHtml({
     title: `Shipment ${order.tracking_code}`,
     body: `<h1>Shipment tracking</h1>
+<div class="pro-label">PRO Number</div>
 <div class="pro">${escHtml(order.tracking_code)}</div>
 <p><span class="badge">${escHtml(status)}</span>${order.test_mode ? ' <span class="badge test">TEST shipment</span>' : ''}</p>
 <table><tbody>

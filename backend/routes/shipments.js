@@ -1132,7 +1132,8 @@ router.get('/label/:id', async (req, res) => {
 body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #111; }
 .label { width: 4in; height: 6in; padding: 0.2in; }
 .carrier { font-size: 18px; font-weight: bold; }
-.pro { font-size: 30px; font-weight: bold; letter-spacing: 1px; margin: 6px 0; }
+.pro-label { font-size: 12px; font-weight: bold; letter-spacing: 2px; color: #555; margin: 6px 0 0; }
+.pro { font-size: 30px; font-weight: bold; letter-spacing: 1px; margin: 2px 0 6px; }
 #pro-barcode { display: block; margin: 4px auto 0; max-width: 3.4in; height: auto; }
 #label-qr { text-align: center; margin: 10px 0 6px; }
 #label-qr img { max-width: 1.7in; height: auto; }
@@ -1144,6 +1145,7 @@ body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #111; }
 <div class="noprint" style="margin:8px"><button onclick="window.print()">Print</button></div>
 <div class="label">
 <div class="carrier">${escHtml(order.carrier)}${order.service ? ' — ' + escHtml(order.service) : ''}</div>
+<div class="pro-label">PRO NUMBER</div>
 <div class="pro">${escHtml(pro)}</div>
 <svg id="pro-barcode"></svg>
 <!--BARCODE_SCRIPT-->
