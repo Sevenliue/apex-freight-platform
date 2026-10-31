@@ -1708,6 +1708,32 @@
         ? `<br><span class="note">via ${esc(titleCase(r.lane_origin_city))}, ${esc(r.lane_origin_prov || '')} → ${esc(titleCase(r.lane_dest_city))}, ${esc(r.lane_dest_prov || '')}</span>`
         : '';
 
+    // Collapse the board to one row per carrier: the cheapest priced lane
+    // wins, and the kept row notes how many lanes it beat. Unpriced
+    // (rate-on-request) rows are never collapsed — each is its own request
+    // action. The group key includes service + rate kind so an LTL row can
+    // never hide a different service or an own-rate row. Display-only: the
+    // API response (audit, portal merge, booking lookup) still carries
+    // every lane, and booking looks the picked rate up in the full list.
+    function collapseToCheapestPerCarrier(rows) {
+      const priced = [];
+      const unpriced = [];
+      const best = new Map();
+      for (const r of rows || []) {
+        if (r.retail_cad == null || r.rate_on_request) { unpriced.push(r); continue; }
+        const key = `${r.carrier_id || r.carrier || ''}|${r.service || ''}|${r.rate_kind || ''}`;
+        const cur = best.get(key);
+        if (!cur) { best.set(key, { row: r, n: 1 }); continue; }
+        cur.n += 1;
+        if (r.retail_cad < cur.row.retail_cad) cur.row = r;
+      }
+      for (const { row, n } of best.values()) {
+        priced.push(n > 1 ? { ...row, lanes_collapsed: n } : row);
+      }
+      priced.sort((a, b) => a.retail_cad - b.retail_cad);
+      return [...priced, ...unpriced];
+    }
+
     // "Rate checked on [date]" for a quote row: FSC-as-of + sheet effective
     // date from r.rate_checked (backend, lib/sheet-dates.js), plus staleness
     // warnings for expired sheets / stale FSCs. Empty when the backend
@@ -2945,12 +2971,13 @@
       const accLine = (data.accessorials_applied || [])
         .map((a) => `${esc(a.label)} (${cad(a.fee_cad)})`)
         .join(', ');
-      const firstPriced = rates.findIndex((r) => r.retail_cad != null);
-      const rows = rates
+      const boardRates = collapseToCheapestPerCarrier(rates);
+      const firstPriced = boardRates.findIndex((r) => r.retail_cad != null);
+      const rows = boardRates
         .map(
           (r, i) => `<tr>
             <td class="chk">${(r.rate_on_request || r.demo) ? '' : `<input type="radio" name="rate-pick" value="${esc(r.rate_id)}"${i === firstPriced ? ' checked' : ''}>`}</td>
-            <td>${esc(r.carrier)}${r.rate_kind === 'own' ? ' <span class="badge">Company rate</span>' : ''}${r.carrier_id ? `<br><span class="carrier-score" data-carrier-id="${esc(r.carrier_id)}"></span>` : ''}${r.service ? '<br><span class="note">' + esc(r.service) + '</span>' : ''}${billedWeightLine(r)}${metroNote(r)} ${sourceBadge(r.source)}${rateCheckedLine(r)}</td>
+            <td>${esc(r.carrier)}${r.rate_kind === 'own' ? ' <span class="badge">Company rate</span>' : ''}${r.carrier_id ? `<br><span class="carrier-score" data-carrier-id="${esc(r.carrier_id)}"></span>` : ''}${r.service ? '<br><span class="note">' + esc(r.service) + '</span>' : ''}${billedWeightLine(r)}${metroNote(r)}${r.lanes_collapsed > 1 ? `<br><span class="note">Lowest of ${r.lanes_collapsed} lanes</span>` : ''} ${sourceBadge(r.source)}${rateCheckedLine(r)}</td>
             <td>${r.delivery_days != null ? esc(String(r.delivery_days)) : '—'}${r.est_delivery_date ? `<br><span class="note">≈ ${esc(fmtEstDate(r.est_delivery_date))}</span>` : ''}</td>
             <td class="num">${r.rate_on_request
               ? `<strong>Rate on request</strong>${(r.notes || []).map((n) => `<br><span class="note">${esc(n)}</span>`).join('')}<br><button type="button" class="btn small" data-mayserve="${esc(r.carrier_id)}" data-ms-name="${esc(r.carrier)}" data-ms-o="${esc(r.lane_origin_city || '')}" data-ms-d="${esc(r.lane_dest_city || '')}">Request a rate</button>`
