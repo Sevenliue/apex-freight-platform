@@ -4671,6 +4671,7 @@
     let mcEditingId = null; // null = form closed, 'new' = adding, else address id
 
     function loadMyCompany() {
+      refreshPortalBranding();
       loadMcPeople();
       loadMcQuotes();
       loadMcAddresses();
@@ -5916,6 +5917,7 @@
       loadBilling(); // renderAccount inside re-applies the approval lock
       // A pending-approval account loads nothing else — waiting page only.
       if (applyApprovalLock()) return;
+      refreshPortalBranding();
       loadSavedQuotes();
       if (typeof loadAddressBook === 'function') loadAddressBook();
       if (typeof refreshPrimeLocation === 'function') refreshPrimeLocation();
@@ -5931,6 +5933,8 @@
       currentUser = null;
       billingState = null;
       primeAddress = null;
+      companyState = null;
+      applyPortalBranding(); // drop the company name from the header again
       loadBilling();
       loadSavedQuotes();
       if (typeof loadAddressBook === 'function') loadAddressBook();
@@ -6030,7 +6034,7 @@
           // boot so portal members see their company name in the header,
           // footer, and page title without opening settings first. The
           // company section itself still renders on open via loadCompany.
-          api.getCompany().then((s) => { companyState = s; applyPortalBranding(); }).catch(() => {});
+          refreshPortalBranding();
           if (typeof loadAddressBook === 'function') loadAddressBook();
           if (typeof refreshPrimeLocation === 'function') refreshPrimeLocation();
         } catch {
@@ -8958,6 +8962,13 @@
       // Homepage carrier sections are untouched; the join page itself
       // stays reachable by URL.
       document.querySelectorAll('.side-cta[data-page="carrier-join"]').forEach((el) => { el.style.display = name ? 'none' : ''; });
+    }
+    // Single place that refreshes the portal brand from the server.
+    // Used at boot, on fresh login, and when the My Company tab opens —
+    // previously only the persisted-session boot path called it, so a
+    // fresh login never branded the header (UAT finding, Oct 31 2026).
+    function refreshPortalBranding() {
+      return api.getCompany().then((s) => { companyState = s; applyPortalBranding(); }).catch(() => {});
     }
     function renderCompany() {
       applyPortalBranding();
