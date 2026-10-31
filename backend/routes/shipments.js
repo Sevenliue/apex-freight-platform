@@ -1087,8 +1087,9 @@ ${(() => { const n = [b.delivery_note_1, b.delivery_note_2].filter(Boolean).map(
 
 // GET /api/shipments/label/:id — printable 4x6 shipping labels for a booked
 // shipment, ONE PAGE PER PIECE (each "Piece X of N" with its piece weight;
-// PRO, barcode and tracking QR shared). ?size=4x2 renders a compact 4x2
-// PRO label instead: PRO number + barcode + ship-to + PO only, no QR.
+// PRO, barcode and tracking QR shared). ?size=2x4 renders a compact 2x4
+// portrait PRO label instead: carrier + PRO number + barcode + ship-to +
+// PO only, no QR. (?size=4x2 is kept as a legacy alias for the same page.)
 // Layout: barcode under the PRO at the top, QR at the bottom — the
 // address block between them keeps scanners from catching both codes at
 // once. Same owner-or-admin guard as BOL.
@@ -1128,11 +1129,14 @@ router.get('/label/:id', async (req, res) => {
   const proJson = JSON.stringify(pro);
   const trackJson = JSON.stringify(trackUrl);
 
-  // Compact 4x2 PRO label (?size=4x2): PRO number + barcode + ship-to +
-  // PO only. One page, no QR, no weights, no carrier — a carton/pouch
-  // identifier. PO comes from the order field, falling back to the BOL
-  // reference key ('PO #').
-  if (req.query.size === '4x2') {
+  // Compact 2x4 portrait PRO label (?size=2x4, legacy ?size=4x2 alias):
+  // carrier + PRO number + barcode + ship-to + PO only. One page, no QR,
+  // no weights — a carton/pouch identifier. PO comes from the order field,
+  // falling back to the BOL reference key ('PO #'). Narrow page, so the
+  // barcode uses width 1 (a 10-char CODE128 is 145 modules = 145px, which
+  // fits the 1.7in content width; width 2 would overflow it) and the PRO
+  // sits at 24px.
+  if (req.query.size === '2x4' || req.query.size === '4x2') {
     const poNo = order.receiver_po_no || refs['PO #'] || '';
     const shipToLine = [consignee.name, consignee.street1 || consignee.street,
       [consignee.city, consignee.state || consignee.province].filter(Boolean).join(', '),
@@ -1140,24 +1144,26 @@ router.get('/label/:id', async (req, res) => {
     const smallHtml = `<!doctype html><html><head><meta charset="utf-8">
 <title>PRO Label — ${escHtml(pro)}</title>
 <style>
-@page { size: 4in 2in; margin: 0; }
+@page { size: 2in 4in; margin: 0; }
 * { box-sizing: border-box; }
 body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #111; }
-.label { width: 4in; height: 2in; padding: 0.15in; }
+.label { width: 2in; height: 4in; padding: 0.15in; }
+.carrier { font-size: 12px; font-weight: bold; line-height: 1.3; margin-bottom: 4px; }
 .pro-label { font-size: 11px; font-weight: bold; letter-spacing: 2px; color: #555; }
-.pro { font-size: 26px; font-weight: bold; letter-spacing: 1px; margin: 1px 0 2px; }
-.pro-barcode { display: block; margin: 2px auto 0; max-width: 3.6in; height: auto; }
+.pro { font-size: 24px; font-weight: bold; letter-spacing: 1px; margin: 1px 0 2px; }
+.pro-barcode { display: block; margin: 2px auto 0; max-width: 1.7in; height: auto; }
 .ship-to { font-size: 11px; line-height: 1.3; margin-top: 4px; }
 .po { font-size: 12px; font-weight: bold; margin-top: 2px; }
 @media print { .noprint { display: none; } }
 </style></head><body>
 <div class="noprint" style="margin:8px"><button onclick="window.print()">Print</button></div>
 <div class="label">
+<div class="carrier">${escHtml(order.carrier)}${order.service ? ' — ' + escHtml(order.service) : ''}</div>
 <div class="pro-label">PRO NUMBER</div>
 <div class="pro">${escHtml(pro)}</div>
 <svg class="pro-barcode" id="pro-barcode-sm"></svg>
 <!--BARCODE_SCRIPT-->
-<script>if (typeof JsBarcode !== 'undefined') { JsBarcode('#pro-barcode-sm', ${proJson}, { format: 'CODE128', width: 2, height: 30, displayValue: false, margin: 0 }); }</script>
+<script>if (typeof JsBarcode !== 'undefined') { JsBarcode('#pro-barcode-sm', ${proJson}, { format: 'CODE128', width: 1, height: 30, displayValue: false, margin: 0 }); }</script>
 <div class="ship-to"><strong>SHIP TO:</strong> ${escHtml(shipToLine) || '—'}</div>
 ${poNo ? `<div class="po">PO #: ${escHtml(poNo)}</div>` : ''}
 </div></body></html>`;
