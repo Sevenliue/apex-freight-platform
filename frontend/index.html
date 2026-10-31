@@ -1358,6 +1358,7 @@
           <div id="au-error" class="card warn hidden" style="margin-top:10px"></div>
           <div class="actions" style="margin-top:12px">
             <button type="submit" class="btn primary" id="au-submit">Run audit</button>
+            <button type="button" class="btn" id="au-clear">Clear form</button>
           </div>
           <p class="note">The audit compares against the carrier's rate for the same lane and weight. If we don't hold rate data for a carrier or lane yet, the invoice is saved and marked “cannot re-rate”.</p>
         </form>
@@ -5291,6 +5292,20 @@
       if (addPiece) addPiece.addEventListener('click', () => $('#au-pieces').appendChild(auditPieceRow()));
       const addAcc = $('#au-add-acc');
       if (addAcc) addAcc.addEventListener('click', () => $('#au-accs').appendChild(auditAccRow()));
+      // Clear form: reset every input (incl. the file picker) and drop the
+      // dynamically added piece / accessorial rows, so a fresh audit starts
+      // blank. The last result detail and the saved audits list are history
+      // and are deliberately left untouched.
+      const clearBtn = $('#au-clear');
+      if (clearBtn) clearBtn.addEventListener('click', () => {
+        form.reset();
+        const piecesBox = $('#au-pieces');
+        if (piecesBox) piecesBox.innerHTML = '';
+        const accsBox = $('#au-accs');
+        if (accsBox) accsBox.innerHTML = '';
+        const errBox = $('#au-error');
+        if (errBox) errBox.classList.add('hidden');
+      });
       const goBtn = $('#audit-usage-go');
       if (goBtn) goBtn.addEventListener('click', () => {
         const nav = $('#nav-audit');
