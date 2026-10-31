@@ -9,7 +9,7 @@
   <meta property="og:type" content="website">
   <title>ShipRate — Instant LTL Freight Quotes</title>
   <link rel="icon" type="image/webp" href="/img/logo.webp">
-  <link rel="stylesheet" href="/styles.css?v=20261020b">
+  <link rel="stylesheet" href="/styles.css?v=20261031">
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer></script>
 </head>
@@ -5924,6 +5924,30 @@
       $$('#auth-modal .modal-tab').forEach((b) =>
         b.addEventListener('click', () => switchAuthTab(b.dataset.authTab))
       );
+
+      // Password visibility toggles: every password field in the auth modal
+      // and the account settings forms gets a Show/Hide button, so a typo is
+      // visible before submit instead of surfacing as "incorrect" afterwards.
+      $$('#auth-modal input[type="password"], #settings-password-form input[type="password"], #settings-delete-form input[type="password"]').forEach((input) => {
+        const wrap = document.createElement('span');
+        wrap.className = 'pw-wrap';
+        input.replaceWith(wrap);
+        wrap.append(input);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pw-toggle';
+        btn.textContent = 'Show';
+        btn.setAttribute('aria-label', 'Show password');
+        btn.setAttribute('aria-pressed', 'false');
+        btn.addEventListener('click', () => {
+          const showing = input.type === 'text';
+          input.type = showing ? 'password' : 'text';
+          btn.textContent = showing ? 'Show' : 'Hide';
+          btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+          btn.setAttribute('aria-pressed', String(!showing));
+        });
+        wrap.append(btn);
+      });
 
       $('#auth-login-form').addEventListener('submit', async (e) => {
         e.preventDefault();

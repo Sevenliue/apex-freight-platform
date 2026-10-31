@@ -994,3 +994,8 @@ dl.kv dd { margin: 0; font-weight: 600; }
 .carrier-cta-banner .carrier-cta-text { font-size: 17px; }
 .carrier-cta-banner .btn { font-size: 16.5px; }
 .carrier-cta-banner .btn.primary { background: #1e3a5f; border-color: #152a45; color: #fff; }
+/* Password visibility toggle (auth modal + account settings). */
+.pw-wrap { display: flex; align-items: center; gap: 8px; }
+.pw-wrap input { flex: 1; min-width: 0; }
+.pw-toggle { flex: none; background: none; border: 1px solid #ccc; border-radius: 6px; padding: 6px 10px; font-size: 13px; cursor: pointer; color: #1e3a5f; }
+.pw-toggle:hover { background: #f0f4f8; }
