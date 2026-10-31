@@ -3482,7 +3482,7 @@
             <p><strong>${esc(res.carrier)}</strong>${res.service ? ' — ' + esc(res.service) : ''} · ${cad(res.charged_amount)}</p>
             <p>${esc(res.payment_note || 'This shipment contains dangerous goods and is under review. We will confirm acceptance before any payment is collected.')}</p>
             <div class="actions">
-              <a class="btn" href="${esc(res.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a> <a class="btn" href="${esc(res.bol_url.replace('/bol/', '/label/'))}" target="_blank" rel="noopener">Print 4×6 Label</a> <a class="btn" href="${esc(res.bol_url.replace('/bol/', '/label/') + '?size=4x2')}" target="_blank" rel="noopener">Print 4×2 Label</a>
+              <a class="btn" href="${esc(res.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a> <a class="btn" href="${esc(res.bol_url.replace('/bol/', '/label/'))}" target="_blank" rel="noopener">Print 4×6 Label</a> <a class="btn" href="${esc(res.bol_url.replace('/bol/', '/label/') + '?size=2x4')}" target="_blank" rel="noopener">Print 2×4 Label</a>
             </div>
           </div>`;
         $('#complete-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -3501,7 +3501,7 @@
           <p>Total charged: <strong>${cad(res.charged_amount)}</strong></p>
           ${payNote}
           <div class="actions">
-            <a class="btn" href="${esc(res.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a> <a class="btn" href="${esc(res.bol_url.replace('/bol/', '/label/'))}" target="_blank" rel="noopener">Print 4×6 Label</a> <a class="btn" href="${esc(res.bol_url.replace('/bol/', '/label/') + '?size=4x2')}" target="_blank" rel="noopener">Print 4×2 Label</a>${label}
+            <a class="btn" href="${esc(res.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a> <a class="btn" href="${esc(res.bol_url.replace('/bol/', '/label/'))}" target="_blank" rel="noopener">Print 4×6 Label</a> <a class="btn" href="${esc(res.bol_url.replace('/bol/', '/label/') + '?size=2x4')}" target="_blank" rel="noopener">Print 2×4 Label</a>${label}
           </div>
         </div>`;
       $('#complete-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -5367,7 +5367,7 @@
             .map(
               (q) => `<tr>
               <td>${esc((q.created_at || '').slice(0, 10))}</td>
-              <td>${esc(q.route || '—')}<br><a href="${esc(q.bol_url)}" target="_blank" rel="noopener">BOL</a> · <a href="${esc(q.bol_url.replace('/bol/', '/label/'))}" target="_blank" rel="noopener">4×6 Label</a> · <a href="${esc(q.bol_url.replace('/bol/', '/label/') + '?size=4x2')}" target="_blank" rel="noopener">4×2 Label</a></td>
+              <td>${esc(q.route || '—')}<br><a href="${esc(q.bol_url)}" target="_blank" rel="noopener">BOL</a> · <a href="${esc(q.bol_url.replace('/bol/', '/label/'))}" target="_blank" rel="noopener">4×6 Label</a> · <a href="${esc(q.bol_url.replace('/bol/', '/label/') + '?size=2x4')}" target="_blank" rel="noopener">2×4 Label</a></td>
               <td>${esc(q.customer_email || '—')}</td>
               <td>${(q.dg_lines || []).map((l) => `${esc(l.product)} — UN ${esc(l.un_number)}, Class ${esc(l.class)}${l.pkg_group && l.pkg_group !== '—' ? ', PG ' + esc(l.pkg_group) : ''} (${esc(String(l.qty))} pcs, ${esc(String(l.weight_lb))} lb total)`).join('<br>') || '—'}</td>
               <td class="num">${cad(q.charged_amount)}</td>
@@ -5422,7 +5422,7 @@
               (t) => `<tr>
               <td>${esc((t.created_at || '').slice(0, 10))}</td>
               <td><strong>${esc(t.pickup_date || '—')}</strong></td>
-              <td><strong>${esc(t.tracking_code || '—')}</strong><br><a href="${esc(t.bol_url)}" target="_blank" rel="noopener">BOL</a> · <a href="${esc(t.bol_url.replace('/bol/', '/label/'))}" target="_blank" rel="noopener">4×6 Label</a> · <a href="${esc(t.bol_url.replace('/bol/', '/label/') + '?size=4x2')}" target="_blank" rel="noopener">4×2 Label</a></td>
+              <td><strong>${esc(t.tracking_code || '—')}</strong><br><a href="${esc(t.bol_url)}" target="_blank" rel="noopener">BOL</a> · <a href="${esc(t.bol_url.replace('/bol/', '/label/'))}" target="_blank" rel="noopener">4×6 Label</a> · <a href="${esc(t.bol_url.replace('/bol/', '/label/') + '?size=2x4')}" target="_blank" rel="noopener">2×4 Label</a></td>
               <td>${esc(t.route || '—')}</td>
               <td>${esc(t.carrier || '—')}</td>
               <td>${esc(t.shipper_order_no || '—')}</td>
@@ -6959,7 +6959,7 @@
               (o.shipper_order_no ? `<p>Shipper's order #: <strong>${esc(o.shipper_order_no)}</strong></p>` : '') +
               (o.receiver_po_no ? `<p>Receiver's PO #: <strong>${esc(o.receiver_po_no)}</strong></p>` : '') +
               `<p>Total charged: <strong>${cad(o.charged_amount)}</strong></p>` +
-              `<div class="actions"><a class="btn primary" href="${esc(o.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a> <a class="btn" href="${esc(o.bol_url.replace('/bol/', '/label/'))}" target="_blank" rel="noopener">Print 4×6 Label</a> <a class="btn" href="${esc(o.bol_url.replace('/bol/', '/label/') + '?size=4x2')}" target="_blank" rel="noopener">Print 4×2 Label</a>${label}</div></div>`;
+              `<div class="actions"><a class="btn primary" href="${esc(o.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a> <a class="btn" href="${esc(o.bol_url.replace('/bol/', '/label/'))}" target="_blank" rel="noopener">Print 4×6 Label</a> <a class="btn" href="${esc(o.bol_url.replace('/bol/', '/label/') + '?size=2x4')}" target="_blank" rel="noopener">Print 2×4 Label</a>${label}</div></div>`;
             box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             return;
           }

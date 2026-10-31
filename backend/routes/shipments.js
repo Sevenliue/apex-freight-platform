@@ -1087,11 +1087,13 @@ ${(() => { const n = [b.delivery_note_1, b.delivery_note_2].filter(Boolean).map(
 
 // GET /api/shipments/label/:id — printable 4x6 shipping labels for a booked
 // shipment, ONE PAGE PER PIECE (each "Piece X of N" with its piece weight;
-// PRO, barcode and tracking QR shared). ?size=4x2 renders a compact
-// 4in-wide x 2in-tall landscape PRO label instead: carrier + PRO number +
-// barcode + ship-to + PO only, no QR. (?size=2x4 is kept as a legacy alias
-// for the same page — Seven states label dimensions height-first, so his
-// "2x4" is this 4-wide x 2-tall landscape label, not a portrait page.)
+// PRO, barcode and tracking QR shared). ?size=2x4 renders a compact
+// 2in-wide x 4in-tall portrait PRO label instead: carrier + PRO number +
+// barcode + ship-to + PO only, no QR. (?size=4x2 is kept as a legacy alias
+// for the same page.) Dimension convention RESOLVED Oct 31 2026: Seven
+// confirmed 2x4 = 2in wide x 4in tall (width-first, same as 4x6 = 4 wide x
+// 6 tall); the landscape build printed sideways on his portrait stock,
+// which is why it needed turning 90 degrees.
 // Layout: barcode under the PRO at the top, QR at the bottom — the
 // address block between them keeps scanners from catching both codes at
 // once. Same owner-or-admin guard as BOL.
@@ -1131,17 +1133,20 @@ router.get('/label/:id', async (req, res) => {
   const proJson = JSON.stringify(pro);
   const trackJson = JSON.stringify(trackUrl);
 
-  // Compact 4x2 landscape PRO label (?size=4x2, legacy ?size=2x4 alias):
+  // Compact 2x4 portrait PRO label (?size=2x4, legacy ?size=4x2 alias):
   // carrier + PRO number + barcode + ship-to + PO only. One page, no QR,
   // no weights — a carton/pouch identifier. PO comes from the order field,
-  // falling back to the BOL reference key ('PO #'). Fit fixes (Oct 31
-  // 2026): the box is content-height, NOT a forced height — a forced
-  // height plus any browser print header pushed the label onto a second
-  // sheet — with break-inside: avoid so the browser keeps the whole label
-  // on one page when it can. Content is ~1.6-1.8in tall against the 2in
-  // label height, so the browser print header (~1/3in) must stay OFF in
-  // the print dialog or a long ship-to line can still spill.
-  if (req.query.size === '4x2' || req.query.size === '2x4') {
+  // falling back to the BOL reference key ('PO #'). Narrow page, so the
+  // barcode uses width 1 (a 10-char CODE128 is 145 modules = 145px, which
+  // fits the 1.7in content width; width 2 would overflow it) and the PRO
+  // sits at 24px. Fit fixes (Oct 31 2026): the box is content-height, NOT
+  // a forced height — a forced height plus any browser print header
+  // pushed the label onto a second sheet — with break-inside: avoid so
+  // the browser keeps the whole label on one page when it can. Content is
+  // ~1.8in tall against the 4in label height, so the browser print header
+  // (~1/3in) no longer risks a spill — but it still doesn't belong on a
+  // label, so "Print headers and footers" should stay off in the dialog.
+  if (req.query.size === '2x4' || req.query.size === '4x2') {
     const poNo = order.receiver_po_no || refs['PO #'] || '';
     const shipToLine = [consignee.name, consignee.street1 || consignee.street,
       [consignee.city, consignee.state || consignee.province].filter(Boolean).join(', '),
@@ -1149,14 +1154,14 @@ router.get('/label/:id', async (req, res) => {
     const smallHtml = `<!doctype html><html><head><meta charset="utf-8">
 <title>PRO Label — ${escHtml(pro)}</title>
 <style>
-@page { size: 4in 2in; margin: 0; }
+@page { size: 2in 4in; margin: 0; }
 * { box-sizing: border-box; }
 body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #111; }
-.label { width: 4in; padding: 0.1in; break-inside: avoid; page-break-inside: avoid; }
+.label { width: 2in; padding: 0.1in; break-inside: avoid; page-break-inside: avoid; }
 .carrier { font-size: 12px; font-weight: bold; line-height: 1.3; margin-bottom: 2px; }
 .pro-label { font-size: 11px; font-weight: bold; letter-spacing: 2px; color: #555; }
-.pro { font-size: 26px; font-weight: bold; letter-spacing: 1px; margin: 1px 0 2px; }
-.pro-barcode { display: block; margin: 0 auto; max-width: 3.8in; height: auto; }
+.pro { font-size: 24px; font-weight: bold; letter-spacing: 1px; margin: 1px 0 2px; }
+.pro-barcode { display: block; margin: 0 auto; max-width: 1.7in; height: auto; }
 .ship-to { font-size: 11px; line-height: 1.3; margin-top: 2px; }
 .po { font-size: 12px; font-weight: bold; margin-top: 2px; }
 @media print { .noprint { display: none; } }
@@ -1168,7 +1173,7 @@ body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #111; }
 <div class="pro">${escHtml(pro)}</div>
 <svg class="pro-barcode" id="pro-barcode-sm"></svg>
 <!--BARCODE_SCRIPT-->
-<script>if (typeof JsBarcode !== 'undefined') { JsBarcode('#pro-barcode-sm', ${proJson}, { format: 'CODE128', width: 2, height: 30, displayValue: false, margin: 0 }); }</script>
+<script>if (typeof JsBarcode !== 'undefined') { JsBarcode('#pro-barcode-sm', ${proJson}, { format: 'CODE128', width: 1, height: 30, displayValue: false, margin: 0 }); }</script>
 <div class="ship-to"><strong>SHIP TO:</strong> ${escHtml(shipToLine) || '—'}</div>
 ${poNo ? `<div class="po">PO #: ${escHtml(poNo)}</div>` : ''}
 </div></body></html>`;
