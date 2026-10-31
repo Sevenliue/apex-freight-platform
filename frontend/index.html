@@ -3503,8 +3503,16 @@
           ${payNote}
           <div class="actions">
             <a class="btn" href="${esc(res.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a> <a class="btn" href="${esc(res.bol_url.replace('/bol/', '/label/'))}" target="_blank" rel="noopener">Print 4×6 Label</a> <a class="btn" href="${esc(res.bol_url.replace('/bol/', '/label/') + '?size=2x4')}" target="_blank" rel="noopener">Print 2×4 Label</a>${label}
+            <button type="button" class="btn" data-schedule-pickup>Schedule Pickup</button>
           </div>
         </div>`;
+      // Schedule Pickup from this card: pre-select this shipment on the
+      // pickup form, then go there (loadPickups applies the preselect).
+      const pkBtn = document.querySelector('#complete-result [data-schedule-pickup]');
+      if (pkBtn) pkBtn.addEventListener('click', () => {
+        window.__pickupPreselectPro = res.tracking_code || null;
+        showTab('pickups');
+      });
       $('#complete-result').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
 
@@ -3639,6 +3647,13 @@
         } else {
           orderSel.innerHTML = '<option value="">Choose a shipment…</option>' +
             orders.map((o) => `<option value="${esc(o.id)}">${esc(o.ref)}${o.carrier ? ' · ' + esc(o.carrier) : ''} · ${esc(o.status || '')}</option>`).join('');
+          // Pre-select a shipment when arriving from its scheduled card
+          // (Schedule Pickup button): match by PRO; no match = plain nav.
+          if (window.__pickupPreselectPro) {
+            const match = orders.find((o) => o.ref === window.__pickupPreselectPro);
+            if (match) orderSel.value = match.id;
+            window.__pickupPreselectPro = null;
+          }
         }
       } catch (err) {
         orderSel.innerHTML = err && err.status === 401
