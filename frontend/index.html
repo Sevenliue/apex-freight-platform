@@ -2725,9 +2725,13 @@
       addPkgRow();
       syncRareCols();
       syncTotalWeightLine();
-      // Drop the rated results and the saved-quote state.
+      // Drop the rated results and the saved-quote state — including the
+      // previous shipment's scheduled card, so a new quote starts from a
+      // clean quoting screen (UAT finding, Oct 31 2026). The approval note
+      // is account-level, not shipment-level, so it stays.
       currentQuote = null;
       $('#quote-results').innerHTML = '';
+      $('#complete-result').innerHTML = '';
       syncRateEmpty();
       syncQuoteActions();
       syncBillToBlock();
@@ -2806,6 +2810,9 @@
       btn.disabled = true;
       btn.textContent = 'Fetching…';
       $('#quote-results').innerHTML = '';
+      // A fresh rating is a new quote: the previous shipment's scheduled
+      // card must not linger beside the new results.
+      $('#complete-result').innerHTML = '';
       syncRateEmpty();
       try {
       const packages = collectPackages();
