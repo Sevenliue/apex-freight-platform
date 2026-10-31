@@ -3503,7 +3503,7 @@
           ${payNote}
           <div class="actions">
             <a class="btn" href="${esc(res.bol_url)}" target="_blank" rel="noopener">Print Bill of Lading</a> <a class="btn" href="${esc(res.bol_url.replace('/bol/', '/label/'))}" target="_blank" rel="noopener">Print 4×6 Label</a> <a class="btn" href="${esc(res.bol_url.replace('/bol/', '/label/') + '?size=2x4')}" target="_blank" rel="noopener">Print 2×4 Label</a>${label}
-            <button type="button" class="btn" data-schedule-pickup>Schedule Pickup</button>
+            <button type="button" class="btn primary" data-schedule-pickup>Schedule Pickup</button>
           </div>
         </div>`;
       // Schedule Pickup from this card: pre-select this shipment on the
