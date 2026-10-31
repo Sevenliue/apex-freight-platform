@@ -54,7 +54,7 @@ ON CONFLICT (user_id, sku) DO UPDATE SET qty = EXCLUDED.qty, name = EXCLUDED.nam
 -- Part B: Northline 3PL company + portal own-rate rows (for the shipper-portal
 -- test: "Company rate" badge + carrier-direct booking).
 -- Creates the company if missing (by name), links Seven's account only when
--- his company_id is currently NULL, enables the portal, and seeds 'engine'
+-- his company_id is currently NULL, enables the portal, and seeds 'live_link'
 -- own-rate rows for both Northline carriers (in-place engine rates, no payload).
 DO $$
 DECLARE
@@ -75,8 +75,8 @@ BEGIN
   UPDATE users SET company_id = cid WHERE id = uid AND company_id IS NULL;
   UPDATE companies SET portal_enabled = TRUE WHERE id = cid;
   INSERT INTO company_rates (company_id, carrier_id, shape, payload)
-  VALUES (cid, 'northline_transport', 'engine', NULL),
-         (cid, 'northline_express', 'engine', NULL)
+  VALUES (cid, 'northline_transport', 'live_link', NULL),
+         (cid, 'northline_express', 'live_link', NULL)
   ON CONFLICT (company_id, carrier_id) DO NOTHING;
   RAISE NOTICE 'Northline 3PL company % ready, portal enabled', cid;
 END $$;
