@@ -1166,7 +1166,7 @@ body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #111; }
 .po { font-size: 12px; font-weight: bold; margin-top: 2px; }
 @media print { .noprint { display: none; } }
 </style></head><body>
-<div class="noprint" style="margin:8px"><button onclick="window.print()">Print</button></div>
+<div class="noprint" style="margin:8px"><button onclick="window.print()">Print</button> <span style="font-size:12px;color:#555">Paper size: 2×4 · In the print dialog, turn off Headers and footers (More settings) — the date/title header and the about:blank footer come from the browser, not this label, and they only disappear with that switch.</span></div>
 <div class="label">
 <div class="carrier">${escHtml(order.carrier)}${order.service ? ' — ' + escHtml(order.service) : ''}</div>
 <div class="pro-label">PRO NUMBER</div>
