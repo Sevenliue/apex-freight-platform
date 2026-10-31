@@ -1,0 +1,1506 @@
+{
+ "fsc_ltl_pct": 53.9,
+ "fsc_trailer_pct": 68.9,
+ "lanes": {
+  "100 MILE HOUSE": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 1500.0
+  },
+  "70 MILE HOUSE": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 1500.0
+  },
+  "ABBOTSFORD": {
+   "ltl": 11.2,
+   "min": 52.97,
+   "rate2000": 10.2,
+   "trailer": 1200.0
+  },
+  "ADAMS LAKE": {
+   "ltl": 12.5,
+   "min": 58.22,
+   "rate2000": 11.5,
+   "trailer": 900.0
+  },
+  "AINSWORTH H SPRING": {
+   "ltl": 16.4,
+   "min": 62.48,
+   "rate2000": 14.4,
+   "trailer": 2250.0
+  },
+  "ALERT BAY (THURS)": {
+   "ltl": 45.5,
+   "min": 131.25,
+   "rate2000": 43.5,
+   "trailer": null
+  },
+  "ANGLEMONT": {
+   "ltl": 12.5,
+   "min": 58.22,
+   "rate2000": 11.5,
+   "trailer": 900.0
+  },
+  "ANNACIS ISLAND": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 1500.0
+  },
+  "ARMSTRONG": {
+   "ltl": 9.5,
+   "min": 42.53,
+   "rate2000": 9.5,
+   "trailer": 600.0
+  },
+  "ASHCROFT": {
+   "ltl": 10.2,
+   "min": 49.88,
+   "rate2000": 9.5,
+   "trailer": 800.0
+  },
+  "ATHALMER": {
+   "ltl": 16.5,
+   "min": 68.78,
+   "rate2000": 14.4,
+   "trailer": 2250.0
+  },
+  "BALFOUR (TUES TO FRI)": {
+   "ltl": 16.5,
+   "min": 78.75,
+   "rate2000": 14.4,
+   "trailer": 2250.0
+  },
+  "BARRIERE": {
+   "ltl": 11.2,
+   "min": 49.88,
+   "rate2000": 9.5,
+   "trailer": 800.0
+  },
+  "BLACK CREEK": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "BLIND BAY": {
+   "ltl": 11.2,
+   "min": 47.78,
+   "rate2000": 9.5,
+   "trailer": 800.0
+  },
+  "BLUEBERRY": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 1500.0
+  },
+  "BONNINGTON": {
+   "ltl": 14.4,
+   "min": 58.22,
+   "rate2000": 12.4,
+   "trailer": 2000.0
+  },
+  "BOSWELL": {
+   "ltl": 16.5,
+   "min": 105.0,
+   "rate2000": 14.4,
+   "trailer": 2000.0
+  },
+  "BOWSER": {
+   "ltl": 15.4,
+   "min": 105.0,
+   "rate2000": 13.4,
+   "trailer": 950.0
+  },
+  "BRENTWOOD BAY": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "BRIDESVILLE": {
+   "ltl": 18.4,
+   "min": 131.25,
+   "rate2000": 16.4,
+   "trailer": 950.0
+  },
+  "BRISCO": {
+   "ltl": 16.5,
+   "min": 131.25,
+   "rate2000": 14.4,
+   "trailer": 1250.0
+  },
+  "BUCKLEY BAY": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "BURNABY": {
+   "ltl": 11.2,
+   "min": 52.97,
+   "rate2000": 10.2,
+   "trailer": 1500.0
+  },
+  "BURTON": {
+   "ltl": 18.4,
+   "min": 131.25,
+   "rate2000": 16.4,
+   "trailer": 1500.0
+  },
+  "CACHE CREEK": {
+   "ltl": 10.2,
+   "min": 49.88,
+   "rate2000": 9.5,
+   "trailer": 950.0
+  },
+  "CAMPBELL RIVER": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "CANAL FLATS": {
+   "ltl": 16.5,
+   "min": 68.78,
+   "rate2000": 14.4,
+   "trailer": 1600.0
+  },
+  "CANOE": {
+   "ltl": 9.5,
+   "min": 47.78,
+   "rate2000": 9.5,
+   "trailer": 700.0
+  },
+  "CANYON": {
+   "ltl": 14.4,
+   "min": 68.78,
+   "rate2000": 12.4,
+   "trailer": 950.0
+  },
+  "CASSIDY": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "CASTLEGAR": {
+   "ltl": 11.2,
+   "min": 52.97,
+   "rate2000": 10.2,
+   "trailer": 1400.0
+  },
+  "CAWSTON": {
+   "ltl": 9.5,
+   "min": 52.97,
+   "rate2000": 8.5,
+   "trailer": 700.0
+  },
+  "CEDAR": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "CELISTA": {
+   "ltl": 12.5,
+   "min": 58.22,
+   "rate2000": 11.5,
+   "trailer": 900.0
+  },
+  "CENTRAL SAANICH": {
+   "ltl": 18.0,
+   "min": 63.53,
+   "rate2000": 17.0,
+   "trailer": null
+  },
+  "CHASE": {
+   "ltl": 10.2,
+   "min": 49.88,
+   "rate2000": 8.5,
+   "trailer": 950.0
+  },
+  "CHASM": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 1500.0
+  },
+  "CHEMANIUS": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "CHERRYVILLE": {
+   "ltl": 9.5,
+   "min": 68.78,
+   "rate2000": 9.5,
+   "trailer": 700.0
+  },
+  "CHILLIWACK": {
+   "ltl": 11.2,
+   "min": 52.97,
+   "rate2000": 10.2,
+   "trailer": 950.0
+  },
+  "CHRISTINA LAKE": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 950.0
+  },
+  "CLEARWATER": {
+   "ltl": 12.5,
+   "min": 52.97,
+   "rate2000": 11.5,
+   "trailer": 900.0
+  },
+  "CLINTON (TUES,THURS)": {
+   "ltl": 12.5,
+   "min": 52.97,
+   "rate2000": 11.5,
+   "trailer": 900.0
+  },
+  "COAL HARBOUR": {
+   "ltl": 45.5,
+   "min": 105.0,
+   "rate2000": 43.5,
+   "trailer": null
+  },
+  "COLDSTREAM": {
+   "ltl": 8.5,
+   "min": 42.53,
+   "rate2000": 8.5,
+   "trailer": 500.0
+  },
+  "COLWOOD": {
+   "ltl": 18.0,
+   "min": 63.53,
+   "rate2000": 17.0,
+   "trailer": null
+  },
+  "COMOX": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "COOMBS": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "COQUITLAM": {
+   "ltl": 11.2,
+   "min": 52.97,
+   "rate2000": 10.2,
+   "trailer": 1500.0
+  },
+  "COURTENAY": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "COWICHAN BAY": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "CRANBROOK": {
+   "ltl": 15.5,
+   "min": 52.97,
+   "rate2000": 14.4,
+   "trailer": 1800.0
+  },
+  "CRAWFORD BAY": {
+   "ltl": 16.5,
+   "min": 131.25,
+   "rate2000": 14.4,
+   "trailer": null
+  },
+  "CRESTON": {
+   "ltl": 16.5,
+   "min": 52.97,
+   "rate2000": 14.4,
+   "trailer": 1500.0
+  },
+  "CROFTON": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "CULTUS LAKE": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 2500.0
+  },
+  "DARFIELD": {
+   "ltl": 12.5,
+   "min": 52.97,
+   "rate2000": 11.5,
+   "trailer": 900.0
+  },
+  "DELTA": {
+   "ltl": 11.3,
+   "min": 52.97,
+   "rate2000": 10.3,
+   "trailer": 1300.0
+  },
+  "DENMAN ISLAND": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "DUKE POINT": {
+   "ltl": 18.0,
+   "min": 63.53,
+   "rate2000": 17.0,
+   "trailer": null
+  },
+  "DUNCAN": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "EDGEWATER": {
+   "ltl": 16.5,
+   "min": 68.78,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "EDGEWOOD": {
+   "ltl": 18.4,
+   "min": 99.75,
+   "rate2000": 16.4,
+   "trailer": 1500.0
+  },
+  "EGMONT": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "ELKFORD": {
+   "ltl": 18.4,
+   "min": 131.25,
+   "rate2000": 16.4,
+   "trailer": 2500.0
+  },
+  "ELKO": {
+   "ltl": 18.4,
+   "min": 99.75,
+   "rate2000": 16.4,
+   "trailer": 2500.0
+  },
+  "ENDERBY": {
+   "ltl": 9.0,
+   "min": 42.53,
+   "rate2000": 8.5,
+   "trailer": 600.0
+  },
+  "ERICKSON": {
+   "ltl": 16.5,
+   "min": 52.97,
+   "rate2000": 14.4,
+   "trailer": 1700.0
+  },
+  "ERRINGTON": {
+   "ltl": 50.1,
+   "min": 105.0,
+   "rate2000": 45.5,
+   "trailer": null
+  },
+  "ESQUIMALT": {
+   "ltl": 18.0,
+   "min": 63.53,
+   "rate2000": 17.0,
+   "trailer": null
+  },
+  "FAIRMONT": {
+   "ltl": 16.5,
+   "min": 68.78,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "FALKLAND": {
+   "ltl": 10.2,
+   "min": 43.58,
+   "rate2000": 9.0,
+   "trailer": 950.0
+  },
+  "FAUQUIER": {
+   "ltl": 18.4,
+   "min": 131.25,
+   "rate2000": 16.4,
+   "trailer": 1500.0
+  },
+  "FERNIE": {
+   "ltl": 18.4,
+   "min": 99.75,
+   "rate2000": 16.4,
+   "trailer": 2500.0
+  },
+  "FIELD": {
+   "ltl": 16.4,
+   "min": 141.75,
+   "rate2000": 14.4,
+   "trailer": 1900.0
+  },
+  "FORT STEELE": {
+   "ltl": 18.4,
+   "min": 99.75,
+   "rate2000": 16.4,
+   "trailer": 2500.0
+  },
+  "FRUITVALE": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 1200.0
+  },
+  "FULFORD HARBOUR": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "GABRIOLA ISLAND": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "GANGES": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "GENELLE": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 1200.0
+  },
+  "GIBSONS": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "GLADE": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 2000.0
+  },
+  "GOLD RIVER (THURS)": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "GOLDEN": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 1100.0
+  },
+  "GOLDSTREAM": {
+   "ltl": 18.0,
+   "min": 63.53,
+   "rate2000": 17.0,
+   "trailer": null
+  },
+  "GRAND FORKS": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 950.0
+  },
+  "GRAY CREEK": {
+   "ltl": 16.5,
+   "min": 131.25,
+   "rate2000": 14.4,
+   "trailer": null
+  },
+  "GREENWOOD": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 950.0
+  },
+  "GRINDROD": {
+   "ltl": 9.5,
+   "min": 42.53,
+   "rate2000": 9.0,
+   "trailer": 700.0
+  },
+  "HALFMOON BAY": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "HARROGATE": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "HARROP": {
+   "ltl": 16.5,
+   "min": 78.75,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "HEDLEY": {
+   "ltl": 9.9,
+   "min": 52.97,
+   "rate2000": 8.9,
+   "trailer": 750.0
+  },
+  "HONEYMOON BAY": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "HOPE": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 950.0
+  },
+  "HORNBY ISLAND": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "INVERMERE": {
+   "ltl": 16.5,
+   "min": 63.53,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "JAFFRAY": {
+   "ltl": 18.4,
+   "min": 99.75,
+   "rate2000": 16.4,
+   "trailer": 2500.0
+  },
+  "KALEDEN": {
+   "ltl": 9.0,
+   "min": 52.97,
+   "rate2000": 8.5,
+   "trailer": 700.0
+  },
+  "KAMLOOPS": {
+   "ltl": 9.2,
+   "min": 47.78,
+   "rate2000": 8.5,
+   "trailer": 800.0
+  },
+  "KASLO": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 1125.0
+  },
+  "KELOWNA": {
+   "ltl": 5.0,
+   "min": 36.75,
+   "rate2000": 4.0,
+   "trailer": 200.0
+  },
+  "KEREMEOS": {
+   "ltl": 9.0,
+   "min": 52.97,
+   "rate2000": 8.5,
+   "trailer": 700.0
+  },
+  "KIMBERLEY": {
+   "ltl": 15.5,
+   "min": 52.97,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "KITCHENER": {
+   "ltl": 15.5,
+   "min": 52.97,
+   "rate2000": 14.4,
+   "trailer": 2000.0
+  },
+  "KNUTSFORD": {
+   "ltl": 10.2,
+   "min": 131.25,
+   "rate2000": 9.5,
+   "trailer": 1100.0
+  },
+  "KRESTOVA": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 950.0
+  },
+  "LAC LA HACHE": {
+   "ltl": 14.4,
+   "min": 79.22,
+   "rate2000": 12.4,
+   "trailer": 1500.0
+  },
+  "LADYSMITH": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "LAKE COUNTRY": {
+   "ltl": 5.0,
+   "min": 15.75,
+   "rate2000": 4.0,
+   "trailer": 200.0
+  },
+  "LAKE COWICHAN": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "LANGDALE": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "LANGFORD": {
+   "ltl": 18.0,
+   "min": 63.53,
+   "rate2000": 17.0,
+   "trailer": null
+  },
+  "LANGLEY": {
+   "ltl": 10.9,
+   "min": 52.97,
+   "rate2000": 9.9,
+   "trailer": 1200.0
+  },
+  "LANTZVILLE": {
+   "ltl": 18.0,
+   "min": 63.53,
+   "rate2000": 17.0,
+   "trailer": null
+  },
+  "LAVINGTON": {
+   "ltl": 9.0,
+   "min": 42.53,
+   "rate2000": 8.5,
+   "trailer": 500.0
+  },
+  "LISTER": {
+   "ltl": 16.5,
+   "min": 52.97,
+   "rate2000": 14.4,
+   "trailer": 1600.0
+  },
+  "LITTLE FORT": {
+   "ltl": 11.2,
+   "min": 52.97,
+   "rate2000": 9.5,
+   "trailer": 900.0
+  },
+  "LOGAN LAKE (MON/WED)": {
+   "ltl": 11.2,
+   "min": 52.97,
+   "rate2000": 9.5,
+   "trailer": 900.0
+  },
+  "LONE BUTTE": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 950.0
+  },
+  "LONG HARBOUR": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "LOUIS CREEK": {
+   "ltl": 11.2,
+   "min": 52.97,
+   "rate2000": 9.5,
+   "trailer": 900.0
+  },
+  "LOWER NICOLA": {
+   "ltl": 11.2,
+   "min": 52.97,
+   "rate2000": 9.5,
+   "trailer": 900.0
+  },
+  "LUMBY": {
+   "ltl": 9.0,
+   "min": 42.53,
+   "rate2000": 8.5,
+   "trailer": 600.0
+  },
+  "LUND": {
+   "ltl": 45.5,
+   "min": 105.0,
+   "rate2000": 43.5,
+   "trailer": null
+  },
+  "MADEIRA PARK": {
+   "ltl": 18.0,
+   "min": 63.53,
+   "rate2000": 17.0,
+   "trailer": null
+  },
+  "MALAHAT": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "MALAKWA": {
+   "ltl": 10.2,
+   "min": 52.97,
+   "rate2000": 9.2,
+   "trailer": 950.0
+  },
+  "MAPLE BAY": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "MARA": {
+   "ltl": 10.2,
+   "min": 52.97,
+   "rate2000": 9.2,
+   "trailer": 950.0
+  },
+  "MARYSVILLE": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "MCLURE": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 950.0
+  },
+  "MEADOW CREEK": {
+   "ltl": 14.4,
+   "min": 63.47,
+   "rate2000": 12.4,
+   "trailer": 2500.0
+  },
+  "MERRITT": {
+   "ltl": 10.2,
+   "min": 47.78,
+   "rate2000": 9.5,
+   "trailer": 800.0
+  },
+  "MERVILLE": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "MESACHIE LAKE": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "METCHOSIN": {
+   "ltl": 18.0,
+   "min": 63.53,
+   "rate2000": 17.0,
+   "trailer": null
+  },
+  "MIDWAY": {
+   "ltl": 14.4,
+   "min": 63.53,
+   "rate2000": 12.4,
+   "trailer": 950.0
+  },
+  "MILL BAY": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "MILNES LANDING": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "MIRROR LAKE": {
+   "ltl": 16.4,
+   "min": 52.97,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "MONTROSE": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 1500.0
+  },
+  "MOYIE": {
+   "ltl": 16.4,
+   "min": 52.97,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "NAKUSP": {
+   "ltl": 16.4,
+   "min": 68.25,
+   "rate2000": 14.4,
+   "trailer": 1500.0
+  },
+  "NANAIMO": {
+   "ltl": 18.0,
+   "min": 66.71,
+   "rate2000": 17.0,
+   "trailer": null
+  },
+  "NANOOSE BAY": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "NARAMATA": {
+   "ltl": 9.5,
+   "min": 52.97,
+   "rate2000": 9.0,
+   "trailer": 500.0
+  },
+  "NEEDLES": {
+   "ltl": 14.4,
+   "min": 63.47,
+   "rate2000": 12.4,
+   "trailer": 950.0
+  },
+  "NELSON": {
+   "ltl": 14.4,
+   "min": 63.47,
+   "rate2000": 12.4,
+   "trailer": 1500.0
+  },
+  "NEW DENVER": {
+   "ltl": 15.5,
+   "min": 52.97,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "NEW WESTMINSTER": {
+   "ltl": 11.2,
+   "min": 52.97,
+   "rate2000": 10.2,
+   "trailer": 1200.0
+  },
+  "NEWTON": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 1500.0
+  },
+  "NORTH COWICHAN": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "NORTH SAANICH": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "NORTH SHUSWAP": {
+   "ltl": 12.5,
+   "min": 58.22,
+   "rate2000": 11.5,
+   "trailer": 900.0
+  },
+  "NORTH VANCOUVER": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 1500.0
+  },
+  "NOTCHILL": {
+   "ltl": 12.4,
+   "min": 52.97,
+   "rate2000": 11.4,
+   "trailer": 800.0
+  },
+  "OAK BAY": {
+   "ltl": 18.0,
+   "min": 63.53,
+   "rate2000": 17.0,
+   "trailer": null
+  },
+  "OKANAGAN FALLS": {
+   "ltl": 9.0,
+   "min": 42.53,
+   "rate2000": 8.5,
+   "trailer": 600.0
+  },
+  "OLALLA": {
+   "ltl": 9.0,
+   "min": 52.97,
+   "rate2000": 8.5,
+   "trailer": 700.0
+  },
+  "OLIVER": {
+   "ltl": 9.0,
+   "min": 42.53,
+   "rate2000": 8.5,
+   "trailer": 700.0
+  },
+  "OSOYOOS": {
+   "ltl": 9.0,
+   "min": 43.58,
+   "rate2000": 8.5,
+   "trailer": 750.0
+  },
+  "OYAMA": {
+   "ltl": 9.0,
+   "min": 42.53,
+   "rate2000": 8.5,
+   "trailer": 500.0
+  },
+  "PANORAMA": {
+   "ltl": 16.5,
+   "min": 131.25,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "PARKSVILLE": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "PARSON": {
+   "ltl": 16.5,
+   "min": 131.25,
+   "rate2000": 14.4,
+   "trailer": 1500.0
+  },
+  "PASSMORE": {
+   "ltl": 14.4,
+   "min": 63.47,
+   "rate2000": 12.4,
+   "trailer": 1500.0
+  },
+  "PEACHLAND": {
+   "ltl": 8.0,
+   "min": 25.73,
+   "rate2000": 7.0,
+   "trailer": 300.0
+  },
+  "PENTICTON": {
+   "ltl": 8.5,
+   "min": 42.53,
+   "rate2000": 8.0,
+   "trailer": 500.0
+  },
+  "PORT ALBERNI": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "PORT ALICE (TUES)": {
+   "ltl": 45.5,
+   "min": 105.0,
+   "rate2000": 43.5,
+   "trailer": null
+  },
+  "PORT HARDY/MCNEILL": {
+   "ltl": 45.5,
+   "min": 105.0,
+   "rate2000": 43.5,
+   "trailer": null
+  },
+  "POWELL RIVER": {
+   "ltl": 45.5,
+   "min": 105.0,
+   "rate2000": 43.5,
+   "trailer": null
+  },
+  "PRINCE GEORGE": {
+   "ltl": 16.5,
+   "min": 68.78,
+   "rate2000": 15.5,
+   "trailer": 2800.0
+  },
+  "PRINCETON": {
+   "ltl": 9.0,
+   "min": 43.58,
+   "rate2000": 8.5,
+   "trailer": 800.0
+  },
+  "PRITCHARD": {
+   "ltl": 10.2,
+   "min": 52.97,
+   "rate2000": 9.5,
+   "trailer": 950.0
+  },
+  "QUADRA ISLAND (WED)": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "QUESNEL": {
+   "ltl": 16.5,
+   "min": 68.78,
+   "rate2000": 15.5,
+   "trailer": 2000.0
+  },
+  "RADIUM HOT SPRINGS": {
+   "ltl": 16.5,
+   "min": 68.78,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "REVELSTOKE": {
+   "ltl": 12.4,
+   "min": 52.97,
+   "rate2000": 11.4,
+   "trailer": 950.0
+  },
+  "RICHMOND": {
+   "ltl": 11.2,
+   "min": 52.97,
+   "rate2000": 10.2,
+   "trailer": 1200.0
+  },
+  "ROBSON": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 1200.0
+  },
+  "ROCK CREEK": {
+   "ltl": 14.4,
+   "min": 131.25,
+   "rate2000": 12.4,
+   "trailer": 950.0
+  },
+  "ROSEDALE": {
+   "ltl": 11.2,
+   "min": 52.97,
+   "rate2000": 10.2,
+   "trailer": 1200.0
+  },
+  "ROSSLAND": {
+   "ltl": 14.4,
+   "min": 63.47,
+   "rate2000": 12.4,
+   "trailer": 1500.0
+  },
+  "ROYSTON": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "SAANICH": {
+   "ltl": 18.0,
+   "min": 63.53,
+   "rate2000": 17.0,
+   "trailer": null
+  },
+  "SAANICHTON": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "SALMO": {
+   "ltl": 14.4,
+   "min": 63.53,
+   "rate2000": 12.4,
+   "trailer": 1500.0
+  },
+  "SALMON ARM": {
+   "ltl": 8.9,
+   "min": 43.58,
+   "rate2000": 7.9,
+   "trailer": 750.0
+  },
+  "SALT SPRING ISLAND": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "SAVONA": {
+   "ltl": 12.4,
+   "min": 52.97,
+   "rate2000": 11.4,
+   "trailer": 950.0
+  },
+  "SAYWARD (MON)": {
+   "ltl": 45.5,
+   "min": 105.0,
+   "rate2000": 43.5,
+   "trailer": null
+  },
+  "SCOTCH CREEK": {
+   "ltl": 13.4,
+   "min": 52.97,
+   "rate2000": 11.4,
+   "trailer": 950.0
+  },
+  "SECHELT": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "SHAWNIGAN LAKE": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "SICAMOUS": {
+   "ltl": 10.2,
+   "min": 52.97,
+   "rate2000": 9.2,
+   "trailer": 950.0
+  },
+  "SIDNEY/SOOKE": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "SILVERTON": {
+   "ltl": 15.5,
+   "min": 52.97,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "SKOOKUMCHUCK": {
+   "ltl": 16.5,
+   "min": 63.53,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "SLOCAN": {
+   "ltl": 15.5,
+   "min": 52.97,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "SLOCAN PARK": {
+   "ltl": 14.4,
+   "min": 63.47,
+   "rate2000": 12.4,
+   "trailer": 1500.0
+  },
+  "SOINTULA (FRI)": {
+   "ltl": 45.5,
+   "min": 105.0,
+   "rate2000": 43.5,
+   "trailer": null
+  },
+  "SORRENTO": {
+   "ltl": 12.4,
+   "min": 52.97,
+   "rate2000": 11.4,
+   "trailer": 950.0
+  },
+  "SPALLUMCHEEN": {
+   "ltl": 9.0,
+   "min": 42.53,
+   "rate2000": 8.5,
+   "trailer": 600.0
+  },
+  "SPARWOOD": {
+   "ltl": 16.5,
+   "min": 68.78,
+   "rate2000": 15.5,
+   "trailer": 2500.0
+  },
+  "SPILLIMACHEEN": {
+   "ltl": 16.5,
+   "min": 131.25,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "SPROAT LAKE": {
+   "ltl": 16.5,
+   "min": 131.25,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "SPUR VALLEY": {
+   "ltl": 16.5,
+   "min": 131.25,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "SQUILAX": {
+   "ltl": 11.2,
+   "min": 49.88,
+   "rate2000": 10.2,
+   "trailer": 950.0
+  },
+  "SUMMERLAND": {
+   "ltl": 9.0,
+   "min": 42.53,
+   "rate2000": 8.5,
+   "trailer": 500.0
+  },
+  "SURREY": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 1200.0
+  },
+  "SWARTZ BAY": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "TA TA CREEK": {
+   "ltl": 16.5,
+   "min": 68.78,
+   "rate2000": 15.5,
+   "trailer": 2500.0
+  },
+  "TAPPEN": {
+   "ltl": 11.2,
+   "min": 52.97,
+   "rate2000": 10.2,
+   "trailer": 900.0
+  },
+  "TELEGRAPH COVE": {
+   "ltl": 45.5,
+   "min": 105.0,
+   "rate2000": 43.5,
+   "trailer": null
+  },
+  "THREE VALLEY GAP": {
+   "ltl": 13.4,
+   "min": 89.78,
+   "rate2000": 11.4,
+   "trailer": 950.0
+  },
+  "THRUMS": {
+   "ltl": 14.4,
+   "min": 63.47,
+   "rate2000": 12.4,
+   "trailer": 1500.0
+  },
+  "TILBURY ISLAND": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 1200.0
+  },
+  "TOFINO": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "TRAIL": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 1200.0
+  },
+  "TRANQUILLE": {
+   "ltl": 10.2,
+   "min": 52.97,
+   "rate2000": 9.8,
+   "trailer": null
+  },
+  "ULCLUELET": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "UNION BAY": {
+   "ltl": 19.0,
+   "min": 63.53,
+   "rate2000": 18.0,
+   "trailer": null
+  },
+  "VALLICAN": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 1500.0
+  },
+  "VANCOUVER": {
+   "ltl": 11.2,
+   "min": 52.97,
+   "rate2000": 10.2,
+   "trailer": 1200.0
+  },
+  "VANDERHOOF": {
+   "ltl": 16.5,
+   "min": 68.78,
+   "rate2000": 15.5,
+   "trailer": 2500.0
+  },
+  "VERNON": {
+   "ltl": 9.0,
+   "min": 42.53,
+   "rate2000": 8.5,
+   "trailer": 500.0
+  },
+  "VERSUVIUS BAY": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  },
+  "VICTORIA": {
+   "ltl": 18.0,
+   "min": 63.53,
+   "rate2000": 17.0,
+   "trailer": null
+  },
+  "WANETA": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 2000.0
+  },
+  "WASA": {
+   "ltl": 16.5,
+   "min": 63.53,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "WELLS": {
+   "ltl": 16.5,
+   "min": 68.78,
+   "rate2000": 15.5,
+   "trailer": 2000.0
+  },
+  "WEST KELOWNA": {
+   "ltl": 5.0,
+   "min": 36.75,
+   "rate2000": 4.0,
+   "trailer": 200.0
+  },
+  "WESTBRIDGE": {
+   "ltl": 14.4,
+   "min": 131.25,
+   "rate2000": 12.4,
+   "trailer": 950.0
+  },
+  "WESTWOLD": {
+   "ltl": 8.9,
+   "min": 43.58,
+   "rate2000": 8.9,
+   "trailer": 750.0
+  },
+  "WHISKEY CREEK": {
+   "ltl": 21.0,
+   "min": 78.75,
+   "rate2000": 20.0,
+   "trailer": null
+  },
+  "WHITE ROCK": {
+   "ltl": 14.4,
+   "min": 63.47,
+   "rate2000": 12.4,
+   "trailer": 1500.0
+  },
+  "WILLIAMS LAKE": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 1500.0
+  },
+  "WINDERMERE": {
+   "ltl": 16.5,
+   "min": 68.78,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "WINLAW": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 2000.0
+  },
+  "WYCLIFFE": {
+   "ltl": 15.5,
+   "min": 52.97,
+   "rate2000": 14.4,
+   "trailer": 2500.0
+  },
+  "WYNNDEL": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 2000.0
+  },
+  "YAHK": {
+   "ltl": 16.5,
+   "min": 52.97,
+   "rate2000": 14.4,
+   "trailer": 2000.0
+  },
+  "YELLOW POINT": {
+   "ltl": 21.0,
+   "min": 78.75,
+   "rate2000": 20.0,
+   "trailer": null
+  },
+  "YMIR": {
+   "ltl": 14.4,
+   "min": 52.97,
+   "rate2000": 12.4,
+   "trailer": 2000.0
+  },
+  "YOUBOU (FRI)": {
+   "ltl": 35.0,
+   "min": 105.0,
+   "rate2000": 32.0,
+   "trailer": null
+  }
+ },
+ "origins": [
+  "KELOWNA",
+  "WEST KELOWNA",
+  "LAKE COUNTRY"
+ ],
+ "source": "Ace_Rate_sheet_for_Total_Tire_Tire_rates_Oct_30_2026.xlsx (LEFT copy, Seven-confirmed)"
+}

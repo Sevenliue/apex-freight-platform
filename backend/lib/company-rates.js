@@ -7,6 +7,11 @@
 //   engine    — own-rate row from preserved engine data (TEAMS teamsQuotes).
 //   per_tire  — own-rate row from a stored per-tire table payload
 //     (Bee Express Acheson corridor, transcribed from Total Tire's PDFs).
+//   ace_tire  — own-rate row from ACE Courier's Total Tire tire table
+//     (249 Kelowna-area destinations; min-floor CWT + trailer threshold;
+//     see lib/ace-tire-rates.js). Carrier id 'ace' matches the public
+//     tariff carrier, so Total Tire's board shows the Excel row and the
+//     Reading 1 filter hides the broker tariff row for members.
 //
 // V1 pilot seed (Seven, 2026-10-29): Total Tire Distributors only, anchored
 // on its assigned company admin's email (the company row is found through
@@ -19,6 +24,7 @@
 
 const db = require('../db');
 const beeRates = require('./bee-express-rates');
+const aceRates = require('./ace-tire-rates');
 
 const TOTAL_TIRE_ADMIN_EMAIL = 'hongbo_liu@kaltire.com';
 
@@ -33,6 +39,7 @@ const LIVE_LINK_CARRIERS = [
 ];
 const ENGINE_CARRIERS = ['teams'];
 const PER_TIRE_CARRIERS = ['beeexpress'];
+const ACE_TIRE_CARRIERS = ['ace'];
 
 function brandName() {
   try {
@@ -67,7 +74,7 @@ function isBookableOwnRate(rate, markers) {
 // rate_kind 'own' + billing 'carrier_direct'; broker rows carry neither.
 // Own rows exclude the platform add-on insurance (a carrier-direct booking
 // bills freight only). Callers must NOT pass another company's markers.
-function mergePortalRows({ rates, markers, bee, originCity, destCity, totalWeightLbs, transit, estDeliveryDate, transitDaysUpper, beeFuelPct }) {
+function mergePortalRows({ rates, markers, bee, originCity, destCity, totalWeightLbs, transit, estDeliveryDate, transitDaysUpper, beeFuelPct, aceFuelLtlPct, aceFuelTrailerPct }) {
   // TEAMS: kept in the pricing set only for marker members; convert in
   // place (no broker copy ever exists for TEAMS — private rates).
   for (const r of rates) {
@@ -135,6 +142,39 @@ function mergePortalRows({ rates, markers, bee, originCity, destCity, totalWeigh
         notes: ['Your company rate (Bee Express Acheson corridor per-tire tables)'],
       });
       merged = merged.filter((r) => !(r.carrier_id === 'beeexpress' && r.rate_kind !== 'own' && r.retail_cad != null && !(r.retail_cad < q.total)));
+    }
+  }
+  // ACE Courier Total Tire tire-table own row (Seven, 2026-10-30).
+  // Fuel: admin carrier_fsc override wins per component (LTL / trailer),
+  // else the rep's 53.9% / 68.9%. Independent of broker rows: the own row
+  // stands on its own, and Reading 1 below hides the broker tariff row
+  // for members when any own row exists.
+  if (markers.get('ace')) {
+    const q = aceRates.aceTireQuote({
+      originCity, destCity, weightLbs: totalWeightLbs,
+      fscLtlPct: aceFuelLtlPct, fscTrailerPct: aceFuelTrailerPct,
+    });
+    if (!q.rate_on_request) {
+      merged.push({
+        rate_id: 'own_ace',
+        carrier_id: 'ace',
+        carrier: 'ACE Courier',
+        service: 'Standard',
+        cost_cad: q.total,
+        retail_cad: q.total,
+        currency: 'CAD',
+        fsc_percent: Math.round(q.fscPercent * 10000) / 100,
+        delivery_days: transit,
+        transit_estimate: true,
+        est_delivery_date: estDeliveryDate(transitDaysUpper(transit)),
+        source: 'own_rate',
+        weight_lbs: totalWeightLbs,
+        billable_weight_lbs: totalWeightLbs,
+        rate_basis: 'ace_tire',
+        rate_kind: 'own',
+        billing: 'carrier_direct',
+        notes: ['Your company rate (ACE Courier Total Tire tire rates)'],
+      });
     }
   }
   // Reading 1 (Seven, 2026-10-29): a portal member sees ONLY their own
@@ -219,6 +259,18 @@ async function seedTotalTireRates() {
      VALUES ($1, 'beeexpress', 'per_tire', $2::jsonb)
      ON CONFLICT (company_id, carrier_id) DO NOTHING`,
     [companyId, JSON.stringify(beePayload)]);
+  const acePayload = {
+    lanes: 249,
+    origins: ['KELOWNA', 'WEST KELOWNA', 'LAKE COUNTRY'],
+    fsc_ltl_pct: 53.9,
+    fsc_trailer_pct: 68.9,
+    source: 'Ace_Rate_sheet_for_Total_Tire_Tire_rates_Oct_30_2026.xlsx (LEFT copy, Seven-confirmed)',
+  };
+  await db.query(
+    `INSERT INTO company_rates (company_id, carrier_id, shape, payload)
+     VALUES ($1, 'ace', 'ace_tire', $2::jsonb)
+     ON CONFLICT (company_id, carrier_id) DO NOTHING`,
+    [companyId, JSON.stringify(acePayload)]);
   await db.query('UPDATE companies SET portal_enabled = TRUE WHERE id = $1', [companyId]);
   return true;
 }
@@ -260,6 +312,7 @@ module.exports = {
   LIVE_LINK_CARRIERS,
   ENGINE_CARRIERS,
   PER_TIRE_CARRIERS,
+  ACE_TIRE_CARRIERS,
   BEE_CORRIDOR: { south: beeRates.SOUTH_TOWNS, north: beeRates.NORTH_TOWNS },
   mergePortalRows,
   getCoverageGap,

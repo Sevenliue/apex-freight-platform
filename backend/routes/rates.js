@@ -693,17 +693,28 @@ router.post('/', async (req, res) => {
   try {
     if (companyOwn) {
       // Bee FSC: admin carrier_fsc override wins, else the PDF 33%.
+      // ACE FSC: admin override wins per component (LTL / trailer),
+      // else the rep's 53.9% / 68.9%.
       // Guarded so a cache-read failure can never take down own rows.
       let beeFuelPct;
+      let aceFuelLtlPct;
+      let aceFuelTrailerPct;
       try {
         const ov = typeof matrix.getFscOverrides === 'function' ? matrix.getFscOverrides().beeexpress : null;
         if (ov && Number.isFinite(Number(ov.ltl))) beeFuelPct = Number(ov.ltl) / 100;
       } catch (_) { beeFuelPct = undefined; }
+      try {
+        const ov = typeof matrix.getFscOverrides === 'function' ? matrix.getFscOverrides().ace : null;
+        if (ov && Number.isFinite(Number(ov.ltl))) aceFuelLtlPct = Number(ov.ltl) / 100;
+        if (ov && Number.isFinite(Number(ov.tl))) aceFuelTrailerPct = Number(ov.tl) / 100;
+      } catch (_) { aceFuelLtlPct = undefined; aceFuelTrailerPct = undefined; }
       const merged = companyRates.mergePortalRows({
         rates,
         markers: companyOwn.carriers,
         bee,
         beeFuelPct,
+        aceFuelLtlPct,
+        aceFuelTrailerPct,
         originCity: origin.city,
         destCity: destination.city,
         totalWeightLbs,
