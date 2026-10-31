@@ -162,8 +162,10 @@ async function prepareOrder(body, effectiveUserId, opts = {}) {
   // Requested pickup date comes from the quote (required at rating time).
   const shipPickupDate = quote.pickup_date || null;
   // Delivery notes: prefer the completion payload, fall back to the quote
-  // (legacy single delivery_notes maps to Box 1).
-  const pickNote = (v, fb) => (v === undefined || v === null) ? String(fb || '') : String(v).slice(0, 60);
+  // (legacy single delivery_notes maps to Box 1). Both branches capped at
+  // 60 chars: legacy delivery_notes was never capped at write time, so an
+  // old long value must not reach the BOL uncapped and push it to page 2.
+  const pickNote = (v, fb) => String((v === undefined || v === null) ? (fb || '') : v).slice(0, 60);
   const shipNote1 = pickNote(delivery_note_1, quote.delivery_note_1 || delivery_notes);
   const shipNote2 = pickNote(delivery_note_2, quote.delivery_note_2);
   const shipPrivateNotes = String(private_notes || quote.private_notes || '').slice(0, 4000);
