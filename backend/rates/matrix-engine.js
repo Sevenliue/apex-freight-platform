@@ -18,6 +18,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { aceTariffQuote } = require('../lib/ace-tariff-rates');
 
 const DATA_FILE = path.join(__dirname, 'matrix-data.json');
 
@@ -3399,6 +3400,21 @@ function quoteMatrix({ originCity, originProv, destCity, destProv, weightLbs, sk
   // proposal workbook. destZip drives the destination congestion
   // accessorial (FSA list); without it, no congestion charge applies.
   for (const q of minimaxLtlQuotes({ originCity: oCity, originProv: oProv, destCity: dCity, destProv: dProv, weightLbs: w, packages, destZip })) quotes.push(q);
+  // ACE Courier General Freight Tariff (public Okanagan–Shuswap rate,
+  // eff. Mar 1 2024 — see lib/ace-tariff-rates.js for the rules).
+  // Gateway-origin BC rating only, 0–500 lb, flat bracket prices + FSC
+  // (admin 'ace' ltl override wins, else the rep's 53.9%). Total Tire's
+  // board is unaffected in code: its ace_tire own row stands on its own
+  // and Reading 1 hides this broker row whenever any own row exists.
+  if ((oProv === 'BC' || oProv === '') && (dProv === 'BC' || dProv === '')) {
+    let aceTariffFsc;
+    try {
+      const ov = _fscOverrides.get('ace');
+      if (ov && Number.isFinite(ov.ltl)) aceTariffFsc = ov.ltl / 100;
+    } catch (_) { aceTariffFsc = undefined; }
+    const q = aceTariffQuote({ originCity: oCity, originProv: oProv, destCity: dCity, destProv: dProv, weightLbs: w, fscLtlPct: aceTariffFsc });
+    if (q) quotes.push(q);
+  }
   quotes.sort((a, b) => a.total_cad - b.total_cad || a.carrier_id.localeCompare(b.carrier_id));
   return dedupeQuotes(quotes).concat(unpriced);
 }
