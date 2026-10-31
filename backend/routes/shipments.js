@@ -1143,13 +1143,13 @@ router.get('/label/:id', async (req, res) => {
   // a forced height — a forced height plus any browser print header
   // pushed the label onto a second sheet — with break-inside: avoid so
   // the browser keeps the whole label on one page when it can. Content is
-  // ~2.5in tall against the 4in label height (barcode 56px + roomier
-  // spacing, Oct 31 2026: the half-blank page was the prime suspect when
-  // the small job skipped one label per job while the full 4x6 page did
-  // not, so the content now fills more of the label), so the browser
-  // print header (~1/3in) no longer risks a spill — but it still doesn't
-  // belong on a label, so "Print headers and footers" should stay off in
-  // the dialog.
+  // ~1.8in tall against the 4in label height, so the browser print header
+  // (~1/3in) no longer risks a spill — but it still doesn't belong on a
+  // label, so "Print headers and footers" should stay off in the dialog.
+  // NOTE Oct 31 2026: a fill-the-page variant (barcode 56px + roomier
+  // spacing, af0ac530) was tried and reverted the same day — it did not
+  // fix the second-label skip, confirming the skip is a printer/driver
+  // setting, not the page content.
   if (req.query.size === '2x4' || req.query.size === '4x2') {
     const poNo = order.receiver_po_no || refs['PO #'] || '';
     const shipToLine = [consignee.name, consignee.street1 || consignee.street,
@@ -1161,13 +1161,13 @@ router.get('/label/:id', async (req, res) => {
 @page { size: 2in 4in; margin: 0; }
 * { box-sizing: border-box; }
 body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #111; }
-.label { width: 2in; padding: 0.15in; break-inside: avoid; page-break-inside: avoid; }
-.carrier { font-size: 13px; font-weight: bold; line-height: 1.3; margin-bottom: 8px; }
+.label { width: 2in; padding: 0.1in; break-inside: avoid; page-break-inside: avoid; }
+.carrier { font-size: 12px; font-weight: bold; line-height: 1.3; margin-bottom: 2px; }
 .pro-label { font-size: 11px; font-weight: bold; letter-spacing: 2px; color: #555; }
 .pro { font-size: 24px; font-weight: bold; letter-spacing: 1px; margin: 1px 0 2px; }
-.pro-barcode { display: block; margin: 6px auto 10px; max-width: 1.7in; height: auto; }
-.ship-to { font-size: 12px; line-height: 1.3; margin-top: 10px; }
-.po { font-size: 13px; font-weight: bold; margin-top: 10px; }
+.pro-barcode { display: block; margin: 0 auto; max-width: 1.7in; height: auto; }
+.ship-to { font-size: 11px; line-height: 1.3; margin-top: 2px; }
+.po { font-size: 12px; font-weight: bold; margin-top: 2px; }
 @media print { .noprint { display: none; } }
 </style></head><body>
 <div class="noprint" style="margin:8px"><button onclick="window.print()">Print</button> <span style="font-size:12px;color:#555">Paper size: 2×4 · In the print dialog, turn off Headers and footers (More settings) — the date/title header and the about:blank footer come from the browser, not this label, and they only disappear with that switch.</span></div>
@@ -1177,7 +1177,7 @@ body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #111; }
 <div class="pro">${escHtml(pro)}</div>
 <svg class="pro-barcode" id="pro-barcode-sm"></svg>
 <!--BARCODE_SCRIPT-->
-<script>if (typeof JsBarcode !== 'undefined') { JsBarcode('#pro-barcode-sm', ${proJson}, { format: 'CODE128', width: 1, height: 56, displayValue: false, margin: 0 }); }</script>
+<script>if (typeof JsBarcode !== 'undefined') { JsBarcode('#pro-barcode-sm', ${proJson}, { format: 'CODE128', width: 1, height: 30, displayValue: false, margin: 0 }); }</script>
 <div class="ship-to"><strong>SHIP TO:</strong> ${escHtml(shipToLine) || '—'}</div>
 ${poNo ? `<div class="po">PO #: ${escHtml(poNo)}</div>` : ''}
 </div></body></html>`;
