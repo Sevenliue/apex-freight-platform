@@ -7,14 +7,16 @@
 //   Part A: 30 fictional inventory items for sevencnca@gmail.com
 //           (idempotent: ON CONFLICT (user_id, sku) DO UPDATE).
 //   Part B: Northline 3PL company (created if missing), portal enabled,
-//           'engine' own-rate rows for northline_transport + express.
+//           'live_link' own-rate rows for northline_transport + express.
 //           Seven's account is linked ONLY when his company_id is NULL —
 //           if he is already in another company the link is skipped by
 //           design, and the report says so (leave that company first,
 //           then re-run; the script is idempotent).
 // Safety: refuses without UAT_SEED=1; never logs connection strings —
 // only the database NAME (no host, user, or password) is printed.
-// It is NOT required by server.js and never runs at boot.
+// The same SQL also runs at boot via lib/uat-boot-seed.js when
+// UAT_SEED_AT_BOOT=1 is set (Shell is blocked on the free Render plan);
+// this script itself never runs at boot.
 'use strict';
 
 const fs = require('fs');

@@ -339,6 +339,23 @@ if (require.main === module) {
         } catch (_) { /* best-effort */ }
       }
     }
+    // One-off UAT seed at boot (Oct 31, 2026): runs ONLY when
+    // UAT_SEED_AT_BOOT=1 is set on this service. Render Shell is blocked
+    // on the free plan, so the seed runs here instead of from the Shell
+    // (see backend/scripts/run-uat-seed.js, the Shell variant, and
+    // backend/lib/uat-boot-seed.js). Same SQL file, same idempotent
+    // statements; shiprate brand only. Remove the var after the run, so
+    // normal boots skip this entirely. A failure is logged and never
+    // stops the server.
+    if (process.env.UAT_SEED_AT_BOOT === '1') {
+      try {
+        const { runUatBootSeed } = require('./lib/uat-boot-seed');
+        const seedReport = await runUatBootSeed({ db, brandName: config.brandName });
+        console.log('[uat-seed] done', JSON.stringify(seedReport));
+      } catch (err) {
+        console.error('[uat-seed] FAILED (continuing boot):', err.message);
+      }
+    }
     app.listen(config.port, () => {
       console.log(
         `ShipRate backend listening on :${config.port} ` +
