@@ -1027,26 +1027,28 @@ router.get('/bol/:id', async (req, res) => {
   const bolHtml = `<!doctype html><html><head><meta charset="utf-8">
 <title>Bill of Lading — ${escHtml(order.tracking_code || order.id)}</title>
 <style>
-body{font-family:Arial,Helvetica,sans-serif;margin:32px;color:#111}
-h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;margin:20px 0 8px;border-bottom:2px solid #111;padding-bottom:4px}
+@page{size:Letter;margin:0.4in}
+body{font-family:Arial,Helvetica,sans-serif;margin:32px;color:#111;font-size:13px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:15px;margin:12px 0 6px;border-bottom:2px solid #111;padding-bottom:4px}
+p{margin:8px 0}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{border:1px solid #999;padding:6px 8px;text-align:left}
+th,td{border:1px solid #999;padding:4px 6px;text-align:left}
 th{background:#eee}.num{text-align:right}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.box{border:1px solid #999;padding:10px;font-size:13px;line-height:1.5}
-.sig{margin-top:28px;display:grid;grid-template-columns:1fr 1fr;gap:32px;font-size:13px}
+.box{border:1px solid #999;padding:8px;font-size:13px;line-height:1.4}
+.sig{margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:32px;font-size:13px}
 .sig div{border-top:1px solid #111;padding-top:6px}
-.note{font-size:12px;color:#555;margin-top:12px}
-@media print{.noprint{display:none}}
+.note{font-size:12px;color:#555;margin-top:10px}
+@media print{body{margin:0}.noprint{display:none}}
 </style></head><body>
 <div class="noprint" style="margin-bottom:16px"><button onclick="window.print()">Print</button></div>
 <h1>Bill of Lading</h1>
 <p>PRO / Reference: <strong>${escHtml(order.tracking_code || order.id)}</strong> &nbsp;·&nbsp;
 Status: <strong>${escHtml(order.status)}</strong> &nbsp;·&nbsp;
 Date: ${escHtml(order.created_at ? new Date(order.created_at).toLocaleDateString('en-CA') : '')}</p>
-<div style="margin:12px 0 4px"><svg id="pro-barcode"></svg></div>
+<div style="margin:8px 0 2px"><svg id="pro-barcode"></svg></div>
 <!--BARCODE_SCRIPT-->
-<script>if (typeof JsBarcode !== 'undefined') { JsBarcode('#pro-barcode', __PRO_JSON__, { format: 'CODE128', width: 2, height: 56, displayValue: true, fontSize: 14, margin: 0 }); }</script>
+<script>if (typeof JsBarcode !== 'undefined') { JsBarcode('#pro-barcode', __PRO_JSON__, { format: 'CODE128', width: 2, height: 44, displayValue: true, fontSize: 12, margin: 0 }); }</script>
 <div class="grid">
 <div><h2>Shipper</h2><div class="box"><strong>${escHtml(shipper.name)}</strong><br>${addr(shipper)}
 ${shipper.phone ? '<br>Tel: ' + escHtml(shipper.phone) : ''}${shipper.email ? '<br>' + escHtml(shipper.email) : ''}</div></div>
