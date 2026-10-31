@@ -601,6 +601,7 @@
           <label class="check"><input type="checkbox" id="cm-add-insurance"> Add cargo insurance to this shipment</label>
           <label>Declared value (CAD $) <input type="number" id="cm-declared-value" min="0" step="1" placeholder="5000"></label>
           <p class="note">Covers loss or damage beyond standard carrier liability: 1% of declared value (minimum $20), added to your total at cost.</p>
+          <p class="note hidden" id="cm-ins-direct-note">Cargo insurance isn't available on carrier-direct bookings yet — the carrier invoices your company directly, so arrange coverage with the carrier.</p>
           <p class="note hidden" id="cm-ins-preview"></p>
           <label class="chk"><input type="checkbox" id="cm-terms"> I agree to the <a href="#" id="cm-terms-link">Terms of Service</a> *</label>
           <label class="chk" id="cm-test-row" style="display:none"><input type="checkbox" id="cm-test"> TEST shipment — marked TEST end to end. No carrier contacted, no real charge.</label>
@@ -3323,6 +3324,16 @@
       $('#cm-private-notes').value = q.private_notes || '';
       $('#cm-add-insurance').checked = !!q.add_insurance;
       $('#cm-declared-value').value = q.insurance_declared || '';
+      // Carrier-direct (company own-rate) bookings can't carry ShipRate
+      // insurance in V1 — the book-direct call drops it silently. Disable
+      // the section with an explanation instead of letting a shipper tick
+      // a box that does nothing (UAT finding, Oct 31 2026).
+      const pickedRate = (currentQuote.rates || []).find((r) => r.rate_id === rateId);
+      const isDirect = !!(pickedRate && pickedRate.billing === 'carrier_direct');
+      $('#cm-add-insurance').disabled = isDirect;
+      if (isDirect) $('#cm-add-insurance').checked = false;
+      $('#cm-declared-value').disabled = isDirect;
+      $('#cm-ins-direct-note').classList.toggle('hidden', !isDirect);
       stagedFiles = [];
       syncNoteCounters();
       syncInsurancePreview();
