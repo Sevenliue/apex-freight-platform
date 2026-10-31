@@ -1085,9 +1085,8 @@ ${(() => { const n = [b.delivery_note_1, b.delivery_note_2].filter(Boolean).map(
 
 // GET /api/shipments/label/:id — printable 4x6 shipping label for a booked
 // shipment: PRO, carrier, shipper/consignee, pieces/weight, a Code 128
-// barcode of the PRO, and a QR code holding the shipment details as plain
-// text (no public tracking page exists yet, so the QR is not a link).
-// Same owner-or-admin guard as BOL.
+// barcode of the PRO, and a QR code linking to the public tracking page
+// (/track/:code). Same owner-or-admin guard as BOL.
 router.get('/label/:id', async (req, res) => {
   if (!req.user) return res.status(401).send('Sign in required.');
   const order = await findOrder(req.params.id);
@@ -1109,13 +1108,18 @@ router.get('/label/:id', async (req, res) => {
   const pkgCount = (b.packages || []).reduce((n, p) => n + (Number(p.qty) || 0), 0);
   const refText = Object.entries(refs).filter(([, v]) => v)
     .map(([k, v]) => ` &nbsp;·&nbsp; ${escHtml(k)}: ${escHtml(v)}`).join('');
-  const qrLines = [
-    `PRO: ${pro}`,
-    `Carrier: ${order.carrier || ''}${order.service ? ' — ' + order.service : ''}`,
-    `From: ${(shipper.name ? shipper.name + ' ' : '') + [shipper.street1 || shipper.street, shipper.city, shipper.state || shipper.province, shipper.zip || shipper.postal].filter(Boolean).join(', ')}`,
-    `To: ${(consignee.name ? consignee.name + ' ' : '') + [consignee.street1 || consignee.street, consignee.city, consignee.state || consignee.province, consignee.zip || consignee.postal].filter(Boolean).join(', ')}`,
-    `Pieces: ${pkgCount || '—'}  Weight: ${b.total_weight_lbs ?? '—'} lb`,
-  ].join('\n');
+  // QR payload: a link to the public tracking page, not plain text —
+  // scanner apps report plain text as "not usable data" because there is
+  // nothing to open. The host comes from the request itself (the label
+  // page was served from this service), so shiprate.ca labels link to
+  // shiprate.ca and Northline labels link to Northline — the order lives
+  // in this service's database, so a cross-service link would 404.
+  const publicOrigin = (req) => {
+    const host = String(req.headers.host || '');
+    if (/^(localhost|127\.0\.0\.1)/.test(host)) return `http://${host}`;
+    return `https://${host}`;
+  };
+  const trackUrl = `${publicOrigin(req)}/track/${encodeURIComponent(pro)}`;
   const labelHtml = `<!doctype html><html><head><meta charset="utf-8">
 <title>Shipping Label — ${escHtml(pro)}</title>
 <style>
@@ -1151,7 +1155,7 @@ body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #111; }
   res.send(labelHtml
     .replace('<!--QR_SCRIPT-->', () => QR_LIB ? `<script>${QR_LIB}</script>` : '')
     .replace('<!--BARCODE_SCRIPT-->', () => BARCODE_LIB ? `<script>${BARCODE_LIB}</script>` : '')
-    .replace('__QR_JSON__', () => JSON.stringify(qrLines))
+    .replace('__QR_JSON__', () => JSON.stringify(trackUrl))
     .replace('__PRO_JSON__', () => JSON.stringify(pro)));
 });
 

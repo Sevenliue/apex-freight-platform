@@ -249,6 +249,12 @@ if (config.siteProfile === 'employer') {
   app.get(['/demo', '/carriers/join', '/request-carrier'], (req, res) => res.redirect('/'));
 }
 
+// Public shipment tracking page (label QR codes link here). Registered
+// before the static + SPA fallback so /track/:code renders the page,
+// not index.html. No auth or approval gate by design — the page shows
+// cities/status only, never PII.
+app.use('/track', require('./routes/tracking-page'));
+
 // Serve the sibling-built static frontend (same origin as the API).
 const FRONTEND_DIR = path.join(__dirname, '..', 'frontend');
 app.use(express.static(FRONTEND_DIR));
