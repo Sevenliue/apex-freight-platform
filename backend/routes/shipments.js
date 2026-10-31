@@ -1135,7 +1135,10 @@ router.get('/label/:id', async (req, res) => {
   // falling back to the BOL reference key ('PO #'). Narrow page, so the
   // barcode uses width 1 (a 10-char CODE128 is 145 modules = 145px, which
   // fits the 1.7in content width; width 2 would overflow it) and the PRO
-  // sits at 24px.
+  // sits at 24px. Fit fix (Oct 31 2026): the box is content-height, NOT
+  // a forced 4in — a forced height plus any browser print header pushed
+  // the label onto a second sheet — with break-inside: avoid so the
+  // browser keeps the whole label on one page when it can.
   if (req.query.size === '2x4' || req.query.size === '4x2') {
     const poNo = order.receiver_po_no || refs['PO #'] || '';
     const shipToLine = [consignee.name, consignee.street1 || consignee.street,
@@ -1147,12 +1150,12 @@ router.get('/label/:id', async (req, res) => {
 @page { size: 2in 4in; margin: 0; }
 * { box-sizing: border-box; }
 body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #111; }
-.label { width: 2in; height: 4in; padding: 0.15in; }
-.carrier { font-size: 12px; font-weight: bold; line-height: 1.3; margin-bottom: 4px; }
+.label { width: 2in; padding: 0.1in; break-inside: avoid; page-break-inside: avoid; }
+.carrier { font-size: 12px; font-weight: bold; line-height: 1.3; margin-bottom: 2px; }
 .pro-label { font-size: 11px; font-weight: bold; letter-spacing: 2px; color: #555; }
 .pro { font-size: 24px; font-weight: bold; letter-spacing: 1px; margin: 1px 0 2px; }
-.pro-barcode { display: block; margin: 2px auto 0; max-width: 1.7in; height: auto; }
-.ship-to { font-size: 11px; line-height: 1.3; margin-top: 4px; }
+.pro-barcode { display: block; margin: 0 auto; max-width: 1.7in; height: auto; }
+.ship-to { font-size: 11px; line-height: 1.3; margin-top: 2px; }
 .po { font-size: 12px; font-weight: bold; margin-top: 2px; }
 @media print { .noprint { display: none; } }
 </style></head><body>
