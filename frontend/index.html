@@ -3716,6 +3716,11 @@
       }
     }
 
+    // Pickup dates are date-only values stored as UTC-midnight timestamps
+    // (e.g. 2026-10-31T00:00:00.000Z for a pickup booked as Oct 31). Render
+    // them with slice(0, 10), NOT dateStr()/toLocaleDateString(): the latter
+    // shifts the date back a day in Edmonton time (UTC midnight Oct 31 is
+    // Oct 30, 6pm MDT). Same rule in the admin queue and tender queue below.
     function renderPickups(box, pickups) {
       if (!pickups.length) {
         box.innerHTML = '<div class="card empty">No pickup requests yet.</div>';
@@ -3725,7 +3730,7 @@
         <div class="card" style="margin-bottom:10px">
           <div><strong>${esc(p.order_ref || 'Shipment')}</strong>
             <span class="badge">${esc(PICKUP_STATUS_LABELS[p.status] || p.status)}</span>${p.test_mode ? ' <span class="badge">TEST</span>' : ''}</div>
-          <div class="muted">${esc(p.pickup_date || '')} · ${esc(p.time_window_label || p.time_window || '')}</div>
+          <div class="muted">${esc((p.pickup_date || '').slice(0, 10))} · ${esc(p.time_window_label || p.time_window || '')}</div>
           ${p.contact_name ? `<div>Contact: ${esc(p.contact_name)}${p.contact_phone ? ' · ' + esc(p.contact_phone) : ''}</div>` : ''}
           ${p.notes ? `<div class="muted">${esc(p.notes)}</div>` : ''}
           ${p.status === 'requested' ? `<div class="actions" style="margin-top:8px"><button type="button" class="btn" data-pickup-cancel="${esc(p.id)}">Cancel request</button></div>` : ''}
@@ -4387,7 +4392,7 @@
           </tr></thead><tbody>${pickups
             .map(
               (p) => `<tr>
-              <td>${esc(p.pickup_date || '—')}</td>
+              <td>${esc((p.pickup_date || '').slice(0, 10) || '—')}</td>
               <td>${esc(winLabel[p.time_window] || p.time_window || '—')}</td>
               <td>${esc(p.order_ref || '—')}${p.carrier ? '<br>' + esc(p.carrier) : ''}${p.test_mode ? '<br><span class="badge">TEST</span>' : ''}</td>
               <td>${esc(p.user_email || '—')}</td>
@@ -5421,7 +5426,7 @@
             .map(
               (t) => `<tr>
               <td>${esc((t.created_at || '').slice(0, 10))}</td>
-              <td><strong>${esc(t.pickup_date || '—')}</strong></td>
+              <td><strong>${esc((t.pickup_date || '').slice(0, 10) || '—')}</strong></td>
               <td><strong>${esc(t.tracking_code || '—')}</strong><br><a href="${esc(t.bol_url)}" target="_blank" rel="noopener">BOL</a> · <a href="${esc(t.bol_url.replace('/bol/', '/label/'))}" target="_blank" rel="noopener">4×6 Label</a> · <a href="${esc(t.bol_url.replace('/bol/', '/label/') + '?size=2x4')}" target="_blank" rel="noopener">2×4 Label</a></td>
               <td>${esc(t.route || '—')}</td>
               <td>${esc(t.carrier || '—')}</td>
