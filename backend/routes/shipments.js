@@ -1119,14 +1119,14 @@ router.get('/label/:id', async (req, res) => {
 @page { size: 4in 6in; margin: 0; }
 * { box-sizing: border-box; }
 body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #111; }
-.label { width: 4in; height: 6in; padding: 0.25in; }
-.carrier { font-size: 20px; font-weight: bold; }
-.pro { font-size: 34px; font-weight: bold; letter-spacing: 1px; margin: 8px 0; }
-#label-qr { text-align: center; margin: 8px 0; }
-#label-qr img { max-width: 3.2in; height: auto; }
-.addr { font-size: 14px; line-height: 1.4; margin: 8px 0; }
-.meta { font-size: 13px; margin-top: 8px; }
-.note { font-size: 11px; color: #555; margin-top: 10px; }
+.label { width: 4in; height: 6in; padding: 0.2in; }
+.carrier { font-size: 18px; font-weight: bold; }
+.pro { font-size: 30px; font-weight: bold; letter-spacing: 1px; margin: 6px 0; }
+#label-qr { text-align: center; margin: 6px 0; }
+#label-qr img { max-width: 2.2in; height: auto; }
+.addr { font-size: 13px; line-height: 1.35; margin: 6px 0; }
+.meta { font-size: 12.5px; margin-top: 6px; }
+.note { font-size: 11px; color: #555; margin-top: 6px; }
 @media print { .noprint { display: none; } }
 </style></head><body>
 <div class="noprint" style="margin:8px"><button onclick="window.print()">Print</button></div>
