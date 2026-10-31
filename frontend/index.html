@@ -3065,7 +3065,8 @@
       const overlay = document.createElement('div');
       overlay.className = 'modal-overlay';
       overlay.innerHTML = `
-        <div class="modal card" role="dialog" aria-modal="true" aria-label="Terms of Service">
+        <div class="modal-card wide" role="dialog" aria-modal="true" aria-label="Terms of Service">
+          <button type="button" class="modal-close" aria-label="Close">×</button>
           <h2>Terms of Service</h2>
           <div class="terms-body">
             <p><strong>1. What ShipRate does.</strong> ShipRate arranges transportation of your goods through third-party carriers. The carrier you select performs the actual pickup, transport, and delivery.</p>
@@ -3083,6 +3084,7 @@
         </div>`;
       overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
       overlay.querySelector('#terms-close').addEventListener('click', () => overlay.remove());
+      overlay.querySelector('.modal-close').addEventListener('click', () => overlay.remove());
       document.body.appendChild(overlay);
     }
 
@@ -3154,7 +3156,8 @@
         const overlay = document.createElement('div');
         overlay.className = 'modal-overlay';
         overlay.innerHTML = `
-        <div class="modal card" role="dialog" aria-modal="true" aria-label="Save quote">
+        <div class="modal-card wide" role="dialog" aria-modal="true" aria-label="Save quote">
+          <button type="button" class="modal-close" aria-label="Close">×</button>
           <h2>Save this quote</h2>
           <div class="form-grid single">
             <label>Quote name
@@ -3170,6 +3173,7 @@
         const input = overlay.querySelector('#sq-name');
         overlay.addEventListener('click', (e) => { if (e.target === overlay) done(null); });
         overlay.querySelector('#sq-cancel').addEventListener('click', () => done(null));
+        overlay.querySelector('.modal-close').addEventListener('click', () => done(null));
         overlay.querySelector('#sq-ok').addEventListener('click', () => done(input.value.trim()));
         input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(input.value.trim()); });
         document.body.appendChild(overlay);
