@@ -9,7 +9,7 @@
   <meta property="og:type" content="website">
   <title>ShipRate — Instant LTL Freight Quotes</title>
   <link rel="icon" type="image/webp" href="/img/logo.webp">
-  <link rel="stylesheet" href="/styles.css?v=20261031">
+  <link rel="stylesheet" href="/styles.css?v=20261031b">
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer></script>
 </head>
@@ -601,7 +601,7 @@
           <label class="check"><input type="checkbox" id="cm-add-insurance"> Add cargo insurance to this shipment</label>
           <label>Declared value (CAD $) <input type="number" id="cm-declared-value" min="0" step="1" placeholder="5000"></label>
           <p class="note">Covers loss or damage beyond standard carrier liability: 1% of declared value (minimum $20), added to your total at cost.</p>
-          <p class="note hidden" id="cm-ins-direct-note">Cargo insurance isn't available on carrier-direct bookings yet — the carrier invoices your company directly, so arrange coverage with the carrier.</p>
+          <p class="note hidden ins-warn" id="cm-ins-direct-note">Cargo insurance isn't available on carrier-direct bookings yet — the carrier invoices your company directly, so arrange coverage with the carrier.</p>
           <p class="note hidden" id="cm-ins-preview"></p>
           <label class="chk"><input type="checkbox" id="cm-terms"> I agree to the <a href="#" id="cm-terms-link">Terms of Service</a> *</label>
           <label class="chk" id="cm-test-row" style="display:none"><input type="checkbox" id="cm-test"> TEST shipment — marked TEST end to end. No carrier contacted, no real charge.</label>
@@ -2597,6 +2597,25 @@
       document.body.appendChild(overlay);
     }
 
+    /* Carrier-direct insurance popup: when a shipper tries to tick insurance
+       on a carrier-direct row, explain why it isn't available instead of
+       silently ignoring the tick. The message is highlighted (amber box). */
+    function showDirectInsurancePopup() {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      overlay.innerHTML =
+        '<div class="modal-card wide" role="alertdialog" aria-modal="true" aria-label="Cargo insurance unavailable">' +
+        '<button type="button" class="modal-close" aria-label="Close">×</button>' +
+        '<h3>Cargo insurance unavailable</h3>' +
+        '<p class="ins-warn">Cargo insurance isn\'t available on carrier-direct bookings yet — the carrier invoices your company directly, so arrange coverage with the carrier.</p>' +
+        '<div class="actions"><button type="button" class="btn primary">OK</button></div></div>';
+      const close = () => overlay.remove();
+      overlay.querySelector('.modal-close').addEventListener('click', close);
+      overlay.querySelector('.btn').addEventListener('click', close);
+      overlay.addEventListener('click', (ev) => { if (ev.target === overlay) close(); });
+      document.body.appendChild(overlay);
+    }
+
     /* Prime shipping location: the account's default address. On outbound it
        auto-fills the shipper block, on inbound the consignee block. Fields
        stay changeable — a manual edit stops future prime fills for that field. */
@@ -3325,13 +3344,17 @@
       $('#cm-add-insurance').checked = !!q.add_insurance;
       $('#cm-declared-value').value = q.insurance_declared || '';
       // Carrier-direct (company own-rate) bookings can't carry ShipRate
-      // insurance in V1 — the book-direct call drops it silently. Disable
-      // the section with an explanation instead of letting a shipper tick
-      // a box that does nothing (UAT finding, Oct 31 2026).
+      // insurance in V1 — the book-direct call drops it silently. The box
+      // stays clickable so the attempt itself teaches: clicking it on a
+      // direct row pops the highlighted explanation instead of ticking
+      // (UAT refinement, Oct 31 2026).
       const pickedRate = (currentQuote.rates || []).find((r) => r.rate_id === rateId);
       const isDirect = !!(pickedRate && pickedRate.billing === 'carrier_direct');
-      $('#cm-add-insurance').disabled = isDirect;
+      $('#cm-add-insurance').disabled = false;
       if (isDirect) $('#cm-add-insurance').checked = false;
+      $('#cm-add-insurance').onclick = (e) => {
+        if (isDirect) { e.preventDefault(); showDirectInsurancePopup(); }
+      };
       $('#cm-declared-value').disabled = isDirect;
       $('#cm-ins-direct-note').classList.toggle('hidden', !isDirect);
       stagedFiles = [];
