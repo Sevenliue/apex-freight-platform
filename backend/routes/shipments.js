@@ -1085,12 +1085,13 @@ ${(() => { const n = [b.delivery_note_1, b.delivery_note_2].filter(Boolean).map(
 });
 
 
-// GET /api/shipments/label/:id — printable 4x6 shipping label for a booked
-// shipment: PRO, carrier, shipper/consignee, pieces/weight, a Code 128
-// barcode of the PRO, and a QR code linking to the public tracking page
-// (/track/:code). Layout: barcode under the PRO at the top, QR at the
-// bottom — the address block between them keeps scanners from catching
-// both codes at once. Same owner-or-admin guard as BOL.
+// GET /api/shipments/label/:id — printable 4x6 shipping labels for a booked
+// shipment, ONE PAGE PER PIECE (each "Piece X of N" with its piece weight;
+// PRO, barcode and tracking QR shared). ?size=4x2 renders a compact 4x2
+// PRO label instead: PRO number + barcode + ship-to + PO only, no QR.
+// Layout: barcode under the PRO at the top, QR at the bottom — the
+// address block between them keeps scanners from catching both codes at
+// once. Same owner-or-admin guard as BOL.
 router.get('/label/:id', async (req, res) => {
   if (!req.user) return res.status(401).send('Sign in required.');
   const order = await findOrder(req.params.id);
@@ -1124,6 +1125,101 @@ router.get('/label/:id', async (req, res) => {
     return `https://${host}`;
   };
   const trackUrl = `${publicOrigin(req)}/track/${encodeURIComponent(pro)}`;
+  const proJson = JSON.stringify(pro);
+  const trackJson = JSON.stringify(trackUrl);
+
+  // Compact 4x2 PRO label (?size=4x2): PRO number + barcode + ship-to +
+  // PO only. One page, no QR, no weights, no carrier — a carton/pouch
+  // identifier. PO comes from the order field, falling back to the BOL
+  // reference key ('PO #').
+  if (req.query.size === '4x2') {
+    const poNo = order.receiver_po_no || refs['PO #'] || '';
+    const shipToLine = [consignee.name, consignee.street1 || consignee.street,
+      [consignee.city, consignee.state || consignee.province].filter(Boolean).join(', '),
+      consignee.zip || consignee.postal].filter(Boolean).join(', ');
+    const smallHtml = `<!doctype html><html><head><meta charset="utf-8">
+<title>PRO Label — ${escHtml(pro)}</title>
+<style>
+@page { size: 4in 2in; margin: 0; }
+* { box-sizing: border-box; }
+body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #111; }
+.label { width: 4in; height: 2in; padding: 0.15in; }
+.pro-label { font-size: 11px; font-weight: bold; letter-spacing: 2px; color: #555; }
+.pro { font-size: 26px; font-weight: bold; letter-spacing: 1px; margin: 1px 0 2px; }
+.pro-barcode { display: block; margin: 2px auto 0; max-width: 3.6in; height: auto; }
+.ship-to { font-size: 11px; line-height: 1.3; margin-top: 4px; }
+.po { font-size: 12px; font-weight: bold; margin-top: 2px; }
+@media print { .noprint { display: none; } }
+</style></head><body>
+<div class="noprint" style="margin:8px"><button onclick="window.print()">Print</button></div>
+<div class="label">
+<div class="pro-label">PRO NUMBER</div>
+<div class="pro">${escHtml(pro)}</div>
+<svg class="pro-barcode" id="pro-barcode-sm"></svg>
+<!--BARCODE_SCRIPT-->
+<script>if (typeof JsBarcode !== 'undefined') { JsBarcode('#pro-barcode-sm', ${proJson}, { format: 'CODE128', width: 2, height: 30, displayValue: false, margin: 0 }); }</script>
+<div class="ship-to"><strong>SHIP TO:</strong> ${escHtml(shipToLine) || '—'}</div>
+${poNo ? `<div class="po">PO #: ${escHtml(poNo)}</div>` : ''}
+</div></body></html>`;
+    return res.send(smallHtml
+      .replace('<!--BARCODE_SCRIPT-->', () => BARCODE_LIB ? `<script>${BARCODE_LIB}</script>` : ''));
+  }
+
+  // One 4x6 page per physical piece. Row weight is the row total (the
+  // rating total and the frontend total both sum weight_lb without qty),
+  // so each piece of a row weighs row weight / qty. PRO, barcode and
+  // tracking QR are identical on every piece; only the piece line and
+  // piece description differ. A single-piece shipment prints exactly the
+  // old one-page label (no "Piece 1 of 1" line).
+  const fmtW = (w) => String(Math.round(w * 100) / 100);
+  const pieceDesc = (p) => {
+    const parts = [];
+    if (p.package_type) parts.push(escHtml(p.package_type));
+    if (p.product_name) parts.push(escHtml(p.product_name));
+    if (p.length != null && p.length !== '' && p.width != null && p.width !== '' && p.height != null && p.height !== '') {
+      parts.push(`${p.length}×${p.width}×${p.height} in`);
+    }
+    return parts.join(' &nbsp;·&nbsp; ');
+  };
+  const rows = (b.packages || []).filter((p) => p);
+  const pieces = [];
+  rows.forEach((p) => {
+    const qty = Math.max(1, Math.floor(Number(p.qty) || 1));
+    for (let k = 0; k < qty; k++) pieces.push(p);
+  });
+  const totalPieces = pieces.length;
+  const pieceBlock = (p, i) => {
+    const qty = p ? Math.max(1, Math.floor(Number(p.qty) || 1)) : 1;
+    const pieceW = p ? fmtW((Number(p.weight_lb) || 0) / qty) : '';
+    const pieceHead = totalPieces > 1
+      ? `<div class="piece">Piece ${i + 1} of ${totalPieces} &nbsp;·&nbsp; ${pieceW} lb</div>`
+      : '';
+    let metaLine;
+    if (p && totalPieces > 1) {
+      const bits = [];
+      const d = pieceDesc(p);
+      if (d) bits.push(d);
+      Object.entries(refs).filter(([, v]) => v).forEach(([k, v]) => bits.push(`${escHtml(k)}: ${escHtml(v)}`));
+      metaLine = bits.join(' &nbsp;·&nbsp; ') || '—';
+    } else {
+      metaLine = `Pieces: <strong>${pkgCount || '—'}</strong> &nbsp;·&nbsp; Weight: <strong>${b.total_weight_lbs ?? '—'} lb</strong>${refText}`;
+    }
+    return `<div class="label">
+<div class="carrier">${escHtml(order.carrier)}${order.service ? ' — ' + escHtml(order.service) : ''}</div>
+<div class="pro-label">PRO NUMBER</div>
+<div class="pro">${escHtml(pro)}</div>
+<svg class="pro-barcode" id="pro-barcode-${i}"></svg>
+<script>if (typeof JsBarcode !== 'undefined') { JsBarcode('#pro-barcode-${i}', ${proJson}, { format: 'CODE128', width: 2, height: 36, displayValue: false, margin: 0 }); }</script>
+${pieceHead}
+<div class="addr"><strong>FROM</strong><br>${shipper.name ? escHtml(shipper.name) + '<br>' : ''}${addrL(shipper)}</div>
+<div class="addr"><strong>TO</strong><br>${consignee.name ? escHtml(consignee.name) + '<br>' : ''}${addrL(consignee)}</div>
+<div class="meta">${metaLine}</div>
+<div class="label-qr" id="label-qr-${i}"></div>
+<script>if (typeof qrcode !== 'undefined') { var qr = qrcode(0, 'M'); qr.addData(${trackJson}); qr.make(); document.getElementById('label-qr-${i}').innerHTML = qr.createImgTag(4, 8); }</script>
+<p class="note">Generated by ShipRate. Scan the QR code for the shipment details.</p>
+</div>`;
+  };
+  const labels = totalPieces ? pieces.map(pieceBlock).join('') : pieceBlock(null, 0);
   const labelHtml = `<!doctype html><html><head><meta charset="utf-8">
 <title>Shipping Label — ${escHtml(pro)}</title>
 <style>
@@ -1134,35 +1230,24 @@ body { font-family: Arial, Helvetica, sans-serif; margin: 0; color: #111; }
 .carrier { font-size: 18px; font-weight: bold; }
 .pro-label { font-size: 12px; font-weight: bold; letter-spacing: 2px; color: #555; margin: 6px 0 0; }
 .pro { font-size: 30px; font-weight: bold; letter-spacing: 1px; margin: 2px 0 6px; }
-#pro-barcode { display: block; margin: 4px auto 0; max-width: 3.4in; height: auto; }
-#label-qr { text-align: center; margin: 10px 0 6px; }
-#label-qr img { max-width: 1.7in; height: auto; }
+.pro-barcode { display: block; margin: 4px auto 0; max-width: 3.4in; height: auto; }
+.piece { font-size: 16px; font-weight: bold; margin: 4px 0; }
+.label-qr { text-align: center; margin: 10px 0 6px; }
+.label-qr img { max-width: 1.5in; height: auto; }
 .addr { font-size: 13px; line-height: 1.3; margin: 4px 0; }
 .meta { font-size: 12.5px; margin-top: 4px; }
 .note { font-size: 11px; color: #555; margin-top: 4px; }
-@media print { .noprint { display: none; } }
+@media print { .noprint { display: none; } .label { break-after: page; page-break-after: always; } .label:last-child { break-after: auto; page-break-after: auto; } }
+@media screen { .label { margin: 0 auto 16px; border: 1px solid #ccc; } }
 </style></head><body>
 <div class="noprint" style="margin:8px"><button onclick="window.print()">Print</button></div>
-<div class="label">
-<div class="carrier">${escHtml(order.carrier)}${order.service ? ' — ' + escHtml(order.service) : ''}</div>
-<div class="pro-label">PRO NUMBER</div>
-<div class="pro">${escHtml(pro)}</div>
-<svg id="pro-barcode"></svg>
 <!--BARCODE_SCRIPT-->
-<script>if (typeof JsBarcode !== 'undefined') { JsBarcode('#pro-barcode', __PRO_JSON__, { format: 'CODE128', width: 2, height: 36, displayValue: false, margin: 0 }); }</script>
-<div class="addr"><strong>FROM</strong><br>${shipper.name ? escHtml(shipper.name) + '<br>' : ''}${addrL(shipper)}</div>
-<div class="addr"><strong>TO</strong><br>${consignee.name ? escHtml(consignee.name) + '<br>' : ''}${addrL(consignee)}</div>
-<div class="meta">Pieces: <strong>${pkgCount || '—'}</strong> &nbsp;·&nbsp; Weight: <strong>${b.total_weight_lbs ?? '—'} lb</strong>${refText}</div>
-<div id="label-qr"></div>
 <!--QR_SCRIPT-->
-<script>if (typeof qrcode !== 'undefined') { var qr = qrcode(0, 'M'); qr.addData(__QR_JSON__); qr.make(); document.getElementById('label-qr').innerHTML = qr.createImgTag(4, 8); }</script>
-<p class="note">Generated by ShipRate. Scan the QR code for the shipment details.</p>
-</div></body></html>`;
+${labels}
+</body></html>`;
   res.send(labelHtml
     .replace('<!--QR_SCRIPT-->', () => QR_LIB ? `<script>${QR_LIB}</script>` : '')
-    .replace('<!--BARCODE_SCRIPT-->', () => BARCODE_LIB ? `<script>${BARCODE_LIB}</script>` : '')
-    .replace('__QR_JSON__', () => JSON.stringify(trackUrl))
-    .replace('__PRO_JSON__', () => JSON.stringify(pro)));
+    .replace('<!--BARCODE_SCRIPT-->', () => BARCODE_LIB ? `<script>${BARCODE_LIB}</script>` : ''));
 });
 
 // Exported for the Stripe webhook: finalize a paid shipment order.
